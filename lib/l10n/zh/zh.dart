@@ -33,11 +33,13 @@ import 'stickers.dart';
 import 'widget_screen.dart';
 import 'hour_ranks.dart';
 import 'login_methods.dart';
+import 'chat_pins.dart';
 
 const Map<String, String> kZhStrings = {
   ...dateHelpersZh,
   ...hourRanksZh,
   ...loginMethodsZh,
+  ...chatPinsZh,
   ...smallAZh,
   ...smallBZh,
   ...smallCZh,

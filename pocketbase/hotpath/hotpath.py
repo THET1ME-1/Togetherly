@@ -99,6 +99,11 @@ ONLINE_WINDOW_MS = 25 * 1000
 # заранее, а переключение остаётся отдельным движением, которое можно отменить.
 GROUPS_SRC = os.environ.get("HOTPATH_GROUPS", "sqlite")
 
+# Что не автор может править в чужом сообщении чата: реакции, отметки
+# «послушал» и «посмотрел», сердечки на фигурке и закрепление (закрепить
+# может любой из пары). Остальное правит только автор.
+ЧАТ_ЧУЖОЕ_МОЖНО = frozenset({"reactions", "voice_heard_at", "note_seen_at", "note_hearts", "pinned_at", "pinned_by", "id"})
+
 # Типы колонок: text | num | bool | json | auto (updated, ведём сами).
 COLLECTIONS = {
     "canvas_strokes": {
@@ -131,6 +136,8 @@ COLLECTIONS = {
             "deliver_at": "num",
             # Запись о звонке в комнате или лентах: длительность, мс.
             "call_ms": "num",
+            # Закреплено (06.11.2026): когда, epoch-ms (0 — нет), и кем.
+            "pinned_at": "num", "pinned_by": "text",
         },
         # Сообщение «к утру» (28.09.2026): пока deliver_at в будущем, его видит
         # только автор, партнёру оно не рассылается и пуш не уходит. Выпускает
@@ -138,7 +145,7 @@ COLLECTIONS = {
         "hold": ("deliver_at", "user_uid"),
         "sortable": {"ts", "updated", "id"},
         "filterable": {"id", "group_id", "user_uid", "deleted", "ts", "updated",
-                       "text", "voice_url", "note_url", "pin_id"},
+                       "text", "voice_url", "note_url", "pin_id", "pinned_at"},
         # Поиск по переписке: `text ~ 'слово'` → ILIKE внутри своей пары.
         "searchable": {"text"},
         "create_owner_field": None,
@@ -4569,8 +4576,8 @@ async def update_record(col: str, rid: str, request: Request):
                 if str(m) not in текущий:
                     return _err(403, "cannot add members directly")
 
-    # Страж чата (перенос chat_guard.pb.js): не-автор правит только реакции
-    # и отметку «послушал». Смотрим ТЕЛО запроса, как и хук.
+    # Страж чата (перенос chat_guard.pb.js): не-автор правит только поля из
+    # ЧАТ_ЧУЖОЕ_МОЖНО. Смотрим ТЕЛО запроса, как и хук.
     if meta["guard"] == "chat":
         async with pg.acquire() as c:
             author = await c.fetchval(
@@ -4578,8 +4585,7 @@ async def update_record(col: str, rid: str, request: Request):
             )
         if author and author != uid:
             for f in body:
-                if f not in ("reactions", "voice_heard_at", "note_seen_at",
-                             "note_hearts", "id"):
+                if f not in ЧАТ_ЧУЖОЕ_МОЖНО:
                     return _err(403, "only the author can edit this message")
 
     # Страж желаний (перенос wishes_guard.pb.js): не-автор только ставит

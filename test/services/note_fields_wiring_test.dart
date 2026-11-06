@@ -59,7 +59,9 @@ void main() {
 
   test('смотрящему открыты только отметка просмотра и сердечки', () {
     final src = File('pocketbase/hotpath/hotpath.py').readAsStringSync();
-    final guard = src.split('if meta["guard"] == "chat":')[1].split('return _err(403')[0];
+    // Страж чата читает список полей из ЧАТ_ЧУЖОЕ_МОЖНО (06.11.2026).
+    expect(src.split('if meta["guard"] == "chat":')[1].split('return _err(403')[0], contains('ЧАТ_ЧУЖОЕ_МОЖНО'));
+    final guard = src.split('ЧАТ_ЧУЖОЕ_МОЖНО = ')[1].split('\n')[0];
     expect(guard, contains('note_seen_at'));
     expect(guard, contains('note_hearts'));
     // Ссылку на файл и форму чужой правит только автор.

@@ -55,6 +55,7 @@ import 'l10n/dict/profile_screen.dart';
 import 'l10n/dict/ranks.dart';
 import 'l10n/dict/hour_ranks.dart';
 import 'l10n/dict/login_methods.dart';
+import 'l10n/dict/chat_pins.dart';
 import 'l10n/dict/relationship_status_screen.dart';
 import 'l10n/dict/setup.dart';
 import 'l10n/dict/timer_card.dart';
@@ -139,6 +140,7 @@ const Map<String, Map<String, String>> _kSectionStrings = {
   ...ranksStrings,
   ...hourRanksStrings,
   ...loginMethodsStrings,
+  ...chatPinsStrings,
   ...relationshipStatusScreenStrings,
   ...setupStrings,
   ...timerCardStrings,

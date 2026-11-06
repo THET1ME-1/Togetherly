@@ -83,6 +83,12 @@ class ChatMsg {
   /// чтобы сборки без этого поля показали его обычной репликой.
   final int? callMs;
 
+  /// Закреплено в чате пары (06.11.2026): когда (epoch-ms) и кем. Закрепить
+  /// может любой из двоих, поэтому оба поля пускают и не автора. Не путать
+  /// с [pinId]: тот — прикреплённое воспоминание.
+  final int? pinnedAt;
+  final String? pinnedBy;
+
   const ChatMsg({
     required this.id,
     required this.uid,
@@ -115,9 +121,13 @@ class ChatMsg {
     this.noteHearts,
     this.deliverAt,
     this.callMs,
+    this.pinnedAt,
+    this.pinnedBy,
   });
 
   bool get isCall => (callMs ?? 0) > 0;
+
+  bool get isPinned => (pinnedAt ?? 0) > 0;
 
   /// Голосовое сообщение или null, если это обычный текст.
   VoiceNote? get voice =>
@@ -216,6 +226,8 @@ class ChatMsg {
       noteThumb: nz(m['note_thumb']),
       noteSeenAt: nzInt(m['note_seen_at']),
       noteHearts: nz(m['note_hearts']),
+      pinnedAt: nzInt(m['pinned_at']),
+      pinnedBy: nz(m['pinned_by']),
     );
   }
 }

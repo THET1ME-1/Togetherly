@@ -14,6 +14,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../models/call_record.dart';
 import '../models/chat_msg.dart';
+import '../models/chat_pins.dart';
 import '../models/chat_open_position.dart';
 import '../models/chat_mention.dart';
 import '../models/memory.dart';
@@ -40,6 +41,7 @@ import '../services/note_recorder_service.dart';
 import '../services/voice_recorder_service.dart';
 import '../widgets/avatar_widget.dart';
 import '../widgets/chat/bottom_stick.dart';
+import '../widgets/chat/pinned_bar.dart';
 import '../widgets/chat/send_mic_button.dart';
 import '../dict_strings.dart' show trKey;
 import '../widgets/chat/voice_bubble.dart';
@@ -49,6 +51,7 @@ import '../widgets/chat/bubble_looks.dart';
 import '../widgets/chat/chat_look_sheet.dart';
 import '../widgets/chat/reaction_art.dart';
 import '../widgets/memory_save/floating_note.dart';
+import 'chat/chat_pinned_screen.dart';
 import 'chat/chat_search_screen.dart';
 import '../widgets/app_sheet.dart';
 import '../models/chat_reaction.dart';
@@ -187,6 +190,12 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// Сообщение, на которое отвечаем (null — обычная отправка).
   ChatMsg? _replyingTo;
+
+  /// Закреплённые с сервера: давние, которых нет в ленте (`pinnedMessages`).
+  List<ChatMsg> _serverPins = const [];
+
+  /// Какое закреплённое показывает полоска (`pinBarIndex`), null — новое.
+  int? _pinIndex;
 
   /// «Печатает…»: таймер авто-сброса и троттлинг пингов.
   Timer? _typingStopTimer;
@@ -365,6 +374,7 @@ class _ChatScreenState extends State<ChatScreen> {
     PbPushService.activeChatGroupId = _groupId;
     unawaited(_loadPartnerPlus());
     _messagesStream = _chat.watchMessages(_groupId, limit: _limit);
+    unawaited(_loadPins());
     _captureUnreadAnchor();
     _watchPartnerReads();
     _chat.ensureMember(_groupId);
@@ -722,6 +732,108 @@ class _ChatScreenState extends State<ChatScreen> {
       await WidgetsBinding.instance.endOfFrame;
     }
     _scrollToMessage(m.id);
+  }
+
+  // ── Закреплённые ────────────────────────────────────────────────────────────
+
+  Future<void> _loadPins() async {
+    final r = await PbDataService().pinnedChat(_groupId);
+    if (!mounted || r == null) return;
+    setState(() => _serverPins = r);
+  }
+
+  List<ChatMsg> get _chatPins => pinnedMessages(_serverPins, _lastMessages);
+
+  /// Закрепить или открепить из меню сообщения. Полоска после этого снова
+  /// показывает самое новое закреплённое.
+  Future<void> _togglePin(ChatMsg msg) async {
+    if (msg.isPinned) return _unpin(msg);
+    HapticFeedback.lightImpact();
+    setState(() => _pinIndex = null);
+    await _chat.setPinned(msg.id, true);
+  }
+
+  Future<void> _unpin(ChatMsg msg) async {
+    setState(() {
+      _serverPins = [for (final m in _serverPins) if (m.id != msg.id) m];
+      _pinIndex = null;
+    });
+    await _chat.setPinned(msg.id, false);
+  }
+
+  /// Касание по полоске: к сообщению, а полоска — к предыдущему закреплённому.
+  Future<void> _onPinBarTap(List<ChatMsg> pins, int index) async {
+    setState(() => _pinIndex = pinBarNext(index, pins.length));
+    await _jumpTo(pins[index]);
+  }
+
+  Future<void> _openPinned() async {
+    final found = await Navigator.of(context).push<ChatMsg>(MaterialPageRoute(
+      builder: (_) => Theme(
+        data: ProfileTheme.themeFor(_t),
+        child: ChatPinnedScreen(
+          pinned: _chatPins,
+          myUid: _myUid,
+          partnerName: widget.pairData.partnerDisplayName,
+          quoteOf: _quoteOf,
+          onUnpin: _unpin,
+        ),
+      ),
+      settings: const RouteSettings(name: '/chat_pinned'),
+    ));
+    if (found == null || !mounted) return;
+    await _jumpTo(found);
+  }
+
+  Widget _buildPinnedBar() {
+    final pins = _chatPins;
+    final index = pinBarIndex(_pinIndex, pins.length);
+    if (index < 0) return const SizedBox.shrink();
+    return Theme(
+      data: ProfileTheme.themeFor(_t),
+      child: PinnedBar(
+        index: index,
+        count: pins.length,
+        preview: _quoteOf(pins[index]).replaceAll('\n', ' '),
+        onTap: () => _onPinBarTap(pins, index),
+        onOpenAll: _openPinned,
+      ),
+    );
+  }
+
+  /// Строка «Вы закрепили…» в ленте. Касание ведёт к самому сообщению.
+  Widget _buildPinNote(ChatMsg pinned) {
+    final cs = ProfileTheme.themeFor(_t).colorScheme;
+    final text = _quoteOf(pinned).replaceAll('\n', ' ');
+    final short = text.length > 40 ? '${text.substring(0, 40).trimRight()}…' : text;
+    final label = pinned.pinnedBy == _myUid
+        ? trKey('cpNoteMine').replaceAll('{0}', short)
+        : trKey('cpNoteTheirs').replaceAll('{0}', short).replaceAll('{1}', widget.pairData.partnerDisplayName.trim());
+    return Center(
+      child: GestureDetector(
+        onTap: () => _scrollToMessage(pinned.id),
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 24),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          decoration: BoxDecoration(color: cs.primaryContainer, borderRadius: BorderRadius.circular(14)),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.push_pin_rounded, size: 13, color: cs.onPrimaryContainer),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontFamily: ProfileTheme.bodyFont, fontSize: 12.5, color: cs.onPrimaryContainer),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   /// Выбор реакции двойного касания (меню чата).
@@ -1991,6 +2103,19 @@ class _ChatScreenState extends State<ChatScreen> {
                 _startReply(msg);
               },
             ),
+            // Закрепить может любой из пары, как в Telegram.
+            if (!msg.deleted)
+              ListTile(
+                leading: Icon(
+                  msg.isPinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
+                  color: _t.primary,
+                ),
+                title: Text(trKey(msg.isPinned ? 'cpUnpin' : 'cpPin')),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _togglePin(msg);
+                },
+              ),
             if (msg.uid == _myUid && isHeld(msg.deliverAt))
               ListTile(
                 leading: Icon(Icons.send_rounded, color: _t.primary),
@@ -2715,17 +2840,27 @@ class _ChatScreenState extends State<ChatScreen> {
                           }
 
                           final items = _itemsFor(messages);
-                          return _stick.wrap(
-                            ListView.builder(
-                              // Запас прогрева: без него ряд за краем экрана начинал готовиться
-                              // ровно тогда, когда его уже листают.
-                              cacheExtent: 600,
-                              controller: _scrollController,
-                              padding: const EdgeInsets.fromLTRB(10, 12, 10, 8),
-                              itemCount: items.length,
-                              itemBuilder: (context, i) =>
-                                  _buildItem(items[i], i, items.length),
-                            ),
+                          // Полоска закреплённого — над лентой и внутри потока:
+                          // правка партнёра приходит с лентой, и полоска
+                          // обновляется вместе с ней.
+                          return Column(
+                            children: [
+                              _buildPinnedBar(),
+                              Expanded(
+                                child: _stick.wrap(
+                                  ListView.builder(
+                                    // Запас прогрева: без него ряд за краем экрана начинал готовиться
+                                    // ровно тогда, когда его уже листают.
+                                    cacheExtent: 600,
+                                    controller: _scrollController,
+                                    padding: const EdgeInsets.fromLTRB(10, 12, 10, 8),
+                                    itemCount: items.length,
+                                    itemBuilder: (context, i) =>
+                                        _buildItem(items[i], i, items.length),
+                                  ),
+                                ),
+                              ),
+                            ],
                           );
                         },
                       ),
@@ -2832,7 +2967,12 @@ class _ChatScreenState extends State<ChatScreen> {
     final items = <Object>[];
     DateTime? lastDay;
     bool unreadShown = false;
+    final pinNotes = pinNotesBefore(messages);
     for (final m in messages) {
+      // «Закрепили» — перед разделителем дня: закрепили вчера, строка во вчерашнем.
+      for (final p in pinNotes[m.id] ?? const <ChatMsg>[]) {
+        items.add(_PinNote(p));
+      }
       final d = DateTime.fromMillisecondsSinceEpoch(m.ts);
       final day = DateTime(d.year, d.month, d.day);
       if (lastDay == null || day != lastDay) {
@@ -2848,6 +2988,9 @@ class _ChatScreenState extends State<ChatScreen> {
         unreadShown = true;
       }
       items.add(m);
+    }
+    for (final p in pinNotes[kPinNotesTail] ?? const <ChatMsg>[]) {
+      items.add(_PinNote(p));
     }
     _hasUnreadMarker = unreadShown;
     return items;
@@ -2936,6 +3079,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget _buildItem(Object item, int index, int total) {
     if (item is _DateHeader) return _buildDateHeader(item.day);
     if (item is _UnreadMarker) return _buildUnreadMarker();
+    if (item is _PinNote) return _buildPinNote(item.msg);
     final msg = item as ChatMsg;
     // Влёт со стороны при открытии чата: своё — справа, партнёр — слева.
     // Только для изначально видимых (пока открыто окно _playEntrance); при
@@ -3092,6 +3236,10 @@ class _ChatScreenState extends State<ChatScreen> {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (msg.isPinned) ...[
+                Icon(Icons.push_pin_rounded, size: 11, color: metaColor),
+                const SizedBox(width: 3),
+              ],
               Text(
                 _formatTime(msg.ts),
                 style: TextStyle(fontSize: 10, color: metaColor),
@@ -3219,6 +3367,10 @@ class _ChatScreenState extends State<ChatScreen> {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (msg.isPinned && !msg.deleted) ...[
+                Icon(Icons.push_pin_rounded, size: 11, color: metaColor),
+                const SizedBox(width: 3),
+              ],
               if (msg.isEdited) ...[
                 Text(
                   s.chatEdited,
@@ -4012,6 +4164,12 @@ class _DateHeader {
 /// Элемент-разделитель: маркер «Новые сообщения».
 class _UnreadMarker {
   const _UnreadMarker();
+}
+
+/// Строка «Вы закрепили…» в ленте — по времени закрепления.
+class _PinNote {
+  final ChatMsg msg;
+  const _PinNote(this.msg);
 }
 
 /// Форма пузыря: прямоугольник с кривыми (детерминированными) углами + хвостик-

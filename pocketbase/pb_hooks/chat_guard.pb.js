@@ -49,7 +49,8 @@ onRecordUpdateRequest((e) => {
       const keys = Object.keys(body);
       for (let i = 0; i < keys.length; i++) {
         const f = keys[i];
-        if (f === "reactions" || f === "voice_heard_at" || f === "id") continue;
+        // Закрепить сообщение может любой из пары (06.11.2026).
+        if (f === "reactions" || f === "voice_heard_at" || f === "pinned_at" || f === "pinned_by" || f === "id") continue;
         throw new ForbiddenError("only the author can edit this message");
       }
     }

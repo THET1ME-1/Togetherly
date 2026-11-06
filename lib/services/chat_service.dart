@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/chat_drawing.dart';
 import '../models/chat_msg.dart';
+import '../models/chat_pins.dart';
 import '../models/shape_note.dart';
 import '../models/voice_note.dart';
 import '../utils/documents_file.dart';
@@ -381,6 +382,15 @@ class ChatService {
       'id': messageId,
       'fields': {'note_hearts': packed},
     });
+  }
+
+  /// Закрепить сообщение в чате пары или открепить. Может любой из двоих:
+  /// страж пускает поля закрепления и не автору. Через очередь, как реакции.
+  Future<void> setPinned(String messageId, bool pinned) async {
+    if (messageId.isEmpty || _uid.isEmpty) return;
+    final fields = pinFields(pinned, _uid, DateTime.now().millisecondsSinceEpoch);
+    await LocalStore.instance.patchRecordFields('chat_messages', messageId, fields);
+    await OutboxService.instance.enqueue('chatUpdate', {'id': messageId, 'fields': fields});
   }
 
   /// Подпись фигурки в цитате ответа и в уведомлении: текста у неё нет.

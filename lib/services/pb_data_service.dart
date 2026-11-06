@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
 
+import '../models/chat_msg.dart';
 import '../models/miss_you_event.dart';
 import '../models/invite_code_state.dart';
 import '../models/streak_alive.dart';
@@ -3156,6 +3157,24 @@ class PbDataService {
       return res.items;
     } catch (e) {
       debugPrint('PbData.searchChat failed: $e');
+      return null;
+    }
+  }
+
+  /// Закреплённые сообщения пары, в том числе давние, которых нет в ленте.
+  /// null — не ответил сервер (тогда полоска живёт тем, что есть в ленте).
+  Future<List<ChatMsg>?> pinnedChat(String groupId) async {
+    if (groupId.isEmpty) return null;
+    try {
+      final res = await _pb.collection('chat_messages').getList(
+            perPage: 100,
+            filter: _pb.filter('group_id = {:g} && pinned_at > 0 && deleted != true', {'g': groupId}),
+            sort: '-ts',
+            skipTotal: true,
+          );
+      return [for (final r in res.items) ChatMsg.fromPb(r)];
+    } catch (e) {
+      debugPrint('PbData.pinnedChat failed: $e');
       return null;
     }
   }

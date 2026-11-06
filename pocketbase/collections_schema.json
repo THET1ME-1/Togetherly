@@ -645,6 +645,24 @@
           "system": false
         },
         {
+          "name": "pinned_at",
+          "type": "number",
+          "required": false,
+          "presentable": false,
+          "onlyInt": true,
+          "hidden": false,
+          "system": false
+        },
+        {
+          "name": "pinned_by",
+          "type": "text",
+          "required": false,
+          "presentable": false,
+          "max": 40,
+          "hidden": false,
+          "system": false
+        },
+        {
           "name": "note_seen_at",
           "type": "number",
           "required": false,
