@@ -5,9 +5,9 @@ import 'package:love_app/models/pair_quiz.dart';
 
 void main() {
   group('вопросы', () {
-    test('язык любви: 10 пар, каждый язык ровно 4 раза', () {
+    test('язык любви: 15 пар, каждый язык ровно 6 раз', () {
       final qs = quizQuestions(QuizKind.lang, 'ru');
-      expect(qs, hasLength(10));
+      expect(qs, hasLength(15));
       final seen = <String, int>{};
       for (final q in qs) {
         expect(q.options, hasLength(2));
@@ -17,12 +17,12 @@ void main() {
           }
         }
       }
-      expect(seen, {for (final t in kQuizTypes[QuizKind.lang]!) t: 4});
+      expect(seen, {for (final t in kQuizTypes[QuizKind.lang]!) t: 6});
     });
 
-    test('животное: 8 вопросов по 4 ответа, каждый зверь ровно 4 раза', () {
+    test('животное: 15 вопросов по 4 ответа, каждый зверь 7 или 8 раз', () {
       final qs = quizQuestions(QuizKind.animal, 'ru');
-      expect(qs, hasLength(8));
+      expect(qs, hasLength(15));
       final seen = <String, int>{};
       for (final q in qs) {
         expect(q.options, hasLength(4));
@@ -30,15 +30,28 @@ void main() {
           seen[o.score.keys.single] = (seen[o.score.keys.single] ?? 0) + 1;
         }
       }
-      expect(seen, {for (final t in kQuizTypes[QuizKind.animal]!) t: 4});
+      expect(seen.keys.toSet(), kQuizTypes[QuizKind.animal]!.toSet());
+      expect(seen.values.every((n) => n == 7 || n == 8), isTrue, reason: '$seen');
     });
 
-    test('привязанность: 12 утверждений, шкала из пяти ответов', () {
+    test('привязанность: 15 утверждений, на каждую ось не меньше семи', () {
       final qs = quizQuestions(QuizKind.attach, 'ru');
-      expect(qs, hasLength(12));
+      expect(qs, hasLength(15));
       for (final q in qs) {
         expect(q.options, hasLength(5));
       }
+      final perAxis = <String, int>{};
+      for (final q in qs) {
+        perAxis[attachItemAxis(q)] = (perAxis[attachItemAxis(q)] ?? 0) + 1;
+      }
+      expect(perAxis['anx'], greaterThanOrEqualTo(7));
+      expect(perAxis['avo'], greaterThanOrEqualTo(7));
+    });
+
+    test('вступление называет то же число вопросов', () {
+      expect(quizIntro(QuizKind.lang, 'ru'), startsWith('Пятнадцать'));
+      expect(quizIntro(QuizKind.attach, 'ru'), startsWith('Пятнадцать'));
+      expect(quizIntro(QuizKind.animal, 'ru'), startsWith('Пятнадцать'));
     });
   });
 
@@ -100,8 +113,8 @@ void main() {
     });
 
     test('ключи набора различают вопросы', () {
-      final keys = quizRoundKeys(QuizKind.animal, List.filled(8, 1));
-      expect(keys.toSet(), hasLength(8));
+      final keys = quizRoundKeys(QuizKind.animal, List.filled(15, 1));
+      expect(keys.toSet(), hasLength(15));
     });
   });
 
@@ -137,7 +150,7 @@ void main() {
     });
 
     test('привязанность: всё посередине — надёжный', () {
-      final r = scoreQuiz(QuizKind.attach, List.filled(12, 2));
+      final r = scoreQuiz(QuizKind.attach, List.filled(15, 2));
       expect(r.type, 'secure');
     });
 
@@ -158,6 +171,29 @@ void main() {
       expect(scoreQuiz(QuizKind.animal, answers).type, 'otter');
     });
 
+    test('животное: побеждает доля, а не штуки', () {
+      // Ёж встречается реже кота. Ежу отдаём все его вопросы, кроме одного
+      // без кота, коту остальные свои: по штукам ничья, по доле ёж впереди.
+      final qs = quizQuestions(QuizKind.animal, 'ru');
+      var skipped = false;
+      final answers = <int>[];
+      for (final q in qs) {
+        final hedgehog = q.options.indexWhere((o) => o.score.containsKey('hedgehog'));
+        final cat = q.options.indexWhere((o) => o.score.containsKey('cat'));
+        if (hedgehog >= 0 && (cat >= 0 || skipped)) {
+          answers.add(hedgehog);
+        } else if (hedgehog >= 0) {
+          skipped = true;
+          answers.add(hedgehog == 0 ? 1 : 0);
+        } else {
+          answers.add(cat >= 0 ? cat : q.options.indexWhere((o) => !o.score.containsKey('hedgehog')));
+        }
+      }
+      final r = scoreQuiz(QuizKind.animal, answers);
+      expect(r.scores['hedgehog']! > r.scores['cat']!, isTrue, reason: '${r.scores}');
+      expect(r.type, 'hedgehog');
+    });
+
     test('недостающие и кривые ответы не роняют подсчёт', () {
       expect(scoreQuiz(QuizKind.lang, const []).type, isNotEmpty);
       expect(scoreQuiz(QuizKind.animal, const [99, -1]).type, isNotEmpty);
@@ -166,7 +202,7 @@ void main() {
 
   group('результат', () {
     test('переживает сохранение', () {
-      final r = scoreQuiz(QuizKind.lang, List.filled(10, 1));
+      final r = scoreQuiz(QuizKind.lang, List.filled(15, 1));
       final back = QuizResult.fromJson(r.toJson());
       expect(back?.kind, QuizKind.lang);
       expect(back?.type, r.type);

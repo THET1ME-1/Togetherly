@@ -30,7 +30,7 @@ void main() {
 
   for (final kind in QuizKind.values) {
     testWidgets('${kind.name}: пройти до конца, партнёр уже прошёл', (t) async {
-      final partner = scoreQuiz(kind, List.filled(12, 1));
+      final partner = scoreQuiz(kind, List.filled(15, 1));
       await pump(
         t,
         PairQuizScreen(
@@ -74,7 +74,7 @@ void main() {
           loveOpened = true;
           return const Scaffold(body: Text('умение любить'));
         },
-        initial: PairQuizResults(mine: {QuizKind.lang: scoreQuiz(QuizKind.lang, List.filled(10, 0))}),
+        initial: PairQuizResults(mine: {QuizKind.lang: scoreQuiz(QuizKind.lang, List.filled(15, 0))}),
       ),
     );
     final love = t.getTopLeft(find.text('Умение любить'));
@@ -96,7 +96,7 @@ void main() {
         scheme: cs,
         groupId: 'g',
         myUid: 'me',
-        initial: PairQuizResults(mine: {QuizKind.animal: scoreQuiz(QuizKind.animal, List.filled(8, 3))}),
+        initial: PairQuizResults(mine: {QuizKind.animal: scoreQuiz(QuizKind.animal, List.filled(15, 3))}),
       ),
     );
     expect(find.textContaining('Партнёр ещё не прошёл'), findsOneWidget);
