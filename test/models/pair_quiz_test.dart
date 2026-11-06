@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:love_app/models/pair_quiz.dart';
 
@@ -37,6 +39,44 @@ void main() {
       for (final q in qs) {
         expect(q.options, hasLength(5));
       }
+    });
+  });
+
+  group('банк вопросов', () {
+    for (final kind in QuizKind.values) {
+      test('${kind.name}: в любом наборе баланс прежний, тексты есть', () {
+        final base = quizQuestions(kind, 'ru');
+        final slots = quizSlotCount(kind);
+        expect(slots, base.length);
+        for (var s = 0; s < slots; s++) {
+          expect(quizVariantCount(kind, s), greaterThanOrEqualTo(2), reason: '$kind слот $s');
+        }
+        // Каждый вариант каждого слота: те же типы на тех же местах.
+        for (var s = 0; s < slots; s++) {
+          for (var v = 0; v < quizVariantCount(kind, s); v++) {
+            final round = List.filled(slots, 0)..[s] = v;
+            for (final lang in ['ru', 'en', 'uk']) {
+              final q = quizQuestions(kind, lang, round: round)[s];
+              expect(q.text, isNotEmpty);
+              expect([for (final o in q.options) o.score], [for (final o in base[s].options) o.score]);
+              for (final o in q.options) {
+                expect(o.text, isNotEmpty, reason: '$kind $s $v $lang');
+              }
+            }
+          }
+        }
+      });
+    }
+
+    test('новый набор обходит прошлый', () {
+      final last = quizRoundKeys(QuizKind.lang, List.filled(quizSlotCount(QuizKind.lang), 0)).toSet();
+      final round = pickQuizRound(QuizKind.lang, Random(1), exclude: last);
+      expect(quizRoundKeys(QuizKind.lang, round).toSet().intersection(last), isEmpty);
+    });
+
+    test('ключи набора различают вопросы', () {
+      final keys = quizRoundKeys(QuizKind.animal, List.filled(8, 1));
+      expect(keys.toSet(), hasLength(8));
     });
   });
 

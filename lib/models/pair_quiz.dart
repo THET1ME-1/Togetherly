@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:crypto/crypto.dart' show sha256;
 
@@ -123,6 +124,8 @@ final Map<String, Map<String, String>> _ui = {
   'anx': _m('Тревога', 'Anxiety', 'Тривога'),
   'avo': _m('Избегание', 'Avoidance', 'Уникання'),
   'section': _m('Тесты для пары', 'Tests for two', 'Тести для пари'),
+  'share': _m('Поделиться', 'Share', 'Поділитися'),
+  'save': _m('Сохранить', 'Save', 'Зберегти'),
   'done': _m('Пройден', 'Done', 'Пройдено'),
   'note': _m('Это не психологическая оценка, а повод поговорить.', 'This is not a psychological assessment, just a reason to talk.',
       'Це не психологічна оцінка, а привід поговорити.'),
@@ -237,30 +240,206 @@ final List<(Map<String, String>, List<(String, Map<String, String>)>)> _animalQs
   ]),
 ];
 
-List<QuizQuestion> quizQuestions(QuizKind kind, String lang) => switch (kind) {
-      QuizKind.lang => [
-          for (var i = 0; i < _langPairs.length; i++)
-            QuizQuestion('lang_$i', _t(_langQ, lang), [
-              QuizOption(_t(_langPairs[i].$2, lang), {_langPairs[i].$1: 1}),
-              QuizOption(_t(_langPairs[i].$4, lang), {_langPairs[i].$3: 1}),
-            ]),
-        ],
-      QuizKind.attach => [
-          for (var i = 0; i < _attachItems.length; i++)
-            QuizQuestion('attach_$i', _t(_attachItems[i].$3, lang), [
-              for (var v = 0; v < 5; v++)
-                QuizOption(_t(_likert[v], lang), {
-                  _attachItems[i].$1: _attachItems[i].$2 ? 5 - v : v + 1,
-                }),
-            ]),
-        ],
-      QuizKind.animal => [
-          for (var i = 0; i < _animalQs.length; i++)
-            QuizQuestion('animal_$i', _t(_animalQs[i].$1, lang), [
-              for (final (key, text) in _animalQs[i].$2) QuizOption(_t(text, lang), {key: 1}),
-            ]),
-        ],
+// ── банк: запасные варианты каждого вопроса ─────────────────────────────────
+//
+// Как в «Умении любить», набор меняется от раза к разу. Вопрос — это слот:
+// у каждого слота несколько вариантов с ТЕМИ ЖЕ типами на тех же местах,
+// поэтому баланс (каждый язык и каждый зверь ровно четыре раза, шесть
+// утверждений на ось) держится в любом наборе. Основной вариант — списки выше.
+
+/// Ещё по два варианта на каждую пару языков, в том же порядке типов.
+final List<List<(Map<String, String>, Map<String, String>)>> _langExtra = [
+  [ // words / time
+    (_m('Сообщение «думаю о тебе» посреди рабочего дня', 'A “thinking of you” text in the middle of the workday', 'Повідомлення «думаю про тебе» посеред робочого дня'),
+     _m('Целый выходной только вдвоём', 'A whole day off, just the two of us', 'Цілий вихідний тільки удвох')),
+    (_m('Партнёр хвалит то, что у меня получилось', 'My partner praises what I pulled off', 'Партнер хвалить те, що в мене вийшло'),
+     _m('Партнёр слушает меня, ни на что не отвлекаясь', 'My partner listens to me with full attention', 'Партнер слухає мене, ні на що не відволікаючись')),
+  ],
+  [ // words / gifts
+    (_m('Голосовое с признанием', 'A voice message with a confession', 'Голосове із зізнанням'),
+     _m('Любимая сладость, купленная по дороге', 'My favorite treat, picked up on the way', 'Улюблена солодість, куплена дорогою')),
+    (_m('Открытка с длинным письмом от руки', 'A card with a long handwritten letter', 'Листівка з довгим листом від руки'),
+     _m('Подарок по моему случайному намёку', 'A gift based on a hint I dropped once', 'Подарунок за моїм випадковим натяком')),
+  ],
+  [ // words / acts
+    (_m('Услышать «спасибо, что ты есть»', 'Hearing “thank you for being you”', 'Почути «дякую, що ти є»'),
+     _m('Партнёр чинит то, что давно сломано', 'My partner fixes what has been broken for ages', 'Партнер лагодить те, що давно зламане')),
+    (_m('Партнёр говорит, что верит в меня', 'My partner says they believe in me', 'Партнер каже, що вірить у мене'),
+     _m('Партнёр сам закупает продукты на неделю', 'My partner does the weekly grocery run', 'Партнер сам закуповує продукти на тиждень')),
+  ],
+  [ // words / touch
+    (_m('Ласковое прозвище', 'A sweet nickname', 'Ласкаве прізвисько'),
+     _m('Поцелуй в лоб', 'A kiss on the forehead', 'Поцілунок у лоб')),
+    (_m('Комплимент моей внешности', 'A compliment on how I look', 'Комплімент моїй зовнішності'),
+     _m('Рука на моём плече в толпе', 'A hand on my shoulder in a crowd', 'Рука на моєму плечі в натовпі')),
+  ],
+  [ // time / gifts
+    (_m('Свидание, которое партнёр сам спланировал', 'A date my partner planned all by themselves', 'Побачення, яке партнер сам спланував'),
+     _m('Коробка с маленькими сюрпризами', 'A box of little surprises', 'Коробка з маленькими сюрпризами')),
+    (_m('Вечер настольных игр вдвоём', 'A board game night for two', 'Вечір настільних ігор удвох'),
+     _m('Книга, которую партнёр выбрал специально для меня', 'A book my partner chose just for me', 'Книжка, яку партнер обрав спеціально для мене')),
+  ],
+  [ // time / acts
+    (_m('Поездка за город вдвоём', 'A trip out of town together', 'Поїздка за місто удвох'),
+     _m('Партнёр убирает квартиру, пока меня нет', 'My partner cleans the place while I’m out', 'Партнер прибирає квартиру, поки мене немає')),
+    (_m('Совместный завтрак без спешки', 'A slow breakfast together', 'Спільний сніданок без поспіху'),
+     _m('Партнёр заранее собирает мне обед с собой', 'My partner packs me lunch ahead of time', 'Партнер заздалегідь збирає мені обід із собою')),
+  ],
+  [ // time / touch
+    (_m('Готовить ужин вместе', 'Cooking dinner together', 'Готувати вечерю разом'),
+     _m('Засыпать в обнимку', 'Falling asleep in each other’s arms', 'Засинати в обіймах')),
+    (_m('Гулять ночью по городу', 'Walking around the city at night', 'Гуляти вночі містом'),
+     _m('Партнёр гладит меня по волосам', 'My partner strokes my hair', 'Партнер гладить мене по волоссю')),
+  ],
+  [ // gifts / acts
+    (_m('Фото в рамке с нашим общим моментом', 'A framed photo of a moment we shared', 'Фото в рамці з нашою спільною миттю'),
+     _m('Партнёр делает за меня скучные звонки', 'My partner makes the boring calls for me', 'Партнер робить за мене нудні дзвінки')),
+    (_m('Подарок на годовщину, придуманный заранее', 'An anniversary gift planned well ahead', 'Подарунок на річницю, вигаданий заздалегідь'),
+     _m('Партнёр встречает меня горячим чаем после работы', 'My partner greets me with hot tea after work', 'Партнер зустрічає мене гарячим чаєм після роботи')),
+  ],
+  [ // gifts / touch
+    (_m('Браслет или украшение на память', 'A bracelet or a keepsake piece of jewelry', 'Браслет чи прикраса на згадку'),
+     _m('Обнять, едва увидев после разлуки', 'A hug the moment we meet after time apart', 'Обійняти, щойно побачивши після розлуки')),
+    (_m('Плейлист, собранный специально для меня', 'A playlist made just for me', 'Плейлист, зібраний спеціально для мене'),
+     _m('Сидеть рядом, касаясь плечами', 'Sitting close, shoulders touching', 'Сидіти поруч, торкаючись плечима')),
+  ],
+  [ // acts / touch
+    (_m('Партнёр сам моет посуду после ужина', 'My partner does the dishes after dinner', 'Партнер сам миє посуд після вечері'),
+     _m('Долгие объятия без слов', 'A long hug without words', 'Довгі обійми без слів')),
+    (_m('Партнёр готовит мою любимую еду', 'My partner cooks my favorite food', 'Партнер готує мою улюблену їжу'),
+     _m('Партнёр держит меня за руку в кино', 'My partner holds my hand at the movies', 'Партнер тримає мене за руку в кіно')),
+  ],
+];
+
+/// Ещё по одному утверждению на каждый слот: та же ось и то же направление.
+final List<Map<String, String>> _attachExtra = [
+  _m('Мне страшно, что меня бросят', 'I’m scared of being left', 'Мені страшно, що мене покинуть'),
+  _m('Мне неловко, когда партнёр говорит о чувствах', 'I feel awkward when my partner talks about feelings', 'Мені ніяково, коли партнер говорить про почуття'),
+  _m('Я перечитываю переписку и ищу, не обиделся ли партнёр', 'I reread our chat looking for signs my partner is upset', 'Я перечитую листування й шукаю, чи не образився партнер'),
+  _m('Слишком много времени вместе меня утомляет', 'Too much time together wears me out', 'Забагато часу разом мене втомлює'),
+  _m('Мне важно, чтобы партнёр часто писал первым', 'I need my partner to text first often', 'Мені важливо, щоб партнер часто писав першим'),
+  _m('Я легко делюсь с партнёром тем, что меня тревожит', 'I easily share what worries me with my partner', 'Я легко ділюся з партнером тим, що мене тривожить'),
+  _m('Я ревную, даже если повода нет', 'I get jealous even without a reason', 'Я ревную, навіть якщо приводу немає'),
+  _m('Когда что-то не так, я скорее замолчу, чем скажу', 'When something is wrong, I’d rather go quiet than say it', 'Коли щось не так, я радше замовкну, ніж скажу'),
+  _m('Если партнёр занят, я спокойно жду', 'If my partner is busy, I wait calmly', 'Якщо партнер зайнятий, я спокійно чекаю'),
+  _m('Мне нравится, когда мы знаем друг о друге всё', 'I like it when we know everything about each other', 'Мені подобається, коли ми знаємо одне про одного все'),
+  _m('После ссоры мне трудно уснуть', 'After a fight it is hard for me to fall asleep', 'Після сварки мені важко заснути'),
+  _m('Когда партнёр просит поговорить о нас, я ищу повод отложить', 'When my partner asks to talk about us, I look for a reason to put it off', 'Коли партнер просить поговорити про нас, я шукаю привід відкласти'),
+];
+
+/// Ещё по одному вопросу на каждый слот: те же звери в том же порядке.
+final List<(Map<String, String>, List<Map<String, String>>)> _animalExtra = [
+  (_m('Как вы отдыхаете в отпуске', 'How you spend a vacation', 'Як ви відпочиваєте у відпустці'), [
+    _m('Каждый читает своё у бассейна', 'Each reading our own book by the pool', 'Кожен читає своє біля басейну'),
+    _m('Везде вместе, куда бы ни пошли', 'Together everywhere, wherever we go', 'Скрізь разом, куди б не пішли'),
+    _m('Каждый день новое место', 'A new place every day', 'Щодня нове місце'),
+    _m('Номер, кровать и доставка еды', 'The room, the bed and food delivery', 'Номер, ліжко й доставка їжі'),
+  ]),
+  (_m('Партнёр замёрз', 'Your partner is cold', 'Партнер змерз'), [
+    _m('Грею ладони партнёра в своих', 'I warm their hands in mine', 'Грію долоні партнера у своїх'),
+    _m('Обнимаю целиком', 'I wrap them in a full hug', 'Обіймаю повністю'),
+    _m('Ворчу и отдаю свою куртку', 'I grumble and hand over my jacket', 'Буркочу й віддаю свою куртку'),
+    _m('Приношу горячий чай', 'I bring hot tea', 'Приношу гарячий чай'),
+  ]),
+  (_m('Партнёр опаздывает на свидание', 'Your partner is late for a date', 'Партнер запізнюється на побачення'), [
+    _m('Не жду и занимаюсь своим', 'I don’t wait, I do my own thing', 'Не чекаю й займаюся своїм'),
+    _m('Жду и радуюсь, когда наконец приходит', 'I wait and light up when they finally show', 'Чекаю й радію, коли нарешті приходить'),
+    _m('Встречаю колкостью, но никуда не ухожу', 'I greet them with a jab, but I stay', 'Зустрічаю шпилькою, але нікуди не йду'),
+    _m('Придумываю розыгрыш', 'I plot a little prank', 'Вигадую розіграш'),
+  ]),
+  (_m('Вы долго не виделись', 'You haven’t seen each other for a while', 'Ви довго не бачилися'), [
+    _m('Весь день не отпускаю руку', 'I don’t let go of their hand all day', 'Увесь день не відпускаю руку'),
+    _m('Делаю вид, что не так уж и скучаю', 'I act like I didn’t miss them that much', 'Вдаю, що не так уже й сумую'),
+    _m('Сначала накормлю и укутаю', 'First I feed them and tuck them in', 'Спершу нагодую й закутаю'),
+    _m('Обнимаемся и засыпаем', 'We cuddle and fall asleep', 'Обіймаємося й засинаємо'),
+  ]),
+  (_m('Новые знакомые партнёра', 'Your partner’s new friends', 'Нові знайомі партнера'), [
+    _m('Быстро нахожу с ними общий язык', 'I get along with them right away', 'Швидко знаходжу з ними спільну мову'),
+    _m('Присматриваюсь, пока не пойму, кто они', 'I keep my distance until I figure them out', 'Придивляюся, поки не зрозумію, хто вони'),
+    _m('Сразу считаю их друзьями', 'I treat them as friends straight away', 'Одразу вважаю їх друзями'),
+    _m('Мне хватает моего человека', 'My person is all I need', 'Мені вистачає моєї людини'),
+  ]),
+  (_m('У партнёра тяжёлый день', 'Your partner has a rough day', 'У партнера важкий день'), [
+    _m('Беру всё на себя', 'I take everything on myself', 'Беру все на себе'),
+    _m('Весь день пишу, что я рядом', 'I text all day that I’m here', 'Увесь день пишу, що я поруч'),
+    _m('Готовлю сюрприз к вечеру', 'I plan a surprise for the evening', 'Готую сюрприз на вечір'),
+    _m('Зову полежать вместе и ничего не делать', 'I invite them to lie down together and do nothing', 'Кличу полежати разом і нічого не робити'),
+  ]),
+  (_m('Что ранило бы вас сильнее', 'What would hurt you most', 'Що поранило б вас найбільше'), [
+    _m('Измена', 'Cheating', 'Зрада'),
+    _m('Холодность', 'Coldness', 'Холодність'),
+    _m('Ненадёжность', 'Unreliability', 'Ненадійність'),
+    _m('Скука', 'Boredom', 'Нудьга'),
+  ]),
+  (_m('Любимое место дома', 'Your favorite spot at home', 'Улюблене місце вдома'), [
+    _m('Кровать', 'The bed', 'Ліжко'),
+    _m('Свой угол, куда никто не лезет', 'My own corner nobody touches', 'Свій куток, куди ніхто не лізе'),
+    _m('Диван, где мы вдвоём', 'The couch where we sit together', 'Диван, де ми вдвох'),
+    _m('Подоконник с видом', 'A windowsill with a view', 'Підвіконня з краєвидом'),
+  ]),
+];
+
+/// Сколько вопросов в одном прохождении (слотов).
+int quizSlotCount(QuizKind kind) => switch (kind) {
+      QuizKind.lang => _langPairs.length,
+      QuizKind.attach => _attachItems.length,
+      QuizKind.animal => _animalQs.length,
     };
+
+/// Сколько вариантов у слота [slot], основной вариант тоже считается.
+int quizVariantCount(QuizKind kind, int slot) => 1 + switch (kind) {
+      QuizKind.lang => _langExtra[slot].length,
+      QuizKind.attach => 1,
+      QuizKind.animal => 1,
+    };
+
+/// Ключи вопросов набора — их запоминаем, чтобы в следующий раз дать другие.
+List<String> quizRoundKeys(QuizKind kind, List<int> round) =>
+    [for (var s = 0; s < round.length; s++) '${kind.name}_${s}_${round[s]}'];
+
+/// Набор прохождения: по варианту на слот, по возможности не из [exclude].
+List<int> pickQuizRound(QuizKind kind, Random random, {Set<String> exclude = const {}}) => [
+      for (var s = 0; s < quizSlotCount(kind); s++)
+        () {
+          final all = List.generate(quizVariantCount(kind, s), (v) => v);
+          final fresh = [for (final v in all) if (!exclude.contains('${kind.name}_${s}_$v')) v];
+          final pool = fresh.isEmpty ? all : fresh;
+          return pool[random.nextInt(pool.length)];
+        }(),
+    ];
+
+/// Вопросы набора [round] (вариант на слот; по умолчанию основные).
+List<QuizQuestion> quizQuestions(QuizKind kind, String lang, {List<int>? round}) {
+  int v(int s) => round != null && s < round.length ? round[s] : 0;
+  return switch (kind) {
+    QuizKind.lang => [
+        for (var i = 0; i < _langPairs.length; i++)
+          QuizQuestion('lang_${i}_${v(i)}', _t(_langQ, lang), [
+            QuizOption(_t(v(i) == 0 ? _langPairs[i].$2 : _langExtra[i][v(i) - 1].$1, lang), {_langPairs[i].$1: 1}),
+            QuizOption(_t(v(i) == 0 ? _langPairs[i].$4 : _langExtra[i][v(i) - 1].$2, lang), {_langPairs[i].$3: 1}),
+          ]),
+      ],
+    QuizKind.attach => [
+        for (var i = 0; i < _attachItems.length; i++)
+          QuizQuestion('attach_${i}_${v(i)}', _t(v(i) == 0 ? _attachItems[i].$3 : _attachExtra[i], lang), [
+            for (var o = 0; o < 5; o++)
+              QuizOption(_t(_likert[o], lang), {
+                _attachItems[i].$1: _attachItems[i].$2 ? 5 - o : o + 1,
+              }),
+          ]),
+      ],
+    QuizKind.animal => [
+        for (var i = 0; i < _animalQs.length; i++)
+          QuizQuestion('animal_${i}_${v(i)}', _t(v(i) == 0 ? _animalQs[i].$1 : _animalExtra[i].$1, lang), [
+            for (var o = 0; o < _animalQs[i].$2.length; o++)
+              QuizOption(
+                _t(v(i) == 0 ? _animalQs[i].$2[o].$2 : _animalExtra[i].$2[o], lang),
+                {_animalQs[i].$2[o].$1: 1},
+              ),
+          ]),
+      ],
+  };
+}
 
 /// Ось утверждения привязанности (`anx` или `avo`) — для тестов и подсказок.
 String attachItemAxis(QuizQuestion q) => q.options.first.score.keys.single;

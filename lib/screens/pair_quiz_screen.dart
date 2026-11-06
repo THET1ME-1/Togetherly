@@ -7,6 +7,7 @@ import '../models/pair_quiz.dart';
 import '../services/locale_service.dart';
 import '../services/pair_quiz_service.dart';
 import '../theme/profile_theme.dart';
+import 'pair_quiz_story_screen.dart';
 
 /// Тест для пары (язык любви, привязанность, зверь): вступление, вопросы по
 /// одному, результат. Как в «Умении любить», итог партнёра виден только после
@@ -50,6 +51,10 @@ class _PairQuizScreenState extends State<PairQuizScreen> {
   /// «совсем нет … точно да» должна идти по порядку.
   List<int> _order = [];
   List<List<int>> _optOrder = [];
+
+  /// Вариант каждого вопроса из банка: в новом прохождении другие, чем в
+  /// прошлом (`PairQuizResults.myRounds`).
+  List<int> _round = [];
   final Random _rand = Random();
 
   String get _lang => LocaleService.instance.language.code;
@@ -77,6 +82,7 @@ class _PairQuizScreenState extends State<PairQuizScreen> {
           ? PairQuizResults(
               mine: {...r.mine, ..._results.mine},
               theirs: r.theirs.isEmpty ? _results.theirs : r.theirs,
+              myRounds: {...r.myRounds, ..._results.myRounds},
             )
           : r;
       _loading = false;
@@ -98,19 +104,27 @@ class _PairQuizScreenState extends State<PairQuizScreen> {
       _results = PairQuizResults(
         mine: {..._results.mine, widget.kind: res},
         theirs: _results.theirs,
+        myRounds: {..._results.myRounds, widget.kind: quizRoundKeys(widget.kind, _round).toSet()},
       );
       _step = null;
     });
     if (done) {
-      unawaited(PairQuizService.instance.save(widget.groupId, widget.myUid, _mine!));
+      unawaited(PairQuizService.instance.save(
+        widget.groupId,
+        widget.myUid,
+        _mine!,
+        round: quizRoundKeys(widget.kind, _round),
+      ));
       // Свежий итог партнёра мог прийти, пока человек отвечал.
       unawaited(_load(keepMine: true));
     }
   }
 
   void _start() {
-    final qs = quizQuestions(widget.kind, _lang);
+    final round = pickQuizRound(widget.kind, _rand, exclude: _results.myRounds[widget.kind] ?? const {});
+    final qs = quizQuestions(widget.kind, _lang, round: round);
     setState(() {
+      _round = round;
       _answers = List.filled(qs.length, -1);
       _order = List.generate(qs.length, (i) => i)..shuffle(_rand);
       _optOrder = [
@@ -184,7 +198,7 @@ class _PairQuizScreenState extends State<PairQuizScreen> {
   }
 
   Widget _question(ColorScheme cs) {
-    final qs = quizQuestions(widget.kind, _lang);
+    final qs = quizQuestions(widget.kind, _lang, round: _round);
     final i = _step!;
     final q = qs[_order[i]];
     final opts = _optOrder[_order[i]];
@@ -300,6 +314,25 @@ class _PairQuizScreenState extends State<PairQuizScreen> {
           ),
         ],
         const SizedBox(height: 20),
+        SizedBox(
+          height: 54,
+          child: FilledButton.icon(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => PairQuizStoryScreen(
+                  scheme: cs,
+                  mine: mine,
+                  theirs: theirs,
+                  partnerName: partner,
+                ),
+              ),
+            ),
+            style: FilledButton.styleFrom(shape: const StadiumBorder()),
+            icon: const Icon(Icons.ios_share_rounded, size: 20),
+            label: Text(quizUi('share', _lang)),
+          ),
+        ),
+        const SizedBox(height: 10),
         SizedBox(
           height: 52,
           child: FilledButton.tonal(

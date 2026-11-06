@@ -52,6 +52,7 @@ void main() {
         await t.pump();
       }
       expect(find.text('Ваш результат'), findsOneWidget);
+      await t.scrollUntilVisible(find.text('Маша'), 200);
       expect(find.text('Маша'), findsOneWidget);
       await t.scrollUntilVisible(find.text('ВМЕСТЕ'), 200);
       expect(find.text('ВМЕСТЕ'), findsOneWidget);
@@ -99,6 +100,8 @@ void main() {
       ),
     );
     expect(find.textContaining('Партнёр ещё не прошёл'), findsOneWidget);
+    await t.scrollUntilVisible(find.text('Пройти заново'), 200);
+    expect(find.text('Поделиться'), findsOneWidget);
     expect(find.text('Пройти заново'), findsOneWidget);
     expect(t.takeException(), isNull);
   });
