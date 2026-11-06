@@ -1658,8 +1658,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                       ),
                     ),
                     Text(
-                      ruEn('Умение любить, язык любви, привязанность и зверь',
-                          'How you love, love language, attachment and animal'),
+                      ruEn('Шесть тестов: от языка любви до того, как вы ссоритесь',
+                          'Six tests, from love language to how you argue'),
                       style: TextStyle(
                         fontFamily: ProfileTheme.bodyFont,
                         fontSize: 12,

@@ -5,22 +5,28 @@ import 'package:crypto/crypto.dart' show sha256;
 
 /// Тесты для пары (06.11.2026, опрос в канале: 79% за новые тесты).
 ///
-/// Три теста, каждый проходит человек сам, общий итог пары виден, когда
-/// ответили оба (`pair_quizzes` на сервере):
-///   * «Язык любви» — пять языков, десять пар «что приятнее»;
+/// Пять тестов по 15 вопросов, каждый проходит человек сам, общий итог пары
+/// виден, когда ответили оба (`pair_quizzes` на сервере):
+///   * «Язык любви» — пять языков, пары «что приятнее»;
 ///   * «Тип привязанности» — две шкалы (тревога, избегание), четыре типа;
-///   * «Какое ты животное» — восемь зверей, восемь вопросов.
+///   * «Какое ты животное» — восемь зверей;
+///   * «Как вы ссоритесь» — пять стилей спора, пары «что ближе»;
+///   * «Насколько вы похожи» — «или-или» о себе, итог — процент совпадения.
+///     Своего типа у человека нет, поэтому тип один (`done`), а в `scores`
+///     лежат сами ответы: ключ вопроса → 0 или 1.
 ///
 /// Вопросы и тексты свои. Языки — русский, английский и украинский, остальные
 /// получают английский: контента много, а люди приложения в основном
 /// русскоязычные.
-enum QuizKind { lang, attach, animal }
+enum QuizKind { lang, attach, animal, fight, alike }
 
 /// Типы результата каждого теста, порядок задаёт и разбор ничьей.
 const Map<QuizKind, List<String>> kQuizTypes = {
   QuizKind.lang: ['words', 'time', 'gifts', 'acts', 'touch'],
   QuizKind.attach: ['secure', 'anxious', 'avoidant', 'fearful'],
   QuizKind.animal: ['cat', 'dog', 'hedgehog', 'otter', 'fox', 'bear', 'penguin', 'koala'],
+  QuizKind.fight: ['push', 'yield', 'avoid', 'trade', 'solve'],
+  QuizKind.alike: ['done'],
 };
 
 class QuizOption {
@@ -84,6 +90,8 @@ final Map<QuizKind, Map<String, String>> _titles = {
   QuizKind.lang: _m('Язык любви', 'Love language', 'Мова кохання'),
   QuizKind.attach: _m('Тип привязанности', 'Attachment style', 'Тип прив’язаності'),
   QuizKind.animal: _m('Какое ты животное', 'Which animal are you', 'Яка ти тварина'),
+  QuizKind.fight: _m('Как вы ссоритесь', 'How you argue', 'Як ви сваритеся'),
+  QuizKind.alike: _m('Насколько вы похожи', 'How alike you are', 'Наскільки ви схожі'),
 };
 
 final Map<QuizKind, Map<String, String>> _intros = {
@@ -102,12 +110,26 @@ final Map<QuizKind, Map<String, String>> _intros = {
     'Fifteen questions about you as a partner. You get your animal at the end, and your duo once your partner answers.',
     'П’ятнадцять питань про вас у парі. Наприкінці дізнаєтеся свого звіра. Коли відповість партнер, з’явиться ваш спільний дует.',
   ),
+  QuizKind.fight: _m(
+    'Пятнадцать пар. В каждой выберите, что больше похоже на вас в ссоре. Отвечайте честно: правильных ответов нет.',
+    'Fifteen pairs. In each, pick what sounds more like you in a fight. Be honest: there are no right answers.',
+    'П’ятнадцять пар. У кожній оберіть, що більше схоже на вас у сварці. Відповідайте чесно: правильних відповідей немає.',
+  ),
+  QuizKind.alike: _m(
+    'Пятнадцать быстрых «или-или». Отвечайте о себе. Партнёру достанутся те же вопросы, а в конце вы увидите, на сколько процентов совпали и в чём разные.',
+    'Fifteen quick either-or picks. Answer about yourself. Your partner gets the same questions, and at the end you’ll see your match score and where you differ.',
+    'П’ятнадцять швидких «або-або». Відповідайте про себе. Партнерові дістануться ті самі питання, а наприкінці ви побачите, на скільки відсотків збіглися і в чому різні.',
+  ),
 };
 
 final Map<QuizKind, Map<String, String>> _hints = {
   QuizKind.lang: _m('Как вам приятнее получать любовь', 'How you like to receive love', 'Як вам приємніше отримувати любов'),
   QuizKind.attach: _m('Как вы ведёте себя в близости', 'How you behave when close', 'Як ви поводитеся в близькості'),
   QuizKind.animal: _m('Ваш зверь и ваш дуэт', 'Your animal and your duo', 'Ваш звір і ваш дует'),
+  QuizKind.fight: _m('Ваш стиль в споре и правило на следующий раз', 'Your style in an argument and a rule for next time',
+      'Ваш стиль у суперечці й правило на наступний раз'),
+  QuizKind.alike: _m('Пятнадцать «или-или» и процент совпадения', 'Fifteen either-or picks and a match score',
+      'П’ятнадцять «або-або» і відсоток збігу'),
 };
 
 /// Подписи экрана теста.
@@ -129,6 +151,8 @@ final Map<String, Map<String, String>> _ui = {
   'done': _m('Пройден', 'Done', 'Пройдено'),
   'note': _m('Это не психологическая оценка, а повод поговорить.', 'This is not a psychological assessment, just a reason to talk.',
       'Це не психологічна оцінка, а привід поговорити.'),
+  'you': _m('Вы', 'You', 'Ви'),
+  'differ': _m('В чём вы разные', 'Where you differ', 'У чому ви різні'),
 };
 
 String quizUi(String key, String lang) => _t(_ui[key] ?? const {}, lang);
@@ -842,19 +866,294 @@ final List<List<(Map<String, String>, List<Map<String, String>>)>> _animalExtra 
   ],
 ];
 
+// Как вы ссоритесь: пятнадцать пар стилей. Первые десять — каждая пара по
+// разу, ещё пять идут по кругу, так что каждый стиль встречается ровно шесть
+// раз. У пары четыре варианта текста, первый — основной.
+final Map<String, String> _fightQ = _m('Что вам ближе в споре?', 'Which is more like you in an argument?', 'Що вам ближче в суперечці?');
+
+final List<(String, String, List<(Map<String, String>, Map<String, String>)>)> _fightSlots = [
+  ('push', 'yield', [
+    (_m('Я отстаиваю своё мнение до конца', 'I defend my view to the end', 'Я відстоюю свою думку до кінця'),
+     _m('Я соглашаюсь, лишь бы не ругаться', 'I agree just to avoid a fight', 'Я погоджуюся, аби не сваритися')),
+    (_m('Я говорю, что думаю, даже если это обидно', 'I say what I think, even if it stings', 'Я кажу, що думаю, навіть якщо це образливо'),
+     _m('Я уступаю, даже когда мне это не нравится', 'I give in even when I don’t like it', 'Я поступаюся, навіть коли мені це не подобається')),
+    (_m('Я не сдаюсь, пока партнёр не признает мою правоту', 'I don’t back down until my partner admits I’m right', 'Я не здаюся, поки партнер не визнає, що я маю рацію'),
+     _m('Я извиняюсь, даже если вины моей нет', 'I apologize even when it isn’t my fault', 'Я вибачаюся, навіть якщо моєї провини немає')),
+    (_m('Я привожу доводы, пока не переспорю', 'I keep making points until I win', 'Я наводжу аргументи, поки не переспорю'),
+     _m('Мне проще сделать, как хочет партнёр', 'It’s easier to do what my partner wants', 'Мені простіше зробити, як хоче партнер')),
+  ]),
+  ('push', 'avoid', [
+    (_m('Я повышаю голос, когда меня не слышат', 'I raise my voice when I’m not heard', 'Я підвищую голос, коли мене не чують'),
+     _m('Я ухожу в другую комнату, пока не остыну', 'I go to another room until I cool down', 'Я йду в іншу кімнату, поки не охолону')),
+    (_m('Мне важно выиграть спор', 'Winning the argument matters to me', 'Мені важливо виграти суперечку'),
+     _m('Я перевожу разговор на другую тему', 'I change the subject', 'Я переводжу розмову на іншу тему')),
+    (_m('Я настаиваю, когда правда на моей стороне', 'I insist when the truth is on my side', 'Я наполягаю, коли правда на моєму боці'),
+     _m('Я молчу и жду, когда пройдёт само', 'I stay quiet and wait for it to pass', 'Я мовчу й чекаю, поки мине саме')),
+    (_m('Я сразу говорю, что мне не нравится', 'I say right away what I don’t like', 'Я одразу кажу, що мені не подобається'),
+     _m('Я откладываю неприятный разговор на потом', 'I put off the unpleasant talk', 'Я відкладаю неприємну розмову на потім')),
+  ]),
+  ('push', 'trade', [
+    (_m('Я не отступаю, даже когда спор затянулся', 'I don’t retreat even when the fight drags on', 'Я не відступаю, навіть коли суперечка затяглася'),
+     _m('Я предлагаю уступить друг другу понемногу', 'I suggest we each give a little', 'Я пропоную поступитися одне одному потроху')),
+    (_m('Я доказываю свою точку зрения фактами', 'I prove my point with facts', 'Я доводжу свою думку фактами'),
+     _m('Я ищу вариант, где каждый что-то получит', 'I look for an option where each of us gets something', 'Я шукаю варіант, де кожен щось отримає')),
+    (_m('Я спорю, пока последнее слово не останется за мной', 'I argue until I get the last word', 'Я сперечаюся, поки останнє слово не залишиться за мною'),
+     _m('Я отдаю половину своего, если партнёр отдаст половину своего', 'I give up half of mine if my partner gives up half of theirs', 'Я віддаю половину свого, якщо партнер віддасть половину свого')),
+    (_m('Я не стесняюсь давить, если дело важное', 'I don’t mind pushing if it matters', 'Я не соромлюся тиснути, якщо справа важлива'),
+     _m('Я предлагаю: сегодня по-твоему, завтра по-моему', 'I suggest: your way today, mine tomorrow', 'Я пропоную: сьогодні по-твоєму, завтра по-моєму')),
+  ]),
+  ('push', 'solve', [
+    (_m('Я стою на своём, даже если партнёр расстроен', 'I stand my ground even if my partner is upset', 'Я стою на своєму, навіть якщо партнер засмучений'),
+     _m('Я спрашиваю, что для партнёра на самом деле важно', 'I ask what really matters to my partner', 'Я питаю, що для партнера насправді важливо')),
+    (_m('Мне трудно признать свою ошибку', 'It’s hard for me to admit a mistake', 'Мені важко визнати свою помилку'),
+     _m('Я предлагаю сесть и разобраться вместе', 'I suggest we sit down and figure it out together', 'Я пропоную сісти й розібратися разом')),
+    (_m('Я требую объяснений здесь и сейчас', 'I demand an explanation here and now', 'Я вимагаю пояснень тут і зараз'),
+     _m('Я ищу решение, от которого выиграют оба', 'I look for a solution where we both win', 'Я шукаю рішення, від якого виграють обоє')),
+    (_m('Я перебиваю, когда слышу неправду', 'I interrupt when I hear something untrue', 'Я перебиваю, коли чую неправду'),
+     _m('Я говорю о своих чувствах и слушаю о чувствах партнёра', 'I share my feelings and listen to my partner’s', 'Я говорю про свої почуття й слухаю про почуття партнера')),
+  ]),
+  ('yield', 'avoid', [
+    (_m('Я молча принимаю решение партнёра', 'I silently accept my partner’s decision', 'Я мовчки приймаю рішення партнера'),
+     _m('Я делаю вид, что ничего не случилось', 'I act like nothing happened', 'Я вдаю, що нічого не сталося')),
+    (_m('Я забываю о своих желаниях ради мира', 'I forget what I want for the sake of peace', 'Я забуваю про свої бажання заради миру'),
+     _m('Я отвечаю коротко и закрываюсь', 'I give short answers and shut down', 'Я відповідаю коротко й закриваюся')),
+    (_m('Я сдаюсь раньше партнёра', 'I give up before my partner does', 'Я здаюся раніше за партнера'),
+     _m('Я ухожу гулять, чтобы не ругаться', 'I go for a walk to avoid fighting', 'Я йду гуляти, щоб не сваритися')),
+    (_m('Я говорю «ладно», хотя думаю иначе', 'I say “fine” though I think otherwise', 'Я кажу «гаразд», хоча думаю інакше'),
+     _m('О проблеме я вообще не заговариваю', 'I don’t bring up the problem at all', 'Про проблему я взагалі не заговорюю')),
+  ]),
+  ('yield', 'trade', [
+    (_m('Я ставлю чувства партнёра выше своей правоты', 'I put my partner’s feelings above being right', 'Я ставлю почуття партнера вище за свою правоту'),
+     _m('Я торгуюсь, пока мы не найдём середину', 'I bargain until we find the middle', 'Я торгуюся, поки ми не знайдемо середину')),
+    (_m('Я отказываюсь от своего плана, чтобы партнёру было хорошо', 'I drop my plan so my partner feels good', 'Я відмовляюся від свого плану, щоб партнерові було добре'),
+     _m('Я уступаю в одном, если партнёр уступит в другом', 'I give in on one thing if my partner gives in on another', 'Я поступаюся в одному, якщо партнер поступиться в іншому')),
+    (_m('Я подстраиваюсь, чтобы не расстраивать партнёра', 'I adjust so as not to upset my partner', 'Я підлаштовуюся, щоб не засмучувати партнера'),
+     _m('Если не договорились, я предлагаю чередовать', 'If we can’t agree, I suggest taking turns', 'Якщо не домовилися, я пропоную чергувати')),
+    (_m('Я не спорю, даже когда есть что сказать', 'I don’t argue even when I have something to say', 'Я не сперечаюся, навіть коли є що сказати'),
+     _m('Я ищу решение побыстрее, пусть и не идеальное', 'I look for a quick fix, even if it’s not perfect', 'Я шукаю рішення швидше, хай і не ідеальне')),
+  ]),
+  ('yield', 'solve', [
+    (_m('Я соглашаюсь на вариант партнёра, чтобы спор кончился', 'I take my partner’s option so the fight ends', 'Я погоджуюся на варіант партнера, щоб суперечка скінчилася'),
+     _m('Я не успокаиваюсь, пока мы оба не будем довольны', 'I don’t rest until we’re both happy', 'Я не заспокоююся, поки ми обоє не будемо задоволені')),
+    (_m('Я жертвую своим, чтобы сохранить тепло между нами', 'I sacrifice my own wishes to keep things warm between us', 'Я жертвую своїм, щоб зберегти тепло між нами'),
+     _m('Я выкладываю всё, что меня беспокоит, и прошу партнёра о том же', 'I lay out everything that bothers me and ask my partner to do the same', 'Я викладаю все, що мене турбує, і прошу партнера про те саме')),
+    (_m('Мне неловко настаивать на своём', 'I feel awkward insisting on my way', 'Мені ніяково наполягати на своєму'),
+     _m('Я хочу понять, откуда на самом деле взялась ссора', 'I want to understand where the fight really came from', 'Я хочу зрозуміти, звідки насправді взялася сварка')),
+    (_m('Я уступаю, если вижу, что партнёру это важнее', 'I give in if I see it matters more to my partner', 'Я поступаюся, якщо бачу, що партнерові це важливіше'),
+     _m('Я предлагаю выписать варианты и выбрать лучший вместе', 'I suggest writing down options and picking the best one together', 'Я пропоную виписати варіанти й обрати найкращий разом')),
+  ]),
+  ('avoid', 'trade', [
+    (_m('Когда назревает ссора, я прячусь в телефон', 'When a fight is brewing, I hide in my phone', 'Коли назріває сварка, я ховаюся в телефон'),
+     _m('Спорное я делю пополам', 'I split the disputed thing down the middle', 'Спірне я ділю навпіл')),
+    (_m('Я жду, что партнёр сам забудет', 'I wait for my partner to forget', 'Я чекаю, що партнер сам забуде'),
+     _m('Я предлагаю меняться: в этот раз выбираешь ты', 'I suggest swapping: this time you choose', 'Я пропоную мінятися: цього разу обираєш ти')),
+    (_m('Я отшучиваюсь, чтобы не говорить всерьёз', 'I joke so I don’t have to talk seriously', 'Я віджартовуюся, щоб не говорити всерйоз'),
+     _m('Я соглашаюсь на компромисс, лишь бы двигаться дальше', 'I accept a compromise just to move on', 'Я погоджуюся на компроміс, аби рухатися далі')),
+    (_m('Мне проще промолчать, чем выяснять отношения', 'It’s easier to stay silent than to have it out', 'Мені простіше змовчати, ніж з’ясовувати стосунки'),
+     _m('Я ищу золотую середину', 'I look for the happy medium', 'Я шукаю золоту середину')),
+  ]),
+  ('avoid', 'solve', [
+    (_m('Я обхожу острые темы', 'I steer clear of touchy subjects', 'Я обходжу гострі теми'),
+     _m('Я ищу, в чём мы на самом деле согласны', 'I look for what we actually agree on', 'Я шукаю, у чому ми насправді згодні')),
+    (_m('Я замолкаю на весь вечер', 'I go silent for the whole evening', 'Я замовкаю на весь вечір'),
+     _m('Я трачу на разговор столько времени, сколько нужно', 'I give the talk as much time as it takes', 'Я витрачаю на розмову стільки часу, скільки треба')),
+    (_m('Я ухожу спать, не договорив', 'I go to bed before we finish talking', 'Я йду спати, не договоривши'),
+     _m('Я придумываю новый вариант, который устроит обоих', 'I come up with a new option that suits us both', 'Я вигадую новий варіант, який влаштує обох')),
+    (_m('Я говорю «давай не сейчас»', 'I say “let’s not do this now”', 'Я кажу «давай не зараз»'),
+     _m('Я переспрашиваю, правильно ли понимаю партнёра', 'I check that I understand my partner right', 'Я перепитую, чи правильно розумію партнера')),
+  ]),
+  ('trade', 'solve', [
+    (_m('Я предлагаю что-то среднее между нашими идеями', 'I suggest something between our two ideas', 'Я пропоную щось середнє між нашими ідеями'),
+     _m('Я говорю «давай решим это вместе»', 'I say “let’s solve this together”', 'Я кажу «давай розв’яжемо це разом»')),
+    (_m('Честно, когда уступают оба', 'It’s fair when both give in', 'Чесно, коли поступаються обоє'),
+     _m('Я смотрю на спор как на общую задачу', 'I see an argument as a shared problem to solve', 'Я дивлюся на суперечку як на спільне завдання')),
+    (_m('Я помню, кто уступал в прошлый раз', 'I keep track of who gave in last time', 'Я пам’ятаю, хто поступався минулого разу'),
+     _m('Я ищу причину, а не виноватого', 'I look for the cause, not someone to blame', 'Я шукаю причину, а не винного')),
+    (_m('Я отказываюсь от части желаний ради общего решения', 'I drop some of my wishes for a shared decision', 'Я відмовляюся від частини бажань заради спільного рішення'),
+     _m('Я прошу партнёра рассказать свою сторону целиком', 'I ask my partner to tell their whole side', 'Я прошу партнера розповісти свій бік повністю')),
+  ]),
+  ('push', 'yield', [
+    (_m('Спор чаще начинаю я', 'I’m usually the one who starts the argument', 'Суперечку частіше починаю я'),
+     _m('На уступки обычно иду я', 'I’m usually the one who gives in', 'На поступки зазвичай іду я')),
+    (_m('Я не меняю решение под давлением', 'I don’t change my mind under pressure', 'Я не змінюю рішення під тиском'),
+     _m('Я прошу прощения, чтобы вернуть мир', 'I say sorry to bring back the peace', 'Я прошу вибачення, щоб повернути мир')),
+    (_m('Я отвечаю резко, если меня задели', 'I snap back if I’m hurt', 'Я відповідаю різко, якщо мене зачепили'),
+     _m('Я соглашаюсь, даже если потом жалею', 'I agree even if I regret it later', 'Я погоджуюся, навіть якщо потім шкодую')),
+    (_m('Я веду спор, как соревнование', 'I treat an argument like a competition', 'Я веду суперечку, як змагання'),
+     _m('Мне важнее, чтобы партнёру было спокойно', 'My partner’s peace of mind matters more to me', 'Мені важливіше, щоб партнерові було спокійно')),
+  ]),
+  ('yield', 'avoid', [
+    (_m('Я легко меняю мнение вслед за партнёром', 'I easily change my mind to match my partner', 'Я легко змінюю думку слідом за партнером'),
+     _m('Я держу недовольство в себе', 'I keep my discontent to myself', 'Я тримаю невдоволення в собі')),
+    (_m('Последнее слово я оставляю партнёру', 'I leave the last word to my partner', 'Останнє слово я залишаю партнерові'),
+     _m('Я ухожу от прямого вопроса', 'I dodge a direct question', 'Я ухиляюся від прямого питання')),
+    (_m('Я терплю, лишь бы не было ссоры', 'I put up with it as long as there’s no fight', 'Я терплю, аби не було сварки'),
+     _m('Я отдаляюсь на пару дней, пока всё не уляжется', 'I pull away for a couple of days until it settles', 'Я віддаляюся на пару днів, поки все не вляжеться')),
+    (_m('В мелочах я уступаю, чтобы не тратить нервы', 'I give in on small things to save my nerves', 'У дрібницях я поступаюся, щоб не витрачати нерви'),
+     _m('Больную тему я обхожу стороной', 'I steer around the sore subject', 'Болючу тему я оминаю')),
+  ]),
+  ('avoid', 'trade', [
+    (_m('Я надеюсь, что всё решится без разговора', 'I hope it’ll sort itself out without a talk', 'Я сподіваюся, що все розв’яжеться без розмови'),
+     _m('Я предлагаю попробовать и так, и так', 'I suggest we try it both ways', 'Я пропоную спробувати і так, і так')),
+    (_m('Я ухожу с головой в дела, лишь бы не ссориться', 'I bury myself in work to avoid fighting', 'Я поринаю в справи, аби не сваритися'),
+     _m('Я ищу вариант, на который оба согласятся без восторга', 'I look for an option we can both live with', 'Я шукаю варіант, на який обоє погодяться без захвату')),
+    (_m('Я говорю «всё нормально», хотя это не так', 'I say “it’s fine” when it isn’t', 'Я кажу «все нормально», хоча це не так'),
+     _m('Я договариваюсь: ты мне это, я тебе то', 'I make a deal: you do this, I do that', 'Я домовляюся: ти мені це, я тобі те')),
+    (_m('Я обрываю спор на полуслове', 'I cut the argument off mid-sentence', 'Я обриваю суперечку на півслові'),
+     _m('Я ищу вариант, который никого не обидит', 'I look for an option that won’t hurt anyone', 'Я шукаю варіант, який нікого не образить')),
+  ]),
+  ('trade', 'solve', [
+    (_m('Я уступаю ровно столько, сколько уступает партнёр', 'I give in exactly as much as my partner does', 'Я поступаюся рівно стільки, скільки поступається партнер'),
+     _m('Я ищу решение, после которого не останется обиды', 'I look for a solution that leaves no hard feelings', 'Я шукаю рішення, після якого не залишиться образи')),
+    (_m('Если спор зашёл в тупик, я предлагаю ничью', 'If we’re stuck, I suggest calling it a draw', 'Якщо суперечка зайшла в глухий кут, я пропоную нічию'),
+     _m('Я прямо говорю, чего хочу, и спрашиваю, чего хочет партнёр', 'I say plainly what I want and ask what my partner wants', 'Я прямо кажу, чого хочу, і питаю, чого хоче партнер')),
+    (_m('Я быстро соглашаюсь на середину, чтобы не тратить время', 'I quickly settle on the middle to save time', 'Я швидко погоджуюся на середину, щоб не гаяти час'),
+     _m('Я предлагаю передохнуть и вернуться с идеями', 'I suggest a break and coming back with ideas', 'Я пропоную перепочити й повернутися з ідеями')),
+    (_m('Я считаю, что лучше половина, чем ничего', 'I think half is better than nothing', 'Я вважаю, що краще половина, ніж нічого'),
+     _m('Я ищу выход, о котором мы раньше не думали', 'I look for a way out we hadn’t thought of', 'Я шукаю вихід, про який ми раніше не думали')),
+  ]),
+  ('solve', 'push', [
+    (_m('Я хочу, чтобы после спора мы стали ближе', 'I want us to be closer after an argument', 'Я хочу, щоб після суперечки ми стали ближчими'),
+     _m('Я вспоминаю прошлые ошибки партнёра, чтобы доказать своё', 'I bring up my partner’s past mistakes to make my point', 'Я згадую минулі помилки партнера, щоб довести своє')),
+    (_m('Я помогаю нам обоим услышать друг друга', 'I help us both hear each other', 'Я допомагаю нам обом почути одне одного'),
+     _m('Я хочу, чтобы всё было по-моему', 'I want things my way', 'Я хочу, щоб усе було по-моєму')),
+    (_m('Я разбираю ссору, чтобы она не повторилась', 'I unpack a fight so it doesn’t happen again', 'Я розбираю сварку, щоб вона не повторилася'),
+     _m('Я дожимаю разговор до конца', 'I push the talk through to the end', 'Я дотискаю розмову до кінця')),
+    (_m('Я обсуждаю, как нам лучше спорить в следующий раз', 'I talk about how we can argue better next time', 'Я обговорюю, як нам краще сперечатися наступного разу'),
+     _m('Я твёрдо говорю «нет», когда мне что-то не подходит', 'I firmly say “no” when something doesn’t suit me', 'Я твердо кажу «ні», коли мені щось не підходить')),
+  ]),
+];
+
+// Насколько вы похожи: пятнадцать тем, у каждой четыре «или-или».
+final Map<String, String> _alikeQ = _m('Что вам ближе?', 'Which is more you?', 'Що вам ближче?');
+
+final List<List<(Map<String, String>, Map<String, String>)>> _alikeSlots = [
+  [ // отдых
+    (_m('Море', 'The sea', 'Море'), _m('Горы', 'The mountains', 'Гори')),
+    (_m('Палатка', 'A tent', 'Намет'), _m('Отель', 'A hotel', 'Готель')),
+    (_m('Пляж', 'The beach', 'Пляж'), _m('Экскурсии', 'Sightseeing', 'Екскурсії')),
+    (_m('Отпуск летом', 'A summer vacation', 'Відпустка влітку'), _m('Отпуск зимой', 'A winter vacation', 'Відпустка взимку')),
+  ],
+  [ // режим
+    (_m('Сова', 'A night owl', 'Сова'), _m('Жаворонок', 'An early bird', 'Жайворонок')),
+    (_m('Ранний подъём', 'Getting up early', 'Ранній підйом'), _m('Поспать подольше', 'Sleeping in', 'Поспати довше')),
+    (_m('Поздний ужин', 'A late dinner', 'Пізня вечеря'), _m('Ранний ужин', 'An early dinner', 'Рання вечеря')),
+    (_m('Поспать днём', 'A daytime nap', 'Поспати вдень'), _m('Днём не спать', 'No naps', 'Вдень не спати')),
+  ],
+  [ // еда
+    (_m('Сладкое', 'Sweet', 'Солодке'), _m('Солёное', 'Salty', 'Солоне')),
+    (_m('Пицца', 'Pizza', 'Піца'), _m('Суши', 'Sushi', 'Суші')),
+    (_m('Готовить дома', 'Cooking at home', 'Готувати вдома'), _m('Заказывать еду', 'Ordering in', 'Замовляти їжу')),
+    (_m('Острое', 'Spicy', 'Гостре'), _m('Неострое', 'Mild', 'Негостре')),
+  ],
+  [ // напитки
+    (_m('Кофе', 'Coffee', 'Кава'), _m('Чай', 'Tea', 'Чай')),
+    (_m('Сок', 'Juice', 'Сік'), _m('Газировка', 'Soda', 'Газована вода')),
+    (_m('Холодные напитки', 'Cold drinks', 'Холодні напої'), _m('Горячие напитки', 'Hot drinks', 'Гарячі напої')),
+    (_m('Молочный коктейль', 'A milkshake', 'Молочний коктейль'), _m('Смузи', 'A smoothie', 'Смузі')),
+  ],
+  [ // погода
+    (_m('Лето', 'Summer', 'Літо'), _m('Зима', 'Winter', 'Зима')),
+    (_m('Дождь', 'Rain', 'Дощ'), _m('Снег', 'Snow', 'Сніг')),
+    (_m('Жара', 'Heat', 'Спека'), _m('Прохлада', 'Cool weather', 'Прохолода')),
+    (_m('Осень', 'Autumn', 'Осінь'), _m('Весна', 'Spring', 'Весна')),
+  ],
+  [ // дом
+    (_m('Город', 'The city', 'Місто'), _m('Деревня', 'The countryside', 'Село')),
+    (_m('Квартира', 'An apartment', 'Квартира'), _m('Свой дом', 'A house of my own', 'Свій дім')),
+    (_m('Идеальный порядок', 'Perfect order', 'Ідеальний порядок'), _m('Творческий беспорядок', 'Creative mess', 'Творчий безлад')),
+    (_m('Минимализм', 'Minimalism', 'Мінімалізм'), _m('Много вещей', 'Lots of stuff', 'Багато речей')),
+  ],
+  [ // досуг
+    (_m('Фильм', 'A movie', 'Фільм'), _m('Сериал', 'A series', 'Серіал')),
+    (_m('Книга', 'A book', 'Книжка'), _m('Подкаст', 'A podcast', 'Подкаст')),
+    (_m('Комедия', 'Comedy', 'Комедія'), _m('Ужасы', 'Horror', 'Жахи')),
+    (_m('Настолки', 'Board games', 'Настолки'), _m('Видеоигры', 'Video games', 'Відеоігри')),
+  ],
+  [ // питомцы
+    (_m('Кошки', 'Cats', 'Коти'), _m('Собаки', 'Dogs', 'Собаки')),
+    (_m('Рыбки', 'Fish', 'Рибки'), _m('Попугай', 'A parrot', 'Папуга')),
+    (_m('Хомяк', 'A hamster', 'Хом’як'), _m('Черепаха', 'A turtle', 'Черепаха')),
+    (_m('Без питомцев', 'No pets', 'Без улюбленців'), _m('Целый зоопарк', 'A whole zoo', 'Цілий зоопарк')),
+  ],
+  [ // общение
+    (_m('Позвонить', 'Calling', 'Подзвонити'), _m('Написать', 'Texting', 'Написати')),
+    (_m('Голосовое', 'A voice message', 'Голосове'), _m('Текстом', 'In writing', 'Текстом')),
+    (_m('Большая компания', 'A big crowd', 'Велика компанія'), _m('Пара близких друзей', 'A couple of close friends', 'Пара близьких друзів')),
+    (_m('Вечеринка', 'A party', 'Вечірка'), _m('Вечер дома', 'A night in', 'Вечір удома')),
+  ],
+  [ // характер
+    (_m('Планировать всё', 'Planning everything', 'Планувати все'), _m('Решать на ходу', 'Winging it', 'Вирішувати на ходу')),
+    (_m('Приходить заранее', 'Arriving early', 'Приходити заздалегідь'), _m('Приходить впритык', 'Arriving just in time', 'Приходити впритул')),
+    (_m('Сначала думать', 'Think first', 'Спершу думати'), _m('Сначала делать', 'Act first', 'Спершу робити')),
+    (_m('Список дел', 'A to-do list', 'Список справ'), _m('Всё в голове', 'All in my head', 'Усе в голові')),
+  ],
+  [ // деньги
+    (_m('Копить', 'Saving', 'Заощаджувати'), _m('Тратить', 'Spending', 'Витрачати')),
+    (_m('Наличные', 'Cash', 'Готівка'), _m('Карта', 'Card', 'Картка')),
+    (_m('Покупать сразу', 'Buying right away', 'Купувати одразу'), _m('Долго выбирать', 'Choosing for ages', 'Довго обирати')),
+    (_m('Подарок своими руками', 'A handmade gift', 'Подарунок власноруч'), _m('Подарок из магазина', 'A store-bought gift', 'Подарунок із крамниці')),
+  ],
+  [ // музыка
+    (_m('Громкая музыка', 'Loud music', 'Гучна музика'), _m('Тишина', 'Silence', 'Тиша')),
+    (_m('Наушники', 'Headphones', 'Навушники'), _m('Колонка', 'A speaker', 'Колонка')),
+    (_m('Петь в душе', 'Singing in the shower', 'Співати в душі'), _m('Не петь вовсе', 'Never singing', 'Не співати взагалі')),
+    (_m('Живой концерт', 'A live concert', 'Живий концерт'), _m('Любимый плейлист', 'A favorite playlist', 'Улюблений плейлист')),
+  ],
+  [ // спорт
+    (_m('Бег', 'Running', 'Біг'), _m('Йога', 'Yoga', 'Йога')),
+    (_m('Утренняя зарядка', 'Morning exercise', 'Ранкова зарядка'), _m('Вечерняя тренировка', 'An evening workout', 'Вечірнє тренування')),
+    (_m('Велосипед', 'A bike', 'Велосипед'), _m('Самокат', 'A scooter', 'Самокат')),
+    (_m('Спортзал', 'The gym', 'Спортзал'), _m('Прогулка', 'A walk', 'Прогулянка')),
+  ],
+  [ // поездки
+    (_m('Самолёт', 'A plane', 'Літак'), _m('Поезд', 'A train', 'Потяг')),
+    (_m('Знакомые места', 'Familiar places', 'Знайомі місця'), _m('Новые страны', 'New countries', 'Нові країни')),
+    (_m('Чемодан', 'A suitcase', 'Валіза'), _m('Рюкзак', 'A backpack', 'Рюкзак')),
+    (_m('С маршрутом', 'With a route', 'З маршрутом'), _m('Без плана', 'No plan', 'Без плану')),
+  ],
+  [ // вечер
+    (_m('Свечи', 'Candles', 'Свічки'), _m('Яркий свет', 'Bright light', 'Яскраве світло')),
+    (_m('Ванна', 'A bath', 'Ванна'), _m('Душ', 'A shower', 'Душ')),
+    (_m('Спать в пижаме', 'Sleeping in pajamas', 'Спати в піжамі'), _m('Спать в футболке', 'Sleeping in a T-shirt', 'Спати у футболці')),
+    (_m('Окно открыто', 'Window open', 'Вікно відчинене'), _m('Окно закрыто', 'Window closed', 'Вікно зачинене')),
+  ],
+];
+
 /// Сколько вопросов в одном прохождении (слотов).
 int quizSlotCount(QuizKind kind) => switch (kind) {
       QuizKind.lang => _langPairs.length,
       QuizKind.attach => _attachItems.length,
       QuizKind.animal => _animalQs.length,
+      QuizKind.fight => _fightSlots.length,
+      QuizKind.alike => _alikeSlots.length,
     };
 
 /// Сколько вариантов у слота [slot], основной вариант тоже считается.
-int quizVariantCount(QuizKind kind, int slot) => 1 + switch (kind) {
-      QuizKind.lang => _langExtra[slot].length,
-      QuizKind.attach => _attachExtra[slot].length,
-      QuizKind.animal => _animalExtra[slot].length,
+int quizVariantCount(QuizKind kind, int slot) => switch (kind) {
+      QuizKind.lang => 1 + _langExtra[slot].length,
+      QuizKind.attach => 1 + _attachExtra[slot].length,
+      QuizKind.animal => 1 + _animalExtra[slot].length,
+      QuizKind.fight => _fightSlots[slot].$3.length,
+      QuizKind.alike => _alikeSlots[slot].length,
     };
+
+/// Набор по ключам вопросов (`alike_3_2`), например из ответов партнёра:
+/// у «Насколько вы похожи» оба отвечают на одни и те же вопросы. Ключей не на
+/// каждый слот или вариант вне банка — null.
+List<int>? quizRoundFromKeys(QuizKind kind, Iterable<String> keys) {
+  final round = List<int?>.filled(quizSlotCount(kind), null);
+  for (final key in keys) {
+    final parts = key.split('_');
+    if (parts.length != 3 || parts[0] != kind.name) return null;
+    final slot = int.tryParse(parts[1]), variant = int.tryParse(parts[2]);
+    if (slot == null || variant == null || slot < 0 || slot >= round.length) return null;
+    if (variant < 0 || variant >= quizVariantCount(kind, slot)) return null;
+    round[slot] = variant;
+  }
+  if (round.contains(null)) return null;
+  return [for (final v in round) v!];
+}
 
 /// Ключи вопросов набора — их запоминаем, чтобы в следующий раз дать другие.
 List<String> quizRoundKeys(QuizKind kind, List<int> round) =>
@@ -901,6 +1200,20 @@ List<QuizQuestion> quizQuestions(QuizKind kind, String lang, {List<int>? round})
               ),
           ]),
       ],
+    QuizKind.fight => [
+        for (var i = 0; i < _fightSlots.length; i++)
+          QuizQuestion('fight_${i}_${v(i)}', _t(_fightQ, lang), [
+            QuizOption(_t(_fightSlots[i].$3[v(i)].$1, lang), {_fightSlots[i].$1: 1}),
+            QuizOption(_t(_fightSlots[i].$3[v(i)].$2, lang), {_fightSlots[i].$2: 1}),
+          ]),
+      ],
+    QuizKind.alike => [
+        for (var i = 0; i < _alikeSlots.length; i++)
+          QuizQuestion('alike_${i}_${v(i)}', _t(_alikeQ, lang), [
+            QuizOption(_t(_alikeSlots[i][v(i)].$1, lang), const {'a': 1}),
+            QuizOption(_t(_alikeSlots[i][v(i)].$2, lang), const {'b': 1}),
+          ]),
+      ],
   };
 }
 
@@ -911,9 +1224,16 @@ String attachItemAxis(QuizQuestion q) => q.options.first.score.keys.single;
 bool attachItemReversed(QuizQuestion q) => q.options.first.score.values.single == 5;
 
 /// Подсчёт. [answers] — индекс выбранного варианта на каждый вопрос по
-/// порядку; лишние, недостающие и кривые ответы пропускаются.
-QuizResult scoreQuiz(QuizKind kind, List<int> answers) {
-  final qs = quizQuestions(kind, 'en');
+/// порядку; лишние, недостающие и кривые ответы пропускаются. [round] нужен
+/// «Насколько вы похожи»: ответ ложится под ключом своего варианта вопроса.
+QuizResult scoreQuiz(QuizKind kind, List<int> answers, {List<int>? round}) {
+  final qs = quizQuestions(kind, 'en', round: round);
+  if (kind == QuizKind.alike) {
+    return QuizResult(kind: kind, type: 'done', scores: {
+      for (var i = 0; i < qs.length && i < answers.length; i++)
+        if (answers[i] == 0 || answers[i] == 1) qs[i].key: answers[i].toDouble(),
+    });
+  }
   final sums = <String, int>{};
   final counts = <String, int>{};
   for (var i = 0; i < qs.length && i < answers.length; i++) {
@@ -1040,6 +1360,49 @@ final Map<String, Map<String, String>> _animalBrings = {
   'koala': _m('уют', 'coziness', 'затишок'),
 };
 
+final Map<String, (Map<String, String>, Map<String, String>)> _fightTypes = {
+  'push': (_m('Стою на своём', 'I stand my ground', 'Стою на своєму'), _m(
+    'В споре вы держитесь за свою правду и редко сдаёте позиции. Это честно, но партнёру бывает трудно вставить слово.',
+    'In an argument you hold on to your truth and rarely give ground. It’s honest, but your partner can struggle to get a word in.',
+    'У суперечці ви тримаєтеся своєї правди й рідко здаєте позиції. Це чесно, але партнерові буває важко вставити слово.')),
+  'yield': (_m('Уступаю', 'I give in', 'Поступаюся'), _m(
+    'Мир вам дороже правоты, и вы легко уступаете. Только обида от каждой уступки никуда не девается, а копится.',
+    'Peace matters more to you than being right, so you give in easily. But the hurt from each concession doesn’t vanish, it piles up.',
+    'Мир вам дорожчий за правоту, і ви легко поступаєтеся. Тільки образа від кожної поступки нікуди не дівається, а накопичується.')),
+  'avoid': (_m('Ухожу от спора', 'I step away', 'Уникаю суперечки'), _m(
+    'Вы уходите от ссоры: молчите, переводите тему, ждёте, пока само пройдёт. Буря стихает, а вопрос остаётся нерешённым.',
+    'You step away from fights: go quiet, change the subject, wait for it to pass. The storm calms down, but the issue stays unsolved.',
+    'Ви уникаєте сварки: мовчите, переводите тему, чекаєте, поки мине саме. Буря вщухає, а питання лишається нерозв’язаним.')),
+  'trade': (_m('Ищу середину', 'I meet halfway', 'Шукаю середину'), _m(
+    'Вы ищете середину: немного уступить и немного выиграть. Выходит быстро, но порой каждый остаётся доволен только наполовину.',
+    'You look for the middle: give a little, win a little. It’s quick, but sometimes each of you is only half happy.',
+    'Ви шукаєте середину: трохи поступитися й трохи виграти. Виходить швидко, але часом кожен задоволений лише наполовину.')),
+  'solve': (_m('Решаем вместе', 'We solve it together', 'Розв’язуємо разом'), _m(
+    'Вы ищете решение, которое устроит обоих, даже если на разговор уйдёт весь вечер. Это самый трудный путь и самый надёжный.',
+    'You look for a solution that works for both, even if the talk takes all evening. It’s the hardest way and the most reliable one.',
+    'Ви шукаєте рішення, яке влаштує обох, навіть якщо на розмову піде весь вечір. Це найважчий шлях і найнадійніший.')),
+};
+
+/// Что поможет человеку с этим стилем в следующей ссоре — для общего итога.
+final Map<String, Map<String, String>> _fightRule = {
+  'push': _m('сначала дослушать другого, а уже потом спорить', 'hearing the other out before arguing', 'спершу дослухати іншого, а вже потім сперечатися'),
+  'yield': _m('прямо говорить, чего хочется, а не соглашаться ради тишины', 'saying plainly what you want instead of agreeing for the sake of quiet',
+      'прямо казати, чого хочеться, а не погоджуватися заради тиші'),
+  'avoid': _m('договориться о паузе и вернуться к разговору в тот же день', 'agreeing on a pause and coming back to the talk the same day',
+      'домовитися про паузу й повернутися до розмови того ж дня'),
+  'trade': _m('сначала понять, что каждому по-настоящему важно, а потом уже делить пополам', 'first finding out what truly matters to each of you, then splitting',
+      'спершу зрозуміти, що кожному по-справжньому важливо, а потім уже ділити навпіл'),
+  'solve': _m('не тянуть разговор до ночи, если оба устали', 'not dragging the talk into the night when you’re both tired',
+      'не тягнути розмову до ночі, якщо обоє втомилися'),
+};
+
+final Map<String, (Map<String, String>, Map<String, String>)> _alikeTypes = {
+  'done': (_m('Ответы готовы', 'Your answers are in', 'Відповіді готові'), _m(
+    'Партнёру достанутся те же вопросы. Совпадения и различия появятся в блоке «Вместе».',
+    'Your partner gets the same questions. Matches and differences show up under “Together”.',
+    'Партнерові дістануться ті самі питання. Збіги й відмінності з’являться в блоці «Разом».')),
+};
+
 /// Значок зверя на экране результата.
 const Map<String, String> kAnimalEmoji = {
   'cat': '🐱', 'dog': '🐶', 'hedgehog': '🦔', 'otter': '🦦',
@@ -1050,6 +1413,8 @@ const Map<String, String> kAnimalEmoji = {
       QuizKind.lang => _langTypes[type],
       QuizKind.attach => _attachTypes[type],
       QuizKind.animal => _animalTypes[type],
+      QuizKind.fight => _fightTypes[type],
+      QuizKind.alike => _alikeTypes[type],
     };
 
 String quizTypeTitle(QuizKind kind, String type, String lang) {
@@ -1096,5 +1461,84 @@ String quizPairText(QuizKind kind, String mine, String theirs, String lang) {
       return pick('Вы приносите в пару $a, а партнёр — $b. Вместе выходит хороший дуэт.',
           'You bring $a to the couple, your partner brings $b. Together you make a good duo.',
           'Ви приносите в пару $a, а партнер — $b. Разом виходить гарний дует.');
+    case QuizKind.fight:
+      final a = _t(_fightRule[mine]!, lang), b = _t(_fightRule[theirs]!, lang);
+      if (mine == theirs) {
+        final start = switch (mine) {
+          'avoid' => pick('Вы оба уходите от разговора, поэтому обиды копятся.', 'You both step away from the talk, so the hurt piles up.',
+              'Ви обоє уникаєте розмови, тому образи накопичуються.'),
+          'push' => pick('Вы оба стоите на своём, и спор быстро разгорается.', 'You both stand your ground, so arguments flare up fast.',
+              'Ви обоє стоїте на своєму, і суперечка швидко розгоряється.'),
+          _ => pick('В ссоре вы ведёте себя одинаково.', 'You argue the same way.', 'У сварці ви поводитеся однаково.'),
+        };
+        return '$start ${pick('Правило на следующий раз: $a.', 'Rule for next time: $a.', 'Правило на наступний раз: $a.')}';
+      }
+      return pick('В следующей ссоре вам поможет $a, а партнёру — $b.',
+          'Next time you argue, $a will help you, and $b will help your partner.',
+          'У наступній сварці вам допоможе $a, а партнерові — $b.');
+    case QuizKind.alike:
+      return pick('Ответили оба. Пройдите тест заново, чтобы сравнить ответы.', 'You’ve both answered. Take the test again to compare.',
+          'Відповіли обоє. Пройдіть тест знову, щоб порівняти відповіді.');
   }
+}
+
+/// «Насколько вы похожи»: совпадения по вопросам, на которые ответили оба.
+class QuizMatch {
+  const QuizMatch(this.same, this.total, this.diffs);
+  final int same;
+  final int total;
+
+  /// Где ответы разошлись: свой ответ и ответ партнёра.
+  final List<(String, String)> diffs;
+
+  int get percent => total == 0 ? 0 : (same * 100 / total).round();
+}
+
+QuizMatch quizMatch(QuizResult mine, QuizResult theirs, String lang) {
+  var same = 0, total = 0;
+  final diffs = <(String, String)>[];
+  for (final e in mine.scores.entries) {
+    final other = theirs.scores[e.key];
+    if (other == null) continue;
+    final parts = e.key.split('_');
+    final slot = int.tryParse(parts.length == 3 ? parts[1] : '');
+    final variant = int.tryParse(parts.length == 3 ? parts[2] : '');
+    if (slot == null || variant == null || slot >= _alikeSlots.length || variant >= _alikeSlots[slot].length) continue;
+    total++;
+    if (e.value == other) {
+      same++;
+      continue;
+    }
+    final pair = _alikeSlots[slot][variant];
+    String side(double v) => _t(v == 0 ? pair.$1 : pair.$2, lang);
+    diffs.add((side(e.value), side(other)));
+  }
+  return QuizMatch(same, total, diffs);
+}
+
+/// Общий итог пары для экрана и картинки: у «Насколько вы похожи» он
+/// считается по самим ответам, у остальных — по типам.
+String quizPairSummary(QuizResult mine, QuizResult theirs, String lang) {
+  if (mine.kind != QuizKind.alike) return quizPairText(mine.kind, mine.type, theirs.type, lang);
+  String pick(String ru, String en, String uk) => _t(_m(ru, en, uk), lang);
+  final m = quizMatch(mine, theirs, lang);
+  if (m.total == 0) {
+    return pick('Вам достались разные вопросы. Пройдите тест заново: вопросы будут те же, что у партнёра.',
+        'You got different questions. Take the test again: you’ll get the same ones as your partner.',
+        'Вам дісталися різні питання. Пройдіть тест знову: питання будуть ті самі, що в партнера.');
+  }
+  final n = '${m.same} ${pick('из', 'of', 'з')} ${m.total}';
+  if (m.percent >= 80) {
+    return pick('Почти одинаковые: совпало $n. Договориться вам легко о чём угодно.',
+        'Nearly the same: $n match. You can agree on almost anything.',
+        'Майже однакові: збіглося $n. Домовитися вам легко про що завгодно.');
+  }
+  if (m.percent >= 50) {
+    return pick('Похожи, но не копии: совпало $n. Различий как раз хватает, чтобы не скучать.',
+        'Alike, but not copies: $n match. Just enough differences to keep it interesting.',
+        'Схожі, але не копії: збіглося $n. Відмінностей якраз вистачає, щоб не нудьгувати.');
+  }
+  return pick('Противоположности: совпало $n. Зато вам есть чему поучиться друг у друга.',
+      'Opposites: $n match. Which means you have plenty to learn from each other.',
+      'Протилежності: збіглося $n. Зате вам є чого навчитися одне в одного.');
 }

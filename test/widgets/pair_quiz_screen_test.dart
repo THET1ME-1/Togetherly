@@ -52,8 +52,14 @@ void main() {
         await t.pump();
       }
       expect(find.text('Ваш результат'), findsOneWidget);
-      await t.scrollUntilVisible(find.text('Маша'), 200);
-      expect(find.text('Маша'), findsOneWidget);
+      if (kind == QuizKind.alike) {
+        // Вопросы взяты у партнёра, поэтому сравниваются все пятнадцать.
+        await t.scrollUntilVisible(find.textContaining('из 15'), 200);
+        expect(find.textContaining('%'), findsOneWidget);
+      } else {
+        await t.scrollUntilVisible(find.text('Маша'), 200);
+        expect(find.text('Маша'), findsOneWidget);
+      }
       await t.scrollUntilVisible(find.text('ВМЕСТЕ'), 200);
       expect(find.text('ВМЕСТЕ'), findsOneWidget);
       expect(t.takeException(), isNull);
@@ -61,7 +67,7 @@ void main() {
     });
   }
 
-  testWidgets('экран тестов: «Умение любить» первым, за ним три новых', (t) async {
+  testWidgets('экран тестов: «Умение любить» первым, за ним пять новых', (t) async {
     var loveOpened = false;
     await pump(
       t,
@@ -81,6 +87,11 @@ void main() {
     expect(love.dy, lessThan(t.getTopLeft(find.text('Язык любви')).dy));
     expect(find.text('Тип привязанности'), findsOneWidget);
     expect(find.text('Какое ты животное'), findsOneWidget);
+    await t.scrollUntilVisible(find.text('Насколько вы похожи'), 200);
+    expect(find.text('Как вы ссоритесь'), findsOneWidget);
+    expect(find.text('Насколько вы похожи'), findsOneWidget);
+    await t.drag(find.byType(ListView), const Offset(0, 2000));
+    await t.pumpAndSettle();
     expect(find.text('Пройден'), findsOneWidget);
     expect(t.takeException(), isNull);
     await t.tap(find.text('Умение любить'));

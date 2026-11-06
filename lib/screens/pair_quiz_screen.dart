@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../models/pair_quiz.dart';
@@ -9,7 +10,7 @@ import '../services/pair_quiz_service.dart';
 import '../theme/profile_theme.dart';
 import 'pair_quiz_story_screen.dart';
 
-/// Тест для пары (язык любви, привязанность, зверь): вступление, вопросы по
+/// Тест для пары (язык любви, привязанность, зверь, ссоры, похожесть): вступление, вопросы по
 /// одному, результат. Как в «Умении любить», итог партнёра виден только после
 /// своих ответов: иначе его ответ стал бы подсказкой.
 class PairQuizScreen extends StatefulWidget {
@@ -100,7 +101,7 @@ class _PairQuizScreenState extends State<PairQuizScreen> {
         _step = step + 1;
         return;
       }
-      final res = scoreQuiz(widget.kind, _answers);
+      final res = scoreQuiz(widget.kind, _answers, round: _round);
       _results = PairQuizResults(
         mine: {..._results.mine, widget.kind: res},
         theirs: _results.theirs,
@@ -120,8 +121,21 @@ class _PairQuizScreenState extends State<PairQuizScreen> {
     }
   }
 
+  /// Набор вопросов. В «Насколько вы похожи» сравнивать можно только одни и те
+  /// же вопросы: если партнёр отвечал на другие, берём его набор. Если наборы
+  /// уже совпадают, даём новый — тогда партнёр подхватит его при повторе.
+  List<int> _pickRound() {
+    final theirs = _theirs;
+    if (widget.kind == QuizKind.alike && theirs != null) {
+      final shared = quizRoundFromKeys(widget.kind, theirs.scores.keys);
+      final mine = _mine?.scores.keys.toSet() ?? const <String>{};
+      if (shared != null && !setEquals(mine, theirs.scores.keys.toSet())) return shared;
+    }
+    return pickQuizRound(widget.kind, _rand, exclude: _results.myRounds[widget.kind] ?? const {});
+  }
+
   void _start() {
-    final round = pickQuizRound(widget.kind, _rand, exclude: _results.myRounds[widget.kind] ?? const {});
+    final round = _pickRound();
     final qs = quizQuestions(widget.kind, _lang, round: round);
     setState(() {
       _round = round;
@@ -269,33 +283,20 @@ class _PairQuizScreenState extends State<PairQuizScreen> {
         ),
         const SizedBox(height: 12),
         if (theirs != null) ...[
-          _ResultCard(
-            label: partner.isEmpty ? quizUi('theirs', _lang) : partner,
-            result: theirs,
-            lang: _lang,
-            color: cs.secondaryContainer,
-            ink: cs.onSecondaryContainer,
-            short: true,
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: cs.tertiaryContainer, borderRadius: BorderRadius.circular(28)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  quizUi('together', _lang).toUpperCase(),
-                  style: ProfileTheme.sectionLabel(cs, color: cs.onTertiaryContainer),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  quizPairText(widget.kind, mine.type, theirs.type, _lang),
-                  style: TextStyle(fontFamily: ProfileTheme.bodyFont, fontSize: 16, height: 1.45, color: cs.onTertiaryContainer),
-                ),
-              ],
+          // У «Насколько вы похожи» своего типа нет: карточка партнёра
+          // повторила бы «Ответы готовы», итог целиком в блоке «Вместе».
+          if (widget.kind != QuizKind.alike) ...[
+            _ResultCard(
+              label: partner.isEmpty ? quizUi('theirs', _lang) : partner,
+              result: theirs,
+              lang: _lang,
+              color: cs.secondaryContainer,
+              ink: cs.onSecondaryContainer,
+              short: true,
             ),
-          ),
+            const SizedBox(height: 12),
+          ],
+          _together(cs, mine, theirs, partner),
         ] else
           Container(
             padding: const EdgeInsets.all(20),
@@ -342,6 +343,65 @@ class _PairQuizScreenState extends State<PairQuizScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  /// Блок «Вместе». У «Насколько вы похожи» сверху процент, снизу ответы,
+  /// которые разошлись: свой слева, партнёра справа.
+  Widget _together(ColorScheme cs, QuizResult mine, QuizResult theirs, String partner) {
+    final ink = cs.onTertiaryContainer;
+    final match = widget.kind == QuizKind.alike ? quizMatch(mine, theirs, _lang) : null;
+    final body = TextStyle(fontFamily: ProfileTheme.bodyFont, fontSize: 16, height: 1.45, color: ink);
+    final cell = TextStyle(fontFamily: ProfileTheme.bodyFont, fontSize: 14.5, height: 1.3, color: ink);
+    final head = TextStyle(fontFamily: ProfileTheme.bodyFont, fontSize: 13, fontWeight: FontWeight.w700, color: ink.withValues(alpha: 0.75));
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: cs.tertiaryContainer, borderRadius: BorderRadius.circular(28)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(quizUi('together', _lang).toUpperCase(), style: ProfileTheme.sectionLabel(cs, color: ink)),
+          if (match != null && match.total > 0) ...[
+            const SizedBox(height: 4),
+            Text(
+              '${match.percent}%',
+              style: TextStyle(fontFamily: ProfileTheme.displayFont, fontSize: 44, fontWeight: FontWeight.w800, height: 1.1, color: ink),
+            ),
+          ],
+          const SizedBox(height: 8),
+          Text(quizPairSummary(mine, theirs, _lang), style: body),
+          if (match != null && match.diffs.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            Text(quizUi('differ', _lang).toUpperCase(), style: ProfileTheme.sectionLabel(cs, color: ink)),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(child: Text(quizUi('you', _lang), style: head)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    partner.isEmpty ? quizUi('theirs', _lang) : partner,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: head,
+                  ),
+                ),
+              ],
+            ),
+            for (final d in match.diffs) ...[
+              Divider(height: 16, color: ink.withValues(alpha: 0.15)),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: Text(d.$1, style: cell)),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(d.$2, style: cell)),
+                ],
+              ),
+            ],
+          ],
+        ],
+      ),
     );
   }
 }
@@ -403,7 +463,7 @@ class _ResultCard extends StatelessWidget {
               quizTypeText(kind, result.type, lang),
               style: TextStyle(fontFamily: ProfileTheme.bodyFont, fontSize: 15.5, height: 1.45, color: ink),
             ),
-            if (kind != QuizKind.animal) ...[
+            if (kind != QuizKind.animal && kind != QuizKind.alike) ...[
               const SizedBox(height: 14),
               for (final e in _bars(kind, result, lang))
                 Padding(
@@ -442,7 +502,7 @@ class _ResultCard extends StatelessWidget {
 }
 
 /// Экран «Тесты для пары» (06.11.2026): одна кнопка в профиле ведёт сюда, а
-/// здесь все тесты — «Умение любить» первым, за ним три новых.
+/// здесь все тесты — «Умение любить» первым, за ним пять новых.
 class PairTestsScreen extends StatefulWidget {
   const PairTestsScreen({
     super.key,
@@ -476,6 +536,8 @@ class _PairTestsScreenState extends State<PairTestsScreen> {
     QuizKind.lang: Icons.chat_bubble_rounded,
     QuizKind.attach: Icons.link_rounded,
     QuizKind.animal: Icons.pets_rounded,
+    QuizKind.fight: Icons.bolt_rounded,
+    QuizKind.alike: Icons.compare_arrows_rounded,
   };
 
   @override

@@ -41,6 +41,20 @@ void main() {
     }
   }
 
+  testWidgets('насколько похожи: на картинке процент совпадения', (t) async {
+    final round = List.filled(15, 0);
+    final mine = scoreQuiz(QuizKind.alike, List.filled(15, 0), round: round);
+    final theirs = scoreQuiz(QuizKind.alike, [for (var i = 0; i < 15; i++) i < 12 ? 0 : 1], round: round);
+    await t.pumpWidget(MaterialApp(
+      home: Center(
+        child: PairQuizStoryCard(scheme: cs, mine: mine, theirs: theirs, partnerName: 'Маша', lang: 'ru'),
+      ),
+    ));
+    expect(find.text('80%'), findsOneWidget);
+    expect(find.textContaining('12 из 15'), findsOneWidget);
+    expect(t.takeException(), isNull);
+  });
+
   testWidgets('без партнёра — только свой итог', (t) async {
     await t.pumpWidget(MaterialApp(
       home: Center(

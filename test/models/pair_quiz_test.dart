@@ -48,10 +48,31 @@ void main() {
       expect(perAxis['avo'], greaterThanOrEqualTo(7));
     });
 
+    test('ссоры: 15 пар, каждый стиль ровно 6 раз', () {
+      final qs = quizQuestions(QuizKind.fight, 'ru');
+      expect(qs, hasLength(15));
+      final seen = <String, int>{};
+      for (final q in qs) {
+        expect(q.options, hasLength(2));
+        for (final o in q.options) {
+          seen[o.score.keys.single] = (seen[o.score.keys.single] ?? 0) + 1;
+        }
+      }
+      expect(seen, {for (final t in kQuizTypes[QuizKind.fight]!) t: 6});
+    });
+
+    test('похожи: 15 вопросов «или-или»', () {
+      final qs = quizQuestions(QuizKind.alike, 'ru');
+      expect(qs, hasLength(15));
+      for (final q in qs) {
+        expect(q.options, hasLength(2));
+      }
+    });
+
     test('вступление называет то же число вопросов', () {
-      expect(quizIntro(QuizKind.lang, 'ru'), startsWith('Пятнадцать'));
-      expect(quizIntro(QuizKind.attach, 'ru'), startsWith('Пятнадцать'));
-      expect(quizIntro(QuizKind.animal, 'ru'), startsWith('Пятнадцать'));
+      for (final kind in QuizKind.values) {
+        expect(quizIntro(kind, 'ru'), startsWith('Пятнадцать'), reason: '$kind');
+      }
     });
   });
 
@@ -61,7 +82,7 @@ void main() {
         final base = quizQuestions(kind, 'ru');
         final slots = quizSlotCount(kind);
         expect(slots, base.length);
-        // Язык любви: пять вариантов на слот, привязанность и зверь: четыре.
+        // Язык любви: пять вариантов на слот, остальные тесты: четыре.
         final least = kind == QuizKind.lang ? 5 : 4;
         for (var s = 0; s < slots; s++) {
           expect(quizVariantCount(kind, s), greaterThanOrEqualTo(least), reason: '$kind слот $s');
@@ -91,8 +112,8 @@ void main() {
           for (var s = 0; s < slots; s++) {
             for (var v = 0; v < quizVariantCount(kind, s); v++) {
               final q = quizQuestions(kind, lang, round: List.filled(slots, 0)..[s] = v)[s];
-              // У языка любви вопрос один на всех, повторяться нельзя ответам.
-              final texts = kind == QuizKind.lang
+              // У пар «что ближе» вопрос один на всех, повторяться нельзя ответам.
+              final texts = {QuizKind.lang, QuizKind.fight, QuizKind.alike}.contains(kind)
                   ? [for (final o in q.options) o.text]
                   : kind == QuizKind.attach
                       ? [q.text]
@@ -115,6 +136,54 @@ void main() {
     test('ключи набора различают вопросы', () {
       final keys = quizRoundKeys(QuizKind.animal, List.filled(15, 1));
       expect(keys.toSet(), hasLength(15));
+    });
+
+    test('похожи: набор партнёра восстанавливается по его ответам', () {
+      final round = [for (var s = 0; s < 15; s++) s % 4];
+      final theirs = scoreQuiz(QuizKind.alike, List.filled(15, 1), round: round);
+      expect(quizRoundFromKeys(QuizKind.alike, theirs.scores.keys), round);
+      // Ответы неполные — набор не собрать.
+      expect(quizRoundFromKeys(QuizKind.alike, theirs.scores.keys.take(10)), isNull);
+      expect(quizRoundFromKeys(QuizKind.alike, const ['alike_0_99']), isNull);
+    });
+  });
+
+  group('насколько вы похожи', () {
+    final round = List.filled(15, 0);
+    final yes = scoreQuiz(QuizKind.alike, List.filled(15, 0), round: round);
+    final no = scoreQuiz(QuizKind.alike, List.filled(15, 1), round: round);
+
+    test('ответы ложатся по ключам вопросов', () {
+      expect(yes.type, 'done');
+      expect(yes.scores.keys.toSet(), quizRoundKeys(QuizKind.alike, round).toSet());
+      // Переживает сохранение: тип и ответы те же.
+      expect(QuizResult.fromJson(yes.toJson())?.scores, yes.scores);
+    });
+
+    test('одинаковые ответы — 100%, разных нет', () {
+      final m = quizMatch(yes, yes, 'ru');
+      expect((m.same, m.total, m.percent), (15, 15, 100));
+      expect(m.diffs, isEmpty);
+    });
+
+    test('противоположные ответы — 0%, все пятнадцать разные', () {
+      final m = quizMatch(yes, no, 'ru');
+      expect((m.same, m.total, m.percent), (0, 15, 0));
+      expect(m.diffs, hasLength(15));
+      // Своё слева, партнёра справа.
+      final q = quizQuestions(QuizKind.alike, 'ru', round: round).first;
+      expect(m.diffs, contains((q.options[0].text, q.options[1].text)));
+    });
+
+    test('разные наборы вопросов не сравниваются', () {
+      final other = scoreQuiz(QuizKind.alike, List.filled(15, 0), round: List.filled(15, 1));
+      expect(quizMatch(yes, other, 'ru').total, 0);
+      expect(quizPairSummary(yes, other, 'ru'), contains('заново'));
+    });
+
+    test('итог пары называет число совпадений', () {
+      final half = scoreQuiz(QuizKind.alike, [for (var i = 0; i < 15; i++) i < 9 ? 0 : 1], round: round);
+      expect(quizPairSummary(yes, half, 'ru'), contains('9 из 15'));
     });
   });
 
@@ -169,6 +238,19 @@ void main() {
               : q.options.indexWhere((o) => o.score.containsKey('otter')),
       ];
       expect(scoreQuiz(QuizKind.animal, answers).type, 'otter');
+    });
+
+    test('ссоры: побеждает самый частый стиль', () {
+      final qs = quizQuestions(QuizKind.fight, 'ru');
+      final answers = [
+        for (final q in qs) max(0, q.options.indexWhere((o) => o.score.containsKey('avoid'))),
+      ];
+      final r = scoreQuiz(QuizKind.fight, answers);
+      expect(r.type, 'avoid');
+      expect(r.scores['avoid'], 1.0);
+      for (final t in kQuizTypes[QuizKind.fight]!) {
+        expect(quizPairText(QuizKind.fight, 'avoid', t, 'ru'), isNotEmpty);
+      }
     });
 
     test('животное: побеждает доля, а не штуки', () {

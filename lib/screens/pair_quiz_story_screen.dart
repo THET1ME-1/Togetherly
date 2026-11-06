@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -167,6 +166,9 @@ class PairQuizStoryCard extends StatelessWidget {
     final kind = mine.kind;
     String emoji(QuizResult r) => kind == QuizKind.animal ? '${kAnimalEmoji[r.type]} ' : '';
     final partner = partnerName.trim().isEmpty ? quizUi('theirs', lang) : partnerName.trim();
+    // «Насколько вы похожи»: своего типа нет, на картинке процент совпадения.
+    final match = kind == QuizKind.alike && theirs != null ? quizMatch(mine, theirs!, lang) : null;
+    final percent = match != null && match.total > 0;
     return MediaQuery(
       data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
       child: SizedBox(
@@ -191,12 +193,12 @@ class PairQuizStoryCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
                 Text(
-                  '${emoji(mine)}${quizTypeTitle(kind, mine.type, lang)}',
+                  percent ? '${match.percent}%' : '${emoji(mine)}${quizTypeTitle(kind, mine.type, lang)}',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: ProfileTheme.displayFont,
-                    fontSize: 34,
+                    fontSize: percent ? 72 : 34,
                     height: 1.1,
                     fontWeight: FontWeight.w800,
                     color: cs.onPrimaryContainer,
@@ -204,13 +206,13 @@ class PairQuizStoryCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  quizTypeText(kind, mine.type, lang),
+                  percent ? quizPairSummary(mine, theirs!, lang) : quizTypeText(kind, mine.type, lang),
                   maxLines: 5,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(fontFamily: ProfileTheme.bodyFont, fontSize: 15, height: 1.4, color: cs.onPrimaryContainer),
                 ),
                 const Spacer(),
-                if (theirs != null) ...[
+                if (theirs != null && !percent) ...[
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
@@ -248,7 +250,7 @@ class PairQuizStoryCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          quizPairText(kind, mine.type, theirs!.type, lang),
+                          quizPairSummary(mine, theirs!, lang),
                           maxLines: 4,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(fontFamily: ProfileTheme.bodyFont, fontSize: 14, height: 1.35, color: cs.onSurface),
