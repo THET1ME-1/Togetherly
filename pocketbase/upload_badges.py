@@ -290,9 +290,11 @@ def upload_wear(folder: Path, token: str) -> None:
         upload_gift(sub, token)
     item_id = "wear_" + slug(key)
     names = spec.get("name") or {}
-    data = {k: spec[k] for k in ("key", "cat", "src", "set", "rarity", "icon", "layers", "note") if k in spec}
+    data = {k: spec[k] for k in ("key", "cat", "src", "set", "rarity", "icon", "layers", "note", "chest") if k in spec}
+    # Раздел «Одежда» (пиджаки) появился в 1.42: в гардеробе 1.41 его нет.
+    min_app = "1.42.0" if spec.get("cat") == "outfit" else "1.41.0"
     fields = {"kind": "wear", "name_ru": names.get("ru", key), "name_en": names.get("en", key), "is_free": "false",
-              "price": str(int(spec.get("price", 0))), "min_app": "1.41.0", "sort": str(int(spec.get("sort", 500))),
+              "price": str(int(spec.get("price", 0))), "min_app": min_app, "sort": str(int(spec.get("sort", 500))),
               "enabled": "true", "data": json.dumps(data, ensure_ascii=False)}
     url = f"{PB}/api/collections/catalog_items/records/{item_id}"
     if exists(item_id, token):

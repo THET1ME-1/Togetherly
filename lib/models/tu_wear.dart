@@ -93,9 +93,12 @@ List<TuWear> wardrobeItems(List<TuWear> items, {required Set<String> owned}) =>
 
 /// Разделы гардероба по порядку вкладок. Тот же порядок задаёт, какой слой
 /// «спереди» лежит выше: очки ниже шарфа, шарф ниже того, что над головой.
-const List<String> kTuWearCats = ['glasses', 'face', 'neck', 'top', 'over', 'pet'];
+/// Одежда (пиджаки, 06.11.2026) — первой: она на самом теле, под очками и
+/// шарфом, как в мастерской (`mascot.js`, слой `dress`).
+const List<String> kTuWearCats = ['outfit', 'glasses', 'face', 'neck', 'top', 'over', 'pet'];
 
 String tuWearCatName(String cat, {required bool ru}) => switch (cat) {
+      'outfit' => ru ? 'Одежда' : 'Clothes',
       'glasses' => ru ? 'Очки' : 'Glasses',
       'face' => ru ? 'Лицо' : 'Face',
       'neck' => ru ? 'Шарфы и пледы' : 'Scarves',

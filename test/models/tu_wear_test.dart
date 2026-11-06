@@ -64,6 +64,18 @@ void main() {
       expect(mine.front, ['tuw_scarf_idle_base_f']);
     });
 
+    test('пиджак лежит на теле: под очками и шарфом', () {
+      final items = [
+        TuWear.fromCatalog(row('specs', 'glasses'))!,
+        TuWear.fromCatalog(row('suit_navy', 'outfit', set: ''))!,
+        TuWear.fromCatalog(row('scarf', 'neck'))!,
+      ];
+      final outfit = {'glasses': 'specs', 'outfit': 'suit_navy', 'neck': 'scarf'};
+      final l = wearSceneLayers(outfit, items, owned: {'specs', 'suit_navy', 'scarf'}, scene: 'idle_base');
+      expect(l.front, ['tuw_suit_navy_idle_base_f', 'tuw_specs_idle_base_f', 'tuw_scarf_idle_base_f']);
+      expect(tuWearCatName('outfit', ru: true), 'Одежда');
+    });
+
     test('сцена облачка и эмоция пака дают свои ключи слоёв', () {
       expect(wearSceneOf(art: 'cloud_idle_joy', emotion: null), 'idle_joy');
       expect(wearSceneOf(art: 'cloud_tap_base', emotion: 'love'), 'emo_love');

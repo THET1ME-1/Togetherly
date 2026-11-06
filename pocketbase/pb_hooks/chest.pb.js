@@ -86,6 +86,9 @@ routerAdd("GET", "/api/chest/state", (e) => {
   // Вещи Ту (гардероб) — только сборкам, которые умеют их надеть (`wear=1`,
   // с 1.41). Старым их доля уходит в «5 монет», как рамки без `frames`.
   const withWear = (q.get("wear") || "") === "1";
+  // Одежда Ту (раздел «Одежда», пиджаки) — сборкам с `outfits=1`: в старых
+  // гардеробах такого раздела нет, вещь пропала бы. Их доля — в «5 монет».
+  const withOutfits = (q.get("outfits") || "") === "1";
   const shifted = new Date(Date.now() + tz * 60 * 1000);
   const day = shifted.toISOString().slice(0, 10);
   // Сезонные сундуки из каталога; активные уходят приложению списком.
@@ -165,8 +168,10 @@ routerAdd("GET", "/api/chest/state", (e) => {
       const kind = recs[i].getString("kind");
       const set = String(d.set || "");
       // Подарки из каталога разыгрываются только сезонные: обычные подарки
-      // сундука перечислены в GIFTS выше. Вещи Ту — тоже только из набора.
-      if ((kind === "gift" || kind === "wear") && !set) continue;
+      // сундука перечислены в GIFTS выше. Вещи Ту — тоже только из набора,
+      // кроме одежды с `data.chest` (пиджаки, 06.11.2026): она в обычном.
+      const outfit = kind === "wear" && !set && d.chest === true;
+      if ((kind === "gift" || kind === "wear") && !set && !outfit) continue;
       if (kind === "badge" && d.chest !== true) continue;
       const t = TIER_POOL[d.rarity] ? d.rarity : "common";
       const id = kind === "gift" ? String(d.key) : recs[i].id;
@@ -176,7 +181,7 @@ routerAdd("GET", "/api/chest/state", (e) => {
         ? ownedF.indexOf("frame:" + recs[i].id) !== -1
         : kind === "badge" ? (ownedI.indexOf(d.key) !== -1 || grantedI.indexOf(d.key) !== -1)
         : kind === "wear" ? ownedW.indexOf(d.key) !== -1 : false;
-      items.push([id, kind, t, (kind === "wear" ? withWear : withFrames) && !owned, String(d.key)]);
+      items.push([id, kind, t, (kind === "wear" ? (outfit ? withOutfits : withWear) : withFrames) && !owned, String(d.key)]);
     }
   } catch (_) {}
   const tierCount = { common: 0, rare: 0, legendary: 0 };
@@ -326,6 +331,7 @@ routerAdd("POST", "/api/chest/open", (e) => {
   }
   const withFrames = body.frames === true;
   const withWear = body.wear === true;
+  const withOutfits = body.outfits === true;
   // Открытие из копилки пары: без ролика и сверх трёх в день. День такой
   // записи пишется с приставкой «b», поэтому в дневной счёт она не входит.
   const fromJar = body.bonus === true;
@@ -492,7 +498,8 @@ routerAdd("POST", "/api/chest/open", (e) => {
           if (!d.key) continue;
           const kind = recs[i].getString("kind");
           const set = String(d.set || "");
-          if ((kind === "gift" || kind === "wear") && !set) continue;
+          const outfit = kind === "wear" && !set && d.chest === true;
+          if ((kind === "gift" || kind === "wear") && !set && !outfit) continue;
           if (kind === "badge" && d.chest !== true) continue;
           const t = TIER_POOL[d.rarity] ? d.rarity : "common";
           const id = kind === "gift" ? String(d.key) : recs[i].id;
@@ -502,7 +509,7 @@ routerAdd("POST", "/api/chest/open", (e) => {
             ? ownedF.indexOf("frame:" + recs[i].id) !== -1
             : kind === "badge" ? (ownedI.indexOf(d.key) !== -1 || grantedI.indexOf(d.key) !== -1)
             : kind === "wear" ? ownedW.indexOf(d.key) !== -1 : false;
-          items.push([id, kind, t, (kind === "wear" ? withWear : withFrames) && !owned, String(d.key)]);
+          items.push([id, kind, t, (kind === "wear" ? (outfit ? withOutfits : withWear) : withFrames) && !owned, String(d.key)]);
         }
       } catch (_) {}
       const tierCount = { common: 0, rare: 0, legendary: 0 };

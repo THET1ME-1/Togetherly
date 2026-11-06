@@ -96,6 +96,8 @@ class ChestService {
           'frames': '1',
           // Сборка умеет надеть вещь Ту: без флага сервер их не разыгрывает.
           'wear': '1',
+          // Умеет раздел «Одежда»: без флага пиджаки не разыгрываются.
+          'outfits': '1',
           if (group != null && group.isNotEmpty) 'group': group,
           'chest': ?chest,
         },
@@ -160,6 +162,8 @@ class ChestService {
           'platform': _platform,
           'frames': true,
           'wear': true,
+          // Раздел «Одежда» (пиджаки из обычного сундука) — с 1.42.
+          'outfits': true,
           if (fromJar) 'bonus': true,
           if (noAd) 'noAd': true,
           'chest': ?chest,
