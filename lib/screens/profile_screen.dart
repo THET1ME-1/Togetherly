@@ -64,6 +64,7 @@ import '../services/data_export_service.dart';
 import '../services/plus_access.dart';
 import '../services/plus_service.dart';
 import 'love_test_screen.dart';
+import 'pair_quiz_screen.dart';
 import 'plus_screen.dart';
 import 'draw_tools_settings_screen.dart';
 import 'settings_screen.dart';
@@ -1597,6 +1598,14 @@ class _ProfileScreenState extends State<ProfileScreen>
             const SizedBox(height: 10),
           ],
           _loveTestLink(context),
+          // Тесты для пары (06.11.2026): язык любви, привязанность, зверь.
+          if (widget.pairData.pairId.isNotEmpty)
+            PairQuizLinks(
+              scheme: _cs,
+              groupId: widget.pairData.pairId,
+              myUid: widget.userData.uid,
+              partnerName: widget.pairData.partnerName,
+            ),
         ],
       ],
     );

@@ -2609,6 +2609,26 @@
       "createRule": null,
       "updateRule": null,
       "deleteRule": null
+    },
+    {
+      "name": "pair_quizzes",
+      "type": "base",
+      "fields": [
+        {"name": "group_id", "type": "text", "required": true, "max": 40},
+        {"name": "user_uid", "type": "text", "required": true, "max": 40},
+        {"name": "quiz", "type": "text", "required": true, "max": 20},
+        {"name": "data", "type": "json", "maxSize": 20000},
+        {"name": "created", "type": "autodate", "onCreate": true, "onUpdate": false},
+        {"name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true}
+      ],
+      "indexes": [
+        "CREATE INDEX idx_pair_quizzes_group ON pair_quizzes (group_id)"
+      ],
+      "listRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
+      "viewRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
+      "createRule": "@request.auth.id != \"\" && user_uid = @request.auth.id && @request.auth.group_ids.id ?= group_id",
+      "updateRule": "@request.auth.id != \"\" && user_uid = @request.auth.id",
+      "deleteRule": "@request.auth.id != \"\" && user_uid = @request.auth.id"
     }
   ],
   "deleteMissing": false

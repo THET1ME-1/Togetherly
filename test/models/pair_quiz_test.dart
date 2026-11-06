@@ -1,0 +1,154 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:love_app/models/pair_quiz.dart';
+
+void main() {
+  group('вопросы', () {
+    test('язык любви: 10 пар, каждый язык ровно 4 раза', () {
+      final qs = quizQuestions(QuizKind.lang, 'ru');
+      expect(qs, hasLength(10));
+      final seen = <String, int>{};
+      for (final q in qs) {
+        expect(q.options, hasLength(2));
+        for (final o in q.options) {
+          for (final k in o.score.keys) {
+            seen[k] = (seen[k] ?? 0) + 1;
+          }
+        }
+      }
+      expect(seen, {for (final t in kQuizTypes[QuizKind.lang]!) t: 4});
+    });
+
+    test('животное: 8 вопросов по 4 ответа, каждый зверь ровно 4 раза', () {
+      final qs = quizQuestions(QuizKind.animal, 'ru');
+      expect(qs, hasLength(8));
+      final seen = <String, int>{};
+      for (final q in qs) {
+        expect(q.options, hasLength(4));
+        for (final o in q.options) {
+          seen[o.score.keys.single] = (seen[o.score.keys.single] ?? 0) + 1;
+        }
+      }
+      expect(seen, {for (final t in kQuizTypes[QuizKind.animal]!) t: 4});
+    });
+
+    test('привязанность: 12 утверждений, шкала из пяти ответов', () {
+      final qs = quizQuestions(QuizKind.attach, 'ru');
+      expect(qs, hasLength(12));
+      for (final q in qs) {
+        expect(q.options, hasLength(5));
+      }
+    });
+  });
+
+  group('подсчёт', () {
+    test('язык любви: побеждает самый частый, все пять в процентах', () {
+      final qs = quizQuestions(QuizKind.lang, 'ru');
+      // Всегда выбираем вариант с «прикосновениями», где он есть.
+      final answers = [
+        for (final q in qs)
+          q.options.indexWhere((o) => o.score.containsKey('touch')) < 0
+              ? 0
+              : q.options.indexWhere((o) => o.score.containsKey('touch')),
+      ];
+      final r = scoreQuiz(QuizKind.lang, answers);
+      expect(r.type, 'touch');
+      expect(r.scores['touch'], 1.0);
+      expect(r.scores.keys.toSet(), kQuizTypes[QuizKind.lang]!.toSet());
+    });
+
+    test('привязанность: тревога высокая, избегание низкое — тревожный', () {
+      final qs = quizQuestions(QuizKind.attach, 'ru');
+      final answers = [
+        for (final q in qs)
+          // «Точно да» тревоге, «Совсем нет» избеганию — с учётом обратных.
+          attachItemAxis(q) == 'anx'
+              ? (attachItemReversed(q) ? 0 : 4)
+              : (attachItemReversed(q) ? 4 : 0),
+      ];
+      final r = scoreQuiz(QuizKind.attach, answers);
+      expect(r.type, 'anxious');
+      expect(r.scores['anx'], 1.0);
+      expect(r.scores['avo'], 0.0);
+    });
+
+    test('привязанность: всё посередине — надёжный', () {
+      final r = scoreQuiz(QuizKind.attach, List.filled(12, 2));
+      expect(r.type, 'secure');
+    });
+
+    test('привязанность: обе шкалы высокие — смешанный', () {
+      final qs = quizQuestions(QuizKind.attach, 'ru');
+      final answers = [for (final q in qs) attachItemReversed(q) ? 0 : 4];
+      expect(scoreQuiz(QuizKind.attach, answers).type, 'fearful');
+    });
+
+    test('животное: больше всего ответов одного зверя', () {
+      final qs = quizQuestions(QuizKind.animal, 'ru');
+      final answers = [
+        for (final q in qs)
+          q.options.indexWhere((o) => o.score.containsKey('otter')) < 0
+              ? 0
+              : q.options.indexWhere((o) => o.score.containsKey('otter')),
+      ];
+      expect(scoreQuiz(QuizKind.animal, answers).type, 'otter');
+    });
+
+    test('недостающие и кривые ответы не роняют подсчёт', () {
+      expect(scoreQuiz(QuizKind.lang, const []).type, isNotEmpty);
+      expect(scoreQuiz(QuizKind.animal, const [99, -1]).type, isNotEmpty);
+    });
+  });
+
+  group('результат', () {
+    test('переживает сохранение', () {
+      final r = scoreQuiz(QuizKind.lang, List.filled(10, 1));
+      final back = QuizResult.fromJson(r.toJson());
+      expect(back?.kind, QuizKind.lang);
+      expect(back?.type, r.type);
+      expect(back?.scores, r.scores);
+    });
+
+    test('кривая запись не разбирается', () {
+      expect(QuizResult.fromJson(const {}), isNull);
+      expect(QuizResult.fromJson(const {'kind': 'nope', 'type': 'x'}), isNull);
+      expect(QuizResult.fromJson(const {'kind': 'lang', 'type': 'nope'}), isNull);
+    });
+
+    test('id записи один на человека и тест', () {
+      expect(pairQuizRecordId('g', 'u', QuizKind.lang), hasLength(15));
+      expect(pairQuizRecordId('g', 'u', QuizKind.lang),
+          isNot(pairQuizRecordId('g', 'u', QuizKind.animal)));
+      expect(pairQuizRecordId('g', 'u', QuizKind.lang), matches(RegExp(r'^[a-z0-9]{15}$')));
+    });
+  });
+
+  group('тексты', () {
+    for (final lang in ['ru', 'en', 'uk', 'de']) {
+      test('всё заполнено: $lang', () {
+        for (final kind in QuizKind.values) {
+          expect(quizTitle(kind, lang), isNotEmpty);
+          expect(quizIntro(kind, lang), isNotEmpty);
+          for (final q in quizQuestions(kind, lang)) {
+            expect(q.text, isNotEmpty);
+            for (final o in q.options) {
+              expect(o.text, isNotEmpty);
+            }
+          }
+          for (final t in kQuizTypes[kind]!) {
+            expect(quizTypeTitle(kind, t, lang), isNotEmpty, reason: '$kind $t');
+            expect(quizTypeText(kind, t, lang), isNotEmpty, reason: '$kind $t');
+            for (final o in kQuizTypes[kind]!) {
+              expect(quizPairText(kind, t, o, lang), isNotEmpty, reason: '$kind $t $o');
+            }
+          }
+        }
+      });
+    }
+
+    test('русские тексты не на английском', () {
+      expect(quizTitle(QuizKind.lang, 'ru'), isNot(quizTitle(QuizKind.lang, 'en')));
+      expect(quizTypeTitle(QuizKind.animal, 'cat', 'uk'),
+          isNot(quizTypeTitle(QuizKind.animal, 'cat', 'en')));
+    });
+  });
+}
