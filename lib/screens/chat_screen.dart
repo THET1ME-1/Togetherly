@@ -2845,7 +2845,16 @@ class _ChatScreenState extends State<ChatScreen> {
                           // обновляется вместе с ней.
                           return Column(
                             children: [
-                              _buildPinnedBar(),
+                              // Первое закрепление выдвигает полоску, последнее
+                              // откреплённое задвигает — лента не прыгает рывком.
+                              AnimatedSize(
+                                duration: MediaQuery.of(context).disableAnimations
+                                    ? Duration.zero
+                                    : const Duration(milliseconds: 240),
+                                curve: Curves.easeOutCubic,
+                                alignment: Alignment.topCenter,
+                                child: _buildPinnedBar(),
+                              ),
                               Expanded(
                                 child: _stick.wrap(
                                   ListView.builder(

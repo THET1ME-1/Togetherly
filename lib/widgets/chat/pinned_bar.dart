@@ -27,9 +27,12 @@ class PinnedBar extends StatelessWidget {
   /// Делений на шкале не больше четырёх: дальше они не различаются глазом.
   static const int _maxSegments = 4;
 
+  static const Duration _motion = Duration(milliseconds: 240);
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final motion = MediaQuery.of(context).disableAnimations ? Duration.zero : _motion;
     final segments = count.clamp(1, _maxSegments);
     final active = count <= _maxSegments ? index : (index * (segments - 1) / (count - 1)).round();
     final title = count > 1
@@ -52,12 +55,14 @@ class PinnedBar extends StatelessWidget {
                     for (var s = 0; s < segments; s++) ...[
                       if (s > 0) const SizedBox(height: 2),
                       Expanded(
-                        child: DecoratedBox(
+                        // Деление перетекает к новому месту вместе с текстом.
+                        child: AnimatedContainer(
+                          duration: motion,
+                          curve: Curves.easeOutCubic,
                           decoration: BoxDecoration(
                             color: s == active ? cs.primary : cs.primary.withValues(alpha: 0.28),
                             borderRadius: BorderRadius.circular(2),
                           ),
-                          child: const SizedBox.expand(),
                         ),
                       ),
                     ],
@@ -66,7 +71,26 @@ class PinnedBar extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Column(
+                // Смена закреплённого: новое въезжает снизу, прежнее гаснет,
+                // как в Telegram. Ключ — номер, чтобы правка текста того же
+                // сообщения не дёргала полоску.
+                child: AnimatedSwitcher(
+                  duration: motion,
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  layoutBuilder: (current, previous) => Stack(
+                    alignment: Alignment.centerLeft,
+                    children: [...previous, ?current],
+                  ),
+                  transitionBuilder: (child, anim) => FadeTransition(
+                    opacity: anim,
+                    child: SlideTransition(
+                      position: Tween(begin: const Offset(0, 0.35), end: Offset.zero).animate(anim),
+                      child: child,
+                    ),
+                  ),
+                  child: Column(
+                  key: ValueKey('pin_$index'),
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -88,6 +112,7 @@ class PinnedBar extends StatelessWidget {
                       style: TextStyle(fontFamily: ProfileTheme.bodyFont, fontSize: 14.5, color: cs.onSurface),
                     ),
                   ],
+                ),
                 ),
               ),
               IconButton(

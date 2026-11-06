@@ -43,11 +43,33 @@ String pinnedCountTitle(int n, String lang) {
 class _ChatPinnedScreenState extends State<ChatPinnedScreen> {
   late final List<ChatMsg> _items = [...widget.pinned];
 
+  /// Откреплённые, которые ещё сворачиваются на экране.
+  final Set<String> _leaving = {};
+
+  static const Duration _motion = Duration(milliseconds: 260);
+
+  Duration get _duration => MediaQuery.of(context).disableAnimations ? Duration.zero : _motion;
+
+  int get _left => _items.where((m) => !_leaving.contains(m.id)).length;
+
+  /// Строки сворачиваются и гаснут, потом уходят из списка. Опустел — экран
+  /// закрывается сам: смотреть больше не на что.
+  Future<void> _remove(List<ChatMsg> ms) async {
+    setState(() => _leaving.addAll(ms.map((m) => m.id)));
+    final d = _duration;
+    await Future.wait([for (final m in ms) widget.onUnpin(m), Future<void>.delayed(d)]);
+    if (!mounted) return;
+    setState(() {
+      _items.removeWhere((m) => _leaving.contains(m.id));
+      _leaving.clear();
+    });
+    if (_items.isEmpty) Navigator.of(context).pop();
+  }
+
   Future<void> _unpin(ChatMsg m) async {
+    if (_leaving.contains(m.id)) return;
     HapticFeedback.mediumImpact();
-    setState(() => _items.removeWhere((x) => x.id == m.id));
-    await widget.onUnpin(m);
-    if (mounted && _items.isEmpty) Navigator.of(context).pop();
+    await _remove([m]);
   }
 
   Future<void> _unpinAll() async {
@@ -58,12 +80,7 @@ class _ChatPinnedScreenState extends State<ChatPinnedScreen> {
       destructive: true,
     );
     if (!ok || !mounted) return;
-    final all = [..._items];
-    setState(_items.clear);
-    for (final m in all) {
-      await widget.onUnpin(m);
-    }
-    if (mounted) Navigator.of(context).pop();
+    await _remove([for (final m in _items) if (!_leaving.contains(m.id)) m]);
   }
 
   @override
@@ -80,7 +97,16 @@ class _ChatPinnedScreenState extends State<ChatPinnedScreen> {
         rows.add(_dateChip(cs, s.chatDateHeader(day)));
         lastDay = day;
       }
-      rows.add(_bubbleRow(cs, m));
+      final leaving = _leaving.contains(m.id);
+      rows.add(AnimatedSize(
+        duration: _duration,
+        curve: Curves.easeOutCubic,
+        child: AnimatedOpacity(
+          duration: _duration,
+          opacity: leaving ? 0 : 1,
+          child: leaving ? const SizedBox(width: double.infinity) : _bubbleRow(cs, m),
+        ),
+      ));
     }
     return Scaffold(
       backgroundColor: cs.surface,
@@ -88,7 +114,7 @@ class _ChatPinnedScreenState extends State<ChatPinnedScreen> {
         backgroundColor: cs.surface,
         surfaceTintColor: Colors.transparent,
         title: Text(
-          pinnedCountTitle(_items.length, lang),
+          pinnedCountTitle(_left, lang),
           style: TextStyle(fontFamily: ProfileTheme.displayFont, fontSize: 19, fontWeight: FontWeight.w600, color: cs.onSurface),
         ),
       ),
@@ -116,7 +142,7 @@ class _ChatPinnedScreenState extends State<ChatPinnedScreen> {
                 width: double.infinity,
                 height: 52,
                 child: FilledButton.tonal(
-                  onPressed: _items.isEmpty ? null : _unpinAll,
+                  onPressed: _left == 0 ? null : _unpinAll,
                   style: FilledButton.styleFrom(shape: const StadiumBorder()),
                   child: Text(trKey('cpUnpinAll')),
                 ),

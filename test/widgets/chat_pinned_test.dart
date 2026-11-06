@@ -60,6 +60,31 @@ void main() {
     });
   }
 
+  testWidgets('полоска: смена закреплённого проезжает анимацией', (t) async {
+    final shown = ValueNotifier(2);
+    await pump(
+      t,
+      Scaffold(
+        body: ValueListenableBuilder<int>(
+          valueListenable: shown,
+          builder: (_, i, __) => Column(children: [
+            PinnedBar(index: i, count: 3, preview: i == 2 ? 'Билеты' : 'Код домофона', onTap: () {}, onOpenAll: () {}),
+          ]),
+        ),
+      ),
+      brightness: Brightness.light,
+    );
+    shown.value = 1;
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 100));
+    // Посреди перехода видны оба: прежнее уходит, новое въезжает.
+    expect(find.text('Билеты'), findsOneWidget);
+    expect(find.text('Код домофона'), findsOneWidget);
+    await t.pumpAndSettle();
+    expect(find.text('Билеты'), findsNothing);
+    expect(t.takeException(), isNull);
+  });
+
   testWidgets('полоска с одним закреплённым — без номера', (t) async {
     await pump(
       t,
