@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 
@@ -38,9 +39,18 @@ class _PairQuizScreenState extends State<PairQuizScreen> {
   PairQuizResults _results = const PairQuizResults();
   bool _loading = true;
 
-  /// null — вступление или результат; число — номер текущего вопроса.
+  /// null — вступление или результат; число — сколько вопросов уже позади.
   int? _step;
-  final List<int> _answers = [];
+
+  /// Ответ на каждый вопрос в исходном порядке (-1 — ещё нет).
+  List<int> _answers = [];
+
+  /// Порядок вопросов и вариантов этого прохождения: каждый раз свой, чтобы
+  /// повтор не проходился по памяти. Шкалу привязанности не мешаем —
+  /// «совсем нет … точно да» должна идти по порядку.
+  List<int> _order = [];
+  List<List<int>> _optOrder = [];
+  final Random _rand = Random();
 
   String get _lang => LocaleService.instance.language.code;
   QuizResult? get _mine => _results.mine[widget.kind];
@@ -73,12 +83,15 @@ class _PairQuizScreenState extends State<PairQuizScreen> {
     });
   }
 
-  void _answer(int option) {
-    final qs = quizQuestions(widget.kind, _lang);
+  /// [shown] — номер варианта на экране; в ответ ложится его исходный номер.
+  void _answer(int shown) {
+    final step = _step!;
+    final q = _order[step];
+    final done = step + 1 == _order.length;
     setState(() {
-      _answers.add(option);
-      if (_answers.length < qs.length) {
-        _step = _answers.length;
+      _answers[q] = _optOrder[q][shown];
+      if (!done) {
+        _step = step + 1;
         return;
       }
       final res = scoreQuiz(widget.kind, _answers);
@@ -88,17 +101,27 @@ class _PairQuizScreenState extends State<PairQuizScreen> {
       );
       _step = null;
     });
-    if (_answers.length == qs.length) {
+    if (done) {
       unawaited(PairQuizService.instance.save(widget.groupId, widget.myUid, _mine!));
       // Свежий итог партнёра мог прийти, пока человек отвечал.
       unawaited(_load(keepMine: true));
     }
   }
 
-  void _start() => setState(() {
-        _answers.clear();
-        _step = 0;
-      });
+  void _start() {
+    final qs = quizQuestions(widget.kind, _lang);
+    setState(() {
+      _answers = List.filled(qs.length, -1);
+      _order = List.generate(qs.length, (i) => i)..shuffle(_rand);
+      _optOrder = [
+        for (final q in qs)
+          widget.kind == QuizKind.attach
+              ? List.generate(q.options.length, (i) => i)
+              : (List.generate(q.options.length, (i) => i)..shuffle(_rand)),
+      ];
+      _step = 0;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -163,7 +186,8 @@ class _PairQuizScreenState extends State<PairQuizScreen> {
   Widget _question(ColorScheme cs) {
     final qs = quizQuestions(widget.kind, _lang);
     final i = _step!;
-    final q = qs[i];
+    final q = qs[_order[i]];
+    final opts = _optOrder[_order[i]];
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
       children: [
@@ -204,7 +228,7 @@ class _PairQuizScreenState extends State<PairQuizScreen> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
                 child: Text(
-                  q.options[o].text,
+                  q.options[opts[o]].text,
                   style: TextStyle(fontFamily: ProfileTheme.bodyFont, fontSize: 16, height: 1.3, color: cs.onSurface),
                 ),
               ),

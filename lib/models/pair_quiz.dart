@@ -99,7 +99,7 @@ final Map<QuizKind, Map<String, String>> _intros = {
   QuizKind.animal: _m(
     'Восемь вопросов о вас в паре. В конце узнаете своего зверя, а когда ответит партнёр — ваш общий дуэт.',
     'Eight questions about you as a partner. You get your animal at the end, and your duo once your partner answers.',
-    'Вісім питань про вас у парі. Наприкінці дізнаєтеся свого звіра, а коли відповість партнер — ваш спільний дует.',
+    'Вісім питань про вас у парі. Наприкінці дізнаєтеся свого звіра. Коли відповість партнер, з’явиться ваш спільний дует.',
   ),
 };
 
@@ -116,7 +116,7 @@ final Map<String, Map<String, String>> _ui = {
   'mine': _m('Ваш результат', 'Your result', 'Ваш результат'),
   'theirs': _m('Результат партнёра', 'Your partner’s result', 'Результат партнера'),
   'together': _m('Вместе', 'Together', 'Разом'),
-  'wait': _m('Партнёр ещё не прошёл тест. Как пройдёт, здесь появится ваш общий итог.',
+  'wait': _m('Партнёр ещё не прошёл тест. Когда пройдёт, здесь появится ваш общий итог.',
       'Your partner hasn’t taken the test yet. Once they do, your shared result shows up here.',
       'Партнер ще не пройшов тест. Щойно пройде, тут з’явиться ваш спільний підсумок.'),
   'again': _m('Пройти заново', 'Take it again', 'Пройти знову'),
@@ -152,7 +152,7 @@ final List<(String, Map<String, String>, String, Map<String, String>)> _langPair
   ('time', _m('Смотреть кино и обсуждать каждую сцену', 'Watching a movie and talking about every scene', 'Дивитися кіно й обговорювати кожну сцену'),
    'touch', _m('Просто лежать рядом в обнимку', 'Just lying close, cuddling', 'Просто лежати поруч в обіймах')),
   ('gifts', _m('Подарок, который партнёр долго выбирал', 'A gift my partner took ages to choose', 'Подарунок, який партнер довго обирав'),
-   'acts', _m('Партнёр забирает меня, когда у меня нет сил', 'My partner picks me up when I have no energy left', 'Партнер забирає мене, коли в мене немає сил')),
+   'acts', _m('Партнёр приезжает за мной, когда у меня нет сил', 'My partner picks me up when I have no energy left', 'Партнер приїжджає по мене, коли в мене немає сил')),
   ('gifts', _m('Цветы просто так', 'Flowers just because', 'Квіти просто так'),
    'touch', _m('Держаться за руки на улице', 'Holding hands on the street', 'Триматися за руки на вулиці')),
   ('acts', _m('Партнёр берёт на себя мои дела в тяжёлый день', 'My partner takes over my tasks on a hard day', 'Партнер бере на себе мої справи у важкий день'),
@@ -196,25 +196,25 @@ final List<(Map<String, String>, List<(String, Map<String, String>)>)> _animalQs
   (_m('Как вы показываете любовь', 'How you show love', 'Як ви показуєте любов'), [
     ('otter', _m('Всё время держу за руку', 'I hold their hand all the time', 'Весь час тримаю за руку')),
     ('bear', _m('Крепко обнимаю', 'I hug them tight', 'Міцно обіймаю')),
-    ('hedgehog', _m('Ворчу, но делаю всё для него', 'I grumble, but I do everything for them', 'Буркочу, але роблю все для нього')),
+    ('hedgehog', _m('Ворчу, но делаю для партнёра всё', 'I grumble, but I do everything for them', 'Буркочу, але роблю для партнера все')),
     ('penguin', _m('Дарю маленькие находки', 'I bring little finds', 'Дарую маленькі знахідки')),
   ]),
   (_m('После ссоры вы…', 'After a fight you…', 'Після сварки ви…'), [
     ('cat', _m('Делаю вид, что мне всё равно', 'Act like I don’t care', 'Вдаю, що мені байдуже')),
-    ('dog', _m('Первым иду мириться', 'Go to make up first', 'Першим іду миритися')),
+    ('dog', _m('Сразу иду мириться', 'Go to make up right away', 'Одразу йду миритися')),
     ('hedgehog', _m('Мне нужно время, чтобы отойти', 'Need time to cool off', 'Мені треба час, щоб відійти')),
     ('fox', _m('Шучу, чтобы разрядить обстановку', 'Make a joke to break the tension', 'Жартую, щоб розрядити атмосферу')),
   ]),
   (_m('Переписка днём', 'Texting during the day', 'Листування вдень'), [
     ('otter', _m('Пишу каждый час', 'I text every hour', 'Пишу щогодини')),
     ('cat', _m('Отвечаю, когда захочу', 'I reply when I feel like it', 'Відповідаю, коли захочу')),
-    ('bear', _m('Спрашиваю, поел ли он', 'I ask if they have eaten', 'Питаю, чи він поїв')),
+    ('bear', _m('Напоминаю поесть', 'I remind them to eat', 'Нагадую поїсти')),
     ('koala', _m('Стикер — и снова дремать', 'A sticker, then back to napping', 'Стікер — і знову дрімати')),
   ]),
   (_m('В компании друзей', 'Out with friends', 'У компанії друзів'), [
     ('fox', _m('Душа компании', 'The life of the party', 'Душа компанії')),
     ('hedgehog', _m('Держусь своих, чужим не открываюсь', 'I stick to my people, strangers don’t get in', 'Тримаюся своїх, чужим не відкриваюся')),
-    ('dog', _m('Рад всем подряд', 'Happy to see everyone', 'Радий усім підряд')),
+    ('dog', _m('Всем радуюсь', 'Happy to see everyone', 'Усім радію')),
     ('penguin', _m('Ищу глазами своего человека', 'My eyes keep finding my person', 'Шукаю очима свою людину')),
   ]),
   (_m('Партнёру грустно', 'Your partner is sad', 'Партнерові сумно'), [
@@ -325,15 +325,15 @@ final Map<String, (Map<String, String>, Map<String, String>)> _langTypes = {
   'time': (_m('Время вместе', 'Quality time', 'Час разом'), _m(
     'Любовь для вас — это внимание целиком: без телефона, вдвоём, хоть полчаса. Отменённые планы ранят сильнее, чем кажется.',
     'Love to you is undivided attention: phones down, just the two of you, even for half an hour. Cancelled plans hurt more than they seem to.',
-    'Любов для вас — це увага повністю: без телефона, удвох, хоч пів години. Скасовані плани ранять сильніше, ніж здається.')),
+    'Для вас любов означає увагу повністю: без телефона, удвох, хоч пів години. Скасовані плани ранять сильніше, ніж здається.')),
   'gifts': (_m('Подарки', 'Gifts', 'Подарунки'), _m(
     'Вам дорога не цена, а мысль: «увидел и вспомнил о тебе». Маленькая вещица без повода — лучшее признание.',
     'It is the thought, not the price: “I saw this and thought of you.” A small thing for no reason says it best.',
-    'Вам дорога не ціна, а думка: «побачив і згадав про тебе». Маленька річ без приводу — найкраще зізнання.')),
+    'Вам дорога не ціна, а думка: «побачив і згадав про тебе». Маленька річ без приводу і є найкраще зізнання.')),
   'acts': (_m('Помощь делом', 'Acts of service', 'Допомога ділом'), _m(
-    'Для вас любят те, кто помогает: сделать за вас дело, встретить, приготовить. Слова без дел вас не греют.',
+    'Любовь вы видите в делах: сделать за вас дело, встретить, приготовить. Слова без дел вас не греют.',
     'To you, love is help: doing a chore for you, picking you up, cooking. Words without action leave you cold.',
-    'Для вас кохають ті, хто допомагає: зробити справу за вас, зустріти, приготувати. Слова без справ вас не гріють.')),
+    'Любов ви бачите у справах: зробити справу за вас, зустріти, приготувати. Слова без справ вас не гріють.')),
   'touch': (_m('Прикосновения', 'Physical touch', 'Дотики'), _m(
     'Вам нужна близость телом: объятия, рука в руке, голова на плече. Без прикосновений любовь кажется далёкой.',
     'You need closeness: hugs, holding hands, a head on your shoulder. Without touch, love feels far away.',
@@ -345,7 +345,7 @@ final Map<String, Map<String, String>> _langTip = {
   'words': _m('пишите тёплое посреди дня и говорите вслух, за что цените', 'text something warm midday and say out loud what you value', 'пишіть тепле посеред дня й кажіть уголос, за що цінуєте'),
   'time': _m('отложите телефон и выделите вечер только для двоих', 'put the phone away and keep an evening just for two', 'відкладіть телефон і виділіть вечір тільки для двох'),
   'gifts': _m('приносите мелочи без повода: шоколадку, открытку, находку', 'bring small things for no reason: chocolate, a card, a find', 'приносьте дрібниці без приводу: шоколадку, листівку, знахідку'),
-  'acts': _m('снимите с него одно дело, которое давно висит', 'take one long-pending chore off their plate', 'зніміть з нього одну справу, яка давно висить'),
+  'acts': _m('возьмите на себя дело, которое давно висит', 'take one long-pending chore off their plate', 'візьміть на себе справу, яка давно висить'),
   'touch': _m('чаще обнимайте и берите за руку просто так', 'hug more and take their hand just because', 'частіше обіймайте й беріть за руку просто так'),
 };
 
@@ -379,11 +379,11 @@ final Map<String, Map<String, String>> _attachNeed = {
 final Map<String, (Map<String, String>, Map<String, String>)> _animalTypes = {
   'cat': (_m('Кот', 'Cat', 'Кіт'), _m('Любит по-своему и на своих условиях. Зато если выбрал вас, то всерьёз.', 'Loves in their own way, on their own terms. But once they choose you, it’s for real.', 'Любить по-своєму й на своїх умовах. Зате якщо обрав вас, то всерйоз.')),
   'dog': (_m('Пёс', 'Dog', 'Пес'), _m('Встречает у двери, радуется каждой минуте вместе и не умеет долго дуться.', 'Greets you at the door, loves every minute together and can’t stay mad for long.', 'Зустрічає біля дверей, радіє кожній хвилині разом і не вміє довго дутися.')),
-  'hedgehog': (_m('Ёж', 'Hedgehog', 'Їжак'), _m('Колючий снаружи и мягкий внутри. Своих защищает, а им показывает живот.', 'Prickly outside, soft inside. Guards their people and shows them the soft belly.', 'Колючий ззовні й м’який усередині. Своїх захищає, а їм показує живіт.')),
+  'hedgehog': (_m('Ёж', 'Hedgehog', 'Їжак'), _m('Колючий снаружи и мягкий внутри. Чужих держит на расстоянии, а своим доверяет целиком.', 'Prickly outside, soft inside. Keeps strangers at a distance and trusts their own completely.', 'Колючий ззовні й м’який усередині. Чужих тримає на відстані, а своїм довіряє повністю.')),
   'otter': (_m('Выдра', 'Otter', 'Видра'), _m('Держится за лапку даже во сне. Нежность для вас — обычное состояние.', 'Holds hands even while asleep. Tenderness is your default state.', 'Тримається за лапку навіть уві сні. Ніжність для вас — звичайний стан.')),
   'fox': (_m('Лиса', 'Fox', 'Лисиця'), _m('Игривая, хитрая и живая. С вами не бывает скучно, и вы это знаете.', 'Playful, clever and lively. Life with you is never boring, and you know it.', 'Грайлива, хитра й жива. З вами не буває нудно, і ви це знаєте.')),
   'bear': (_m('Медведь', 'Bear', 'Ведмідь'), _m('Надёжный, тёплый и сильный. За вас можно спрятаться от любой бури.', 'Reliable, warm and strong. Anyone can hide behind you from any storm.', 'Надійний, теплий і сильний. За вас можна сховатися від будь-якої бурі.')),
-  'penguin': (_m('Пингвин', 'Penguin', 'Пінгвін'), _m('Один на всю жизнь. Приносит партнёру лучшие камешки и не смотрит по сторонам.', 'One partner for life. Brings them the best pebbles and never looks around.', 'Один на все життя. Приносить партнерові найкращі камінці й не дивиться на інших.')),
+  'penguin': (_m('Пингвин', 'Penguin', 'Пінгвін'), _m('Выбирает одного человека на всю жизнь и на других не смотрит. Дарит самое лучшее, что нашёл.', 'Picks one person for life and never looks at anyone else. Gives the very best thing they found.', 'Обирає одну людину на все життя й на інших не дивиться. Дарує найкраще, що знайшов.')),
   'koala': (_m('Коала', 'Koala', 'Коала'), _m('Уют, сон и обнимашки. Рядом с вами отдыхают даже самые беспокойные.', 'Coziness, sleep and cuddles. Even the most restless relax next to you.', 'Затишок, сон і обійми. Поруч із вами відпочивають навіть найнеспокійніші.')),
 };
 
@@ -433,9 +433,9 @@ String quizPairText(QuizKind kind, String mine, String theirs, String lang) {
             'Ви говорите однією мовою. Щоб порадувати партнера, $tip.');
       }
       final their = quizTypeTitle(kind, theirs, lang);
-      return pick('Языки у вас разные: партнёру нужнее «$their». Чтобы порадовать его, $tip.',
+      return pick('Языки у вас разные: партнёру нужнее «$their». Чтобы порадовать партнёра, $tip.',
           'Your languages differ: your partner needs “$their” more. To make them happy, $tip.',
-          'Мови у вас різні: партнерові потрібніше «$their». Щоб порадувати його, $tip.');
+          'Мови у вас різні: партнерові потрібніше «$their». Щоб порадувати партнера, $tip.');
     case QuizKind.attach:
       final a = _t(_attachNeed[mine]!, lang), b = _t(_attachNeed[theirs]!, lang);
       if (mine == theirs) {
