@@ -60,6 +60,33 @@ void main() {
     });
   }
 
+  testWidgets('экран тестов: «Умение любить» первым, за ним три новых', (t) async {
+    var loveOpened = false;
+    await pump(
+      t,
+      PairTestsScreen(
+        scheme: cs,
+        groupId: 'g',
+        myUid: 'me',
+        partnerName: 'Маша',
+        loveTestBuilder: (_) {
+          loveOpened = true;
+          return const Scaffold(body: Text('умение любить'));
+        },
+        initial: PairQuizResults(mine: {QuizKind.lang: scoreQuiz(QuizKind.lang, List.filled(10, 0))}),
+      ),
+    );
+    final love = t.getTopLeft(find.text('Умение любить'));
+    expect(love.dy, lessThan(t.getTopLeft(find.text('Язык любви')).dy));
+    expect(find.text('Тип привязанности'), findsOneWidget);
+    expect(find.text('Какое ты животное'), findsOneWidget);
+    expect(find.text('Пройден'), findsOneWidget);
+    expect(t.takeException(), isNull);
+    await t.tap(find.text('Умение любить'));
+    await t.pumpAndSettle();
+    expect(loveOpened, isTrue);
+  });
+
   testWidgets('партнёр не прошёл — ждём его', (t) async {
     await pump(
       t,

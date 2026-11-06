@@ -1598,14 +1598,6 @@ class _ProfileScreenState extends State<ProfileScreen>
             const SizedBox(height: 10),
           ],
           _loveTestLink(context),
-          // Тесты для пары (06.11.2026): язык любви, привязанность, зверь.
-          if (widget.pairData.pairId.isNotEmpty)
-            PairQuizLinks(
-              scheme: _cs,
-              groupId: widget.pairData.pairId,
-              myUid: widget.userData.uid,
-              partnerName: widget.pairData.partnerName,
-            ),
         ],
       ],
     );
@@ -1624,17 +1616,25 @@ class _ProfileScreenState extends State<ProfileScreen>
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
+        // Одна кнопка на все тесты пары (06.11.2026): «Умение любить» и три
+        // новых живут на своём экране, а не строками в профиле.
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(
-            settings: const RouteSettings(name: '/love_test'),
-            builder: (_) => LoveTestScreen(
-              theme: _t,
+            settings: const RouteSettings(name: '/pair_tests'),
+            builder: (_) => PairTestsScreen(
+              scheme: _cs,
               groupId: widget.pairData.pairId,
               myUid: widget.userData.uid,
               partnerName: widget.pairData.partnerName,
-              myGender: widget.userData.gender?.name ?? '',
-              partnerGender:
-                  widget.widgetService.firstPartnerData?.gender ?? '',
+              loveTestBuilder: (_) => LoveTestScreen(
+                theme: _t,
+                groupId: widget.pairData.pairId,
+                myUid: widget.userData.uid,
+                partnerName: widget.pairData.partnerName,
+                myGender: widget.userData.gender?.name ?? '',
+                partnerGender:
+                    widget.widgetService.firstPartnerData?.gender ?? '',
+              ),
             ),
           ),
         ),
@@ -1649,7 +1649,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      ruEn('Умение любить', 'How you love'),
+                      ruEn('Тесты для пары', 'Tests for two'),
                       style: TextStyle(
                         fontFamily: ProfileTheme.displayFont,
                         fontSize: 14.5,
@@ -1658,8 +1658,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                       ),
                     ),
                     Text(
-                      ruEn('Двадцать вопросов и одна фигура на двоих',
-                          'Twenty questions, one shape for two'),
+                      ruEn('Умение любить, язык любви, привязанность и зверь',
+                          'How you love, love language, attachment and animal'),
                       style: TextStyle(
                         fontFamily: ProfileTheme.bodyFont,
                         fontSize: 12,

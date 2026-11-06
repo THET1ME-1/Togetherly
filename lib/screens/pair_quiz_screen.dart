@@ -384,20 +384,36 @@ class _ResultCard extends StatelessWidget {
       : [for (final t in kQuizTypes[kind]!) (quizTypeTitle(kind, t, lang), r.scores[t] ?? 0)];
 }
 
-/// Строки входа в тесты для пары (профиль, рядом с «Умением любить»).
-class PairQuizLinks extends StatelessWidget {
-  const PairQuizLinks({
+/// Экран «Тесты для пары» (06.11.2026): одна кнопка в профиле ведёт сюда, а
+/// здесь все тесты — «Умение любить» первым, за ним три новых.
+class PairTestsScreen extends StatefulWidget {
+  const PairTestsScreen({
     super.key,
     required this.scheme,
     required this.groupId,
     required this.myUid,
     required this.partnerName,
+    required this.loveTestBuilder,
+    this.initial,
   });
 
   final ColorScheme scheme;
   final String groupId;
   final String myUid;
   final String partnerName;
+
+  /// «Умение любить» собирает профиль: ему нужны тема и пол обоих.
+  final WidgetBuilder loveTestBuilder;
+
+  /// Готовые результаты для теста: тогда экран не ходит в сеть.
+  final PairQuizResults? initial;
+
+  @override
+  State<PairTestsScreen> createState() => _PairTestsScreenState();
+}
+
+class _PairTestsScreenState extends State<PairTestsScreen> {
+  PairQuizResults _results = const PairQuizResults();
 
   static const Map<QuizKind, IconData> _icons = {
     QuizKind.lang: Icons.chat_bubble_rounded,
@@ -406,68 +422,156 @@ class PairQuizLinks extends StatelessWidget {
   };
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.initial != null) {
+      _results = widget.initial!;
+    } else {
+      unawaited(_load());
+    }
+  }
+
+  Future<void> _load() async {
+    final r = await PairQuizService.instance.load(widget.groupId, widget.myUid);
+    if (mounted) setState(() => _results = r);
+  }
+
+  Future<void> _open(WidgetBuilder builder, String name) async {
+    await Navigator.of(context).push(MaterialPageRoute(settings: RouteSettings(name: name), builder: builder));
+    // Вернулись из теста — отметки «Пройден» могли поменяться.
+    if (widget.initial == null) unawaited(_load());
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final cs = scheme;
+    final cs = widget.scheme;
     final lang = LocaleService.instance.language.code;
-    return Column(
-      children: [
-        for (final kind in QuizKind.values) ...[
-          const SizedBox(height: 10),
-          Material(
-            color: cs.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(20),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(20),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  settings: RouteSettings(name: '/quiz_${kind.name}'),
-                  builder: (_) => PairQuizScreen(
-                    kind: kind,
-                    scheme: cs,
-                    groupId: groupId,
-                    myUid: myUid,
-                    partnerName: partnerName,
+    final loveTitle = switch (lang) { 'ru' => 'Умение любить', 'uk' => 'Вміння кохати', _ => 'How you love' };
+    final loveHint = switch (lang) {
+      'ru' => 'Двадцать вопросов и одна фигура на двоих',
+      'uk' => 'Двадцять питань і одна фігура на двох',
+      _ => 'Twenty questions, one shape for two',
+    };
+    Widget row({
+      required IconData icon,
+      required String title,
+      required String hint,
+      required bool done,
+      required VoidCallback onTap,
+    }) =>
+        Material(
+          color: cs.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(24),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 12, 16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(color: cs.primaryContainer, shape: BoxShape.circle),
+                    child: Icon(icon, size: 22, color: cs.onPrimaryContainer),
                   ),
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                child: Row(
-                  children: [
-                    Icon(_icons[kind], size: 20, color: cs.onSurface),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            quizTitle(kind, lang),
-                            style: TextStyle(
-                              fontFamily: ProfileTheme.displayFont,
-                              fontSize: 14.5,
-                              fontWeight: FontWeight.w700,
-                              color: cs.onSurface,
-                            ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontFamily: ProfileTheme.displayFont,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: cs.onSurface,
                           ),
-                          Text(
-                            quizHint(kind, lang),
-                            style: TextStyle(
-                              fontFamily: ProfileTheme.bodyFont,
-                              fontSize: 12,
-                              color: cs.onSurface.withValues(alpha: 0.7),
-                            ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          hint,
+                          style: TextStyle(fontFamily: ProfileTheme.bodyFont, fontSize: 13, color: cs.onSurfaceVariant),
+                        ),
+                        if (done) ...[
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Icon(Icons.check_circle_rounded, size: 16, color: cs.primary),
+                              const SizedBox(width: 4),
+                              Text(
+                                quizUi('done', lang),
+                                style: TextStyle(
+                                  fontFamily: ProfileTheme.bodyFont,
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: cs.primary,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
-                      ),
+                      ],
                     ),
-                    Icon(Icons.chevron_right_rounded, size: 20, color: cs.onSurface),
-                  ],
-                ),
+                  ),
+                  Icon(Icons.chevron_right_rounded, color: cs.outline),
+                ],
               ),
             ),
           ),
-        ],
-      ],
+        );
+
+    return Theme(
+      data: ProfileTheme.data(cs),
+      child: Scaffold(
+        backgroundColor: cs.surface,
+        appBar: AppBar(
+          backgroundColor: cs.surface,
+          surfaceTintColor: Colors.transparent,
+          centerTitle: true,
+          title: Text(
+            quizUi('section', lang),
+            style: TextStyle(
+              fontFamily: ProfileTheme.displayFont,
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+              color: cs.onSurface,
+            ),
+          ),
+        ),
+        body: ListView(
+          padding: EdgeInsets.fromLTRB(16, 8, 16, MediaQuery.of(context).padding.bottom + 24),
+          children: [
+            row(
+              icon: Icons.favorite_rounded,
+              title: loveTitle,
+              hint: loveHint,
+              done: false,
+              onTap: () => _open(widget.loveTestBuilder, '/love_test'),
+            ),
+            for (final kind in QuizKind.values) ...[
+              const SizedBox(height: 8),
+              row(
+                icon: _icons[kind]!,
+                title: quizTitle(kind, lang),
+                hint: quizHint(kind, lang),
+                done: _results.mine.containsKey(kind),
+                onTap: () => _open(
+                  (_) => PairQuizScreen(
+                    kind: kind,
+                    scheme: cs,
+                    groupId: widget.groupId,
+                    myUid: widget.myUid,
+                    partnerName: widget.partnerName,
+                  ),
+                  '/quiz_${kind.name}',
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }
