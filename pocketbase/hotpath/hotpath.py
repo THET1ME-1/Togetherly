@@ -3727,6 +3727,32 @@ async def internal_pair_claim_approve(request: Request):
     return ORJSONResponse({"ok": True, "members": состав})
 
 
+def порядок_основы(у_хозяина: int | None, у_меня: int | None) -> list[str]:
+    """На чьей группе строить пару при приёме кода, по очереди: «хозяин» —
+    живая группа приглашающего с местом, «мой» — своя группа принимающего из
+    одного участника. Числа — сколько в группе воспоминаний и линий рисунка,
+    None — такой группы нет.
+
+    Обращение 597 (07.11.2026): своя группа принимающего не проверялась вовсе,
+    и у человека, заполнившего приложение до пары, всё оставалось в брошенной
+    группе (на тот день так у 85 человек). Своя идёт первой, если в ней больше;
+    пустая своя здесь не участвует — она не должна опережать подъём общей
+    распущенной пары с историей и встаёт только на место новой группы.
+    """
+    if not у_меня:
+        return [] if у_хозяина is None else ["хозяин"]
+    if у_хозяина is None:
+        return ["мой"]
+    return ["мой", "хозяин"] if у_меня > у_хозяина else ["хозяин", "мой"]
+
+
+async def _наполнение_группы(c, gid: str) -> int:
+    """Воспоминания и линии рисунка группы — мерило для `порядок_основы`."""
+    return int(await c.fetchval(
+        "SELECT (SELECT count(*) FROM memories WHERE group_id = $1 AND NOT deleted)"
+        " + (SELECT count(*) FROM canvas_strokes WHERE group_id = $1)", gid) or 0)
+
+
 @app.post("/internal/pair-accept")
 async def internal_pair_accept(request: Request):
     """Приём кода приглашения целиком в Postgres.
@@ -3761,7 +3787,9 @@ async def internal_pair_accept(request: Request):
 
     async with pg.acquire() as c:
         async with c.transaction():
-            async def войти(gid: str):
+            async def войти(gid: str, кто: str = я):
+                # [кто] — кого добавить в группу: обычно принимающего, а в его
+                # собственную группу — приглашающего.
                 row = await c.fetchrow(
                     "SELECT members, max_members, disbanded FROM groups "
                     "WHERE id = $1 FOR UPDATE", gid)
@@ -3780,7 +3808,7 @@ async def internal_pair_accept(request: Request):
                 # двое — на 07.09.2026 таких 3809, за одну неделю прибавилось
                 # 640. Считать их место занятым нельзя.
                 распущена = bool(row["disbanded"])
-                if я in состав:
+                if кто in состав:
                     # Повтор приёма своего же кода: пара уже собрана. Отвечаем
                     # успехом с тем же id — раньше человек ловил тут «Код не
                     # найден» поверх состоявшейся пары, 517 отказов за сутки.
@@ -3806,7 +3834,7 @@ async def internal_pair_accept(request: Request):
                         # про пару, которой нет; жалоба @a_cringe 04.09.2026.
                         return None
                     return {"success": False, "message": "Группа заполнена"}
-                состав.append(я)
+                состав.append(кто)
                 await c.execute(
                     "UPDATE groups SET members = $1::jsonb, "
                     "member_names = jsonb_set(COALESCE(member_names, '{}'::jsonb), "
@@ -3822,25 +3850,46 @@ async def internal_pair_accept(request: Request):
                     "waiting_mode = false, claim_token = '', claim_uid = '', "
                     "claim_name = '', claim_at = 0, "
                     "disbanded = false, updated = $5 WHERE id = $6",
-                    json.dumps(состав), я, json.dumps(имена[я]),
-                    json.dumps(аватары[я]), now_pb(), gid)
+                    json.dumps(состав), кто, json.dumps(имена[кто]),
+                    json.dumps(аватары[кто]), now_pb(), gid)
+                # Приглашающему эта группа новая: его телефон ждёт события
+                # создания, а правку незнакомой группы отфильтрует.
                 return {"success": True, "message": "Joined the group!",
-                        "pairId": gid, "_members": состав}
+                        "pairId": gid, "_members": состав, "_new": кто == хозяин}
 
             итог = None
             if код_группы:
                 итог = await войти(код_группы)
+            # своя группа принимающего из одного участника (обращение 597)
+            мой = None
             if итог is None:
-                # живая пара приглашающего, где есть место
+                мой = await c.fetchval(
+                    "SELECT id FROM groups WHERE members = $1::jsonb "
+                    "AND disbanded = false ORDER BY updated DESC LIMIT 1",
+                    json.dumps([я]))
+            if итог is None:
+                # живая пара приглашающего, где есть место, и своя группа —
+                # по очереди из `порядок_основы`
                 строки = await c.fetch(
                     "SELECT id FROM groups WHERE members @> $1::jsonb "
                     "AND disbanded = false ORDER BY updated DESC LIMIT 5",
                     json.dumps([хозяин]))
-                for r in строки:
-                    итог = await войти(r["id"])
-                    if итог and итог.get("success"):
+                порядок = порядок_основы(
+                    await _наполнение_группы(c, строки[0]["id"]) if строки else None,
+                    await _наполнение_группы(c, мой) if мой else None)
+                for чья in порядок:
+                    if чья == "мой":
+                        итог = await войти(мой, кто=хозяин)
+                        if not (итог and итог.get("success")):
+                            итог = None
+                    else:
+                        for r in строки:
+                            итог = await войти(r["id"])
+                            if итог and итог.get("success"):
+                                break
+                            итог = None
+                    if итог is not None:
                         break
-                    итог = None
             if итог is None:
                 # общая распущенная пара — поднимаем её со всей историей
                 строка = await c.fetchrow(
@@ -3863,6 +3912,11 @@ async def internal_pair_accept(request: Request):
                     итог = {"success": True, "message": "Reconnected!",
                             "pairId": строка["id"], "restored": True,
                             "_members": [хозяин, я]}
+            if итог is None and мой:
+                # вместо новой — своя пустая: третья группа человеку ни к чему
+                итог = await войти(мой, кто=хозяин)
+                if not (итог and итог.get("success")):
+                    итог = None
             if итог is None:
                 # заводим новую пару
                 gid = _new_id()
