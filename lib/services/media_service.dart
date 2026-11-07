@@ -94,7 +94,7 @@ class MediaService {
       // than JPEG at equivalent visual quality. Storage path gets .webp extension.
       File fileToUpload = file;
       var uploadDestination = destination;
-      if (['jpg', 'jpeg', 'png'].contains(ext)) {
+      if (convertsToWebp(ext)) {
         try {
           final tempDir = await getTemporaryDirectory();
           final targetPath =
@@ -124,10 +124,7 @@ class MediaService {
                 ) ==
                 UploadSource.compressed) {
               fileToUpload = webpFile;
-              uploadDestination = destination.replaceAll(
-                RegExp(r'\.(jpg|jpeg|png)$', caseSensitive: false),
-                '.webp',
-              );
+              uploadDestination = webpDestination(destination);
             } else {
               // WebP turned out larger — keep the original
               debugPrint('uploadFile: WebP larger than original, uploading original $ext');

@@ -466,6 +466,10 @@ class ChatService {
       'edited_ts': DateTime.now().millisecondsSinceEpoch,
     };
     await _patchCachedMessage(messageId, fields); // оптимистично
+    // Сообщение, которое так и не доехало, досылать незачем: без этого его
+    // сдавшаяся отправка держала плашку «Не сохранилось» (TOG-79). Сняли её —
+    // и правка ниже на пропавшее сообщение считается выполненной.
+    await OutboxService.instance.dropPoisonFor('chat_messages', messageId);
     await OutboxService.instance.enqueue('chatUpdate',
         {'id': messageId, 'fields': fields});
   }

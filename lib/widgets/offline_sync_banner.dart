@@ -68,6 +68,9 @@ class _SyncChipsState extends State<_SyncChips> {
   StreamSubscription<bool>? _connSub;
   late final ServerReach _reach = ServerReach.instance;
 
+  /// Нажат крестик у «Не сохранилось»: плашка спрашивает, выбросить ли правки.
+  bool _confirmDrop = false;
+
   @override
   void initState() {
     super.initState();
@@ -149,15 +152,82 @@ class _SyncChipsState extends State<_SyncChips> {
     }
 
     // «Ядовитые» операции — кликабельно: повторить отправку. Показываем сразу.
-    if (poison > 0) {
-      chips.add(GestureDetector(
-        onTap: () => OutboxService.instance.retryPoison(),
-        child: _chip(
-          context,
-          icon: Icons.refresh_rounded,
-          text: ruEn('Не сохранилось — повторить', "Didn't sync — retry"),
-          bg: scheme.errorContainer,
-          fg: scheme.onErrorContainer,
+    // Рядом крестик: правку, которую не лечит повтор, можно выбросить, иначе
+    // плашка висела до выхода из аккаунта (TOG-79). Окно подтверждения отсюда
+    // не открыть — плашка стоит над навигатором, — поэтому спрашиваем в ней же.
+    if (poison > 0 && !_confirmDrop) {
+      chips.add(Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: GestureDetector(
+              onTap: () => OutboxService.instance.retryPoison(),
+              child: _chip(
+                context,
+                icon: Icons.refresh_rounded,
+                text: ruEn('Не сохранилось — повторить', "Didn't sync — retry"),
+                bg: scheme.errorContainer,
+                fg: scheme.onErrorContainer,
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Material(
+            color: scheme.errorContainer,
+            shape: const CircleBorder(),
+            child: InkWell(
+              key: const ValueKey('sync_drop'),
+              customBorder: const CircleBorder(),
+              onTap: () => setState(() => _confirmDrop = true),
+              child: SizedBox(
+                width: 34,
+                height: 34,
+                child: Icon(Icons.close_rounded, size: 17, color: scheme.onErrorContainer,
+                    semanticLabel: ruEn('Убрать', 'Dismiss')),
+              ),
+            ),
+          ),
+        ],
+      ));
+    } else if (poison > 0) {
+      chips.add(Container(
+        padding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
+        decoration: BoxDecoration(color: scheme.errorContainer, borderRadius: BorderRadius.circular(20)),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: Text(
+                ruEn('Эти правки не сохранятся. Убрать?', "These changes won't be saved. Dismiss?"),
+                style: TextStyle(
+                  color: scheme.onErrorContainer,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  decoration: TextDecoration.none,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            TextButton(
+              key: const ValueKey('sync_drop_keep'),
+              onPressed: () => setState(() => _confirmDrop = false),
+              style: TextButton.styleFrom(foregroundColor: scheme.onErrorContainer, visualDensity: VisualDensity.compact),
+              child: Text(ruEn('Оставить', 'Keep')),
+            ),
+            FilledButton(
+              key: const ValueKey('sync_drop_confirm'),
+              onPressed: () {
+                setState(() => _confirmDrop = false);
+                OutboxService.instance.dropAllPoison();
+              },
+              style: FilledButton.styleFrom(
+                backgroundColor: scheme.error,
+                foregroundColor: scheme.onError,
+                visualDensity: VisualDensity.compact,
+              ),
+              child: Text(ruEn('Убрать', 'Dismiss')),
+            ),
+          ],
         ),
       ));
     }

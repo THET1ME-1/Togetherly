@@ -30,6 +30,39 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 
+  testWidgets('плашку можно убрать, но только после подтверждения (TOG-79)', (tester) async {
+    var dropped = 0;
+    OutboxService.instance.poisonCount.value = 1;
+    OutboxService.debugDropAll = () async {
+      dropped++;
+      OutboxService.instance.poisonCount.value = 0;
+    };
+    addTearDown(() => OutboxService.debugDropAll = null);
+
+    await tester.pumpWidget(_app());
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('sync_drop')));
+    // Смена плашки анимируется: жмём, когда вопрос доехал.
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(dropped, 0, reason: 'первое нажатие только спрашивает');
+    expect(find.byKey(const ValueKey('sync_drop_confirm')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('sync_drop_confirm')));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(dropped, 1);
+  });
+
+  testWidgets('передумал убирать — плашка снова с повтором', (tester) async {
+    OutboxService.instance.poisonCount.value = 1;
+    await tester.pumpWidget(_app());
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('sync_drop')));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.byKey(const ValueKey('sync_drop_keep')));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byKey(const ValueKey('sync_drop')), findsOneWidget);
+  });
+
   testWidgets('непринятая сервером правка остаётся видимой', (tester) async {
     OutboxService.instance.poisonCount.value = 2;
 

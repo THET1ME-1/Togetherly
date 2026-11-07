@@ -12,6 +12,35 @@ import 'package:pocketbase/pocketbase.dart';
 /// выключен и файлы идут в PocketBase: заливка сводила любую ошибку к null, и ни
 /// человек, ни панель крашей причины не знали.
 void main() {
+  // TOG-77, обращение 527: три снимка .dng по 25 МБ ушли в воспоминание без
+  // сжатия, и лента у обоих в паре висла и вылетала. В WebP переводились
+  // только jpg, jpeg и png.
+  group('какие снимки переводятся в WebP', () {
+    test('RAW, HEIC и BMP — тоже, в любом регистре', () {
+      for (final ext in ['jpg', 'jpeg', 'png', 'dng', 'DNG', 'heic', 'heif', 'bmp']) {
+        expect(convertsToWebp(ext), isTrue, reason: ext);
+      }
+    });
+
+    test('анимация и видео — нет: WebP из них съел бы движение', () {
+      for (final ext in ['gif', 'webp', 'mp4', 'mov', '']) {
+        expect(convertsToWebp(ext), isFalse, reason: ext);
+      }
+    });
+
+    test('у переведённого файла и имя с .webp', () {
+      expect(webpDestination('groups/g/m/IMG_0001.DNG'), 'groups/g/m/IMG_0001.webp');
+      expect(webpDestination('groups/g/m/photo.heic'), 'groups/g/m/photo.webp');
+      expect(webpDestination('a.b/photo.jpg'), 'a.b/photo.webp');
+    });
+
+    test('заливка спрашивает правило, а не свой список', () {
+      final src = File('lib/services/media_service.dart').readAsStringSync();
+      expect(src, contains('convertsToWebp(ext)'));
+      expect(src, contains('webpDestination(destination)'));
+    });
+  });
+
   group('причина по ошибке', () {
     test('обрыв сокета — сеть', () {
       expect(

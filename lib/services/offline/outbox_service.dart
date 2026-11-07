@@ -532,6 +532,33 @@ class OutboxService {
     poisonCount.value = 0;
   }
 
+  /// Выбросить сдавшиеся операции одной записи: её удалили, и досылать нечего
+  /// (TOG-79, обращение 569 — удалённый кружок держал плашку «Не сохранилось»).
+  Future<void> dropPoisonFor(String collection, String id) async {
+    final db = await LocalStore.instance.database();
+    if (db == null || id.isEmpty) return;
+    final key = '$collection:$id';
+    for (final s in await _poison.find(db)) {
+      if (_parseOp(s.value)?.rkey == key) await _poison.record(s.key).delete(db);
+    }
+    await _updatePending();
+  }
+
+  /// Подмена [dropAllPoison] в тестах плашки: настоящей базы там нет.
+  @visibleForTesting
+  static Future<void> Function()? debugDropAll;
+
+  /// Выбросить все сдавшиеся операции — «Убрать» на плашке после
+  /// подтверждения, что эти правки не уйдут. Без этого плашка, которую не
+  /// лечит повтор, висела до выхода из аккаунта.
+  Future<void> dropAllPoison() async {
+    if (debugDropAll != null) return debugDropAll!();
+    final db = await LocalStore.instance.database();
+    if (db == null) return;
+    await _poison.delete(db);
+    await _updatePending();
+  }
+
   /// Повторить «ядовитые» операции (тап в индикаторе): вернуть в очередь со
   /// сбросом попыток и слить.
   Future<void> retryPoison() async {

@@ -273,10 +273,10 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
       return;
     }
-    // Успех — отдельным листом с самим подарком и именем, а не снекбаром:
-    // снекбар уезжал вместе с закрытым магазином, и итога никто не видел.
+    // Успех — отдельным листом с самим подарком и именем. Магазин после него
+    // остаётся открытым: дарят и по нескольку подряд, а закрывался он сам, и
+    // за каждым подарком приходилось заходить заново (TOG-69).
     await _showSent(gift, byAd: byAd);
-    if (mounted) Navigator.of(context).pop();
   }
 
   /// Подарок ушёл: крупно сам подарок, кому и где он его увидит.

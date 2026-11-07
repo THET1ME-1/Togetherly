@@ -96,6 +96,20 @@ String uploadFailureText(
   }
 }
 
+/// Снимки, которые перед заливкой переводятся в WebP.
+///
+/// До 07.11.2026 переводились только jpg, jpeg и png, остальное уходило как
+/// есть: три снимка .dng по 25 МБ легли в воспоминание, и лента у обоих в паре
+/// висла и вылетала (TOG-77, обращение 527). RAW и HEIC кодек телефона
+/// разбирает. GIF и WebP не трогаем — в них бывает анимация.
+const Set<String> _rasterToWebp = {'jpg', 'jpeg', 'png', 'heic', 'heif', 'dng', 'bmp'};
+
+bool convertsToWebp(String ext) => _rasterToWebp.contains(ext.toLowerCase());
+
+/// Имя файла после перевода в WebP: меняется только расширение.
+String webpDestination(String destination) =>
+    destination.replaceFirst(RegExp(r'\.[A-Za-z0-9]+$'), '.webp');
+
 /// Какой файл заливать: исходный или его сжатую копию.
 enum UploadSource { original, compressed }
 
