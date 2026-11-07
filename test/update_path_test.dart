@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:love_app/services/update_service.dart';
 
@@ -60,6 +62,43 @@ void main() {
         ),
         UpdatePath.none,
       );
+    });
+
+    // TOG-85, обращение 598 (07.11.2026): то же английское окно у целой
+    // установки. Сервисы Google живы, а сам магазин Google Play на телефоне
+    // выключен или его нет — Play Core не к кому обратиться, и он рисует окно.
+    test('магазин Google Play выключен — Play Core не зовём', () {
+      for (final sideloaded in [false, true]) {
+        expect(
+          decideUpdatePath(
+            sideloaded: sideloaded,
+            signedByUs: false,
+            splitsMissing: false,
+            playServices: true,
+            playStore: false,
+          ),
+          UpdatePath.none,
+          reason: 'sideloaded=$sideloaded',
+        );
+      }
+    });
+
+    test('сборке с GitHub магазин не нужен', () {
+      expect(
+        decideUpdatePath(
+          sideloaded: true,
+          signedByUs: true,
+          splitsMissing: false,
+          playServices: false,
+          playStore: false,
+        ),
+        UpdatePath.sideload,
+      );
+    });
+
+    test('экран спрашивает и магазин', () {
+      final src = File('lib/screens/home_screen.dart').readAsStringSync();
+      expect(src, contains('playStore: await UpdateService.hasPlayStore()'));
     });
 
     test('битая установка из Play не пускает нас в Play Core', () {

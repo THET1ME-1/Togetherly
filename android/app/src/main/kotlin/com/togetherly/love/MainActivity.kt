@@ -439,6 +439,18 @@ class MainActivity : FlutterActivity() {
                     result.success(code == ConnectionResult.SUCCESS)
                 }
 
+                // Сам магазин Google Play: бывает выключен при живых сервисах,
+                // и тогда Play Core рисует окно «Check that Google Play is
+                // enabled» (TOG-85). Пакет объявлен в <queries> манифеста.
+                "hasPlayStore" -> {
+                    val enabled = try {
+                        packageManager.getApplicationInfo("com.android.vending", 0).enabled
+                    } catch (e: PackageManager.NameNotFoundException) {
+                        false
+                    }
+                    result.success(enabled)
+                }
+
                 "getToken" -> {
                     try {
                         FirebaseMessaging.getInstance().token

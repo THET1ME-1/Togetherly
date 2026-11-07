@@ -4200,6 +4200,7 @@ class _HomeScreenState extends State<HomeScreen> {
       signedByUs: await UpdateService.signedByUs(),
       splitsMissing: await UpdateService.hasMissingSplits(),
       playServices: await UpdateService.hasPlayServices(),
+      playStore: await UpdateService.hasPlayStore(),
     );
     if (!mounted) return;
 

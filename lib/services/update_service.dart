@@ -58,12 +58,14 @@ UpdatePath decideUpdatePath({
   required bool signedByUs,
   required bool splitsMissing,
   required bool playServices,
+  bool playStore = true,
 }) {
   if (sideloaded && signedByUs) return UpdatePath.sideload;
   // Сервисы проверяем раньше частей: на телефоне без Google Play переустановка
   // ничего не чинит, и гнать человека переустанавливать исправное приложение
-  // было бы враньём.
-  if (!playServices) return UpdatePath.none;
+  // было бы враньём. Магазин — отдельно от сервисов: они бывают живы при
+  // выключенном Google Play, и Play Core тогда рисует своё окно (TOG-85).
+  if (!playServices || !playStore) return UpdatePath.none;
   return splitsMissing ? UpdatePath.brokenInstall : UpdatePath.playStore;
 }
 
@@ -199,6 +201,24 @@ class UpdateService {
       // Не смогли спросить — считаем, что сервисы есть: молча пропустить
       // обновление на исправном телефоне хуже, чем задать вопрос Play Core.
       debugPrint('UpdateService.hasPlayServices failed: $e');
+      return true;
+    }
+  }
+
+  /// Стоит ли на телефоне включённый магазин Google Play.
+  ///
+  /// Сервисы Google и сам магазин — разные пакеты: магазин выключают или
+  /// удаляют при живых сервисах, и Play Core отвечает тем же окном «Something
+  /// went wrong. Check that Google Play is enabled» (TOG-85, обращение 598).
+  static Future<bool> hasPlayStore() async {
+    if (!Platform.isAndroid) return false;
+    try {
+      return await const MethodChannel('love_app/fcm')
+              .invokeMethod<bool>('hasPlayStore') ??
+          false;
+    } catch (e) {
+      // Старый натив без метода — считаем магазин на месте, как было раньше.
+      debugPrint('UpdateService.hasPlayStore failed: $e');
       return true;
     }
   }
