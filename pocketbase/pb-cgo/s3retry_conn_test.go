@@ -111,6 +111,8 @@ func storeWithHTTP2(t *testing.T) (*httptest.Server, *tls.Config) {
 func quickRetry(store http.RoundTripper) *s3Retry {
 	retry := newS3Retry(http.DefaultTransport)
 	retry.store = store
+	// заглушке хранилища нужен свой сертификат: все попытки идут через неё
+	retry.spare = nil
 	retry.headerWait = 400 * time.Millisecond
 	retry.perMegabyte = 0
 	retry.backoff = []time.Duration{time.Millisecond, time.Millisecond}

@@ -31,6 +31,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -41,6 +42,11 @@ type s3Retry struct {
 	base http.RoundTripper
 	// транспорт для хранилища, см. newS3StoreTransport
 	store http.RoundTripper
+	// запасной путь для второй попытки: тот же транспорт, только по IPv4.
+	// С 02.11.2026 Хельсинки идёт туннелем IPv6 (he-ipv6.sh на сервере), и
+	// срывы стали окнами на этом пути: все три попытки уходили в одно окно.
+	// nil — все попытки основным путём.
+	spare http.RoundTripper
 	// сколько всего попыток, включая первую
 	attempts int
 	// срок до заголовков ответа для запроса без тела
@@ -62,6 +68,7 @@ func newS3Retry(base http.RoundTripper) *s3Retry {
 	return &s3Retry{
 		base:        base,
 		store:       newS3StoreTransport(nil),
+		spare:       newS3StoreTransportOver(nil, "tcp4"),
 		attempts:    3,
 		headerWait:  15 * time.Second,
 		perMegabyte: 2 * time.Second,
@@ -84,7 +91,20 @@ func newS3Retry(base http.RoundTripper) *s3Retry {
 // Простаивающее соединение Hetzner закрывает сам через 5–20 секунд, поэтому
 // своё держим недолго. [trust] подставляют тесты, nil — системные сертификаты.
 func newS3StoreTransport(trust *tls.Config) *http.Transport {
+	return newS3StoreTransportOver(trust, "")
+}
+
+// То же, но соединения открываются только сетью [network] ("tcp4"), если она
+// задана. Адрес хранилища у Hetzner один на обе семьи, поэтому запасной путь
+// — это тот же адрес по IPv4.
+func newS3StoreTransportOver(trust *tls.Config, network string) *http.Transport {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
+	if network != "" {
+		dialer := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
+		transport.DialContext = func(ctx context.Context, _, addr string) (net.Conn, error) {
+			return dialer.DialContext(ctx, network, addr)
+		}
+	}
 	transport.ForceAttemptHTTP2 = false
 	transport.TLSNextProto = map[string]func(string, *tls.Conn) http.RoundTripper{}
 	if trust != nil {
@@ -146,7 +166,7 @@ func (t *s3Retry) RoundTrip(req *http.Request) (*http.Response, error) {
 		resp, err := t.try(req, attempt)
 		if err == nil && !retryableStatus(resp.StatusCode) {
 			if attempt > 1 {
-				t.logf("[s3-retry] %s %s: прошло с попытки %d", req.Method, req.URL.Path, attempt)
+				t.logf("[s3-retry] %s %s: прошло с попытки %d%s", req.Method, req.URL.Path, attempt, t.pathNote(attempt))
 			}
 			return resp, nil
 		}
@@ -161,8 +181,8 @@ func (t *s3Retry) RoundTrip(req *http.Request) (*http.Response, error) {
 				req.Method, req.URL.Path, attempt, describeS3Failure(resp, err))
 			return resp, err
 		}
-		t.logf("[s3-retry] %s %s: попытка %d: %s, повторяю",
-			req.Method, req.URL.Path, attempt, describeS3Failure(resp, err))
+		t.logf("[s3-retry] %s %s: попытка %d%s: %s, повторяю",
+			req.Method, req.URL.Path, attempt, t.pathNote(attempt), describeS3Failure(resp, err))
 		if resp != nil {
 			io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
 			resp.Body.Close()
@@ -171,6 +191,22 @@ func (t *s3Retry) RoundTrip(req *http.Request) (*http.Response, error) {
 			return nil, req.Context().Err()
 		}
 	}
+}
+
+// Вторая попытка идёт запасным путём, первая и третья — основным: окно сбоя
+// на одном пути не съедает все три.
+func (t *s3Retry) transportFor(attempt int) http.RoundTripper {
+	if attempt == 2 && t.spare != nil {
+		return t.spare
+	}
+	return t.store
+}
+
+func (t *s3Retry) pathNote(attempt int) string {
+	if attempt == 2 && t.spare != nil {
+		return " (по IPv4)"
+	}
+	return ""
 }
 
 // Одна попытка со своим сроком до заголовков ответа.
@@ -187,7 +223,7 @@ func (t *s3Retry) try(req *http.Request, attempt int) (*http.Response, error) {
 	}
 	wait := t.waitFor(req)
 	timer := time.AfterFunc(wait, cancel)
-	resp, err := t.store.RoundTrip(attemptReq)
+	resp, err := t.transportFor(attempt).RoundTrip(attemptReq)
 	if !timer.Stop() {
 		// срок вышел раньше заголовков: это зависание, а не ответ
 		if err == nil {
