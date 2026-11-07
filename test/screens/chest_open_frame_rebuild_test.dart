@@ -27,7 +27,7 @@ void main() {
   });
 
   test('приз над сундуком слушает номер кадра сам', () {
-    expect(body('_chestArt'), contains('ValueListenableBuilder<int>'));
+    expect(body('_chestArt'), contains('ListenableBuilder('));
     expect(src, contains('frameTick'));
   });
 }

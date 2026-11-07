@@ -28,7 +28,11 @@ class ChestSound extends ChangeNotifier {
 
   /// Кадры, на которых телефон слегка отдаёт: замок отлетает (0,9 с) и приз
   /// выпадает — раскадровка `chestOpen` в мастерской значков.
-  static const int lockFrame = 900 ~/ kChestFrameMs;
+  static const int lockFrame = lockMs ~/ kChestFrameMs;
+  static const int lockMs = 900;
+
+  /// Приз над сундуком, его название под ним — 2,0 с от начала открытия.
+  static const int wonMs = 2000;
 
   bool _enabled = true;
   bool _loaded = false;
@@ -79,8 +83,9 @@ class ChestSound extends ChangeNotifier {
     return _player;
   }
 
-  /// Открытие началось: звук с [frame]-го кадра анимации.
-  Future<void> start(int frame) async {
+  /// Открытие началось: звук с [frame]-го кадра анимации, кадр [frameMs]
+  /// (у плавного открытия 30 мс, у прежнего 60).
+  Future<void> start(int frame, {int frameMs = kChestFrameMs}) async {
     if (!_enabled) return;
     final late = Stopwatch()..start();
     try {
@@ -88,7 +93,7 @@ class ChestSound extends ChangeNotifier {
       final p = await _prepare();
       if (p == null) return;
       // Пока готовился плеер, анимация ушла вперёд — догоняем её.
-      await p.seek(Duration(milliseconds: frame * kChestFrameMs + late.elapsedMilliseconds));
+      await p.seek(Duration(milliseconds: frame * frameMs + late.elapsedMilliseconds));
       unawaited(p.play());
     } catch (e) {
       debugPrint('ChestSound: $e');
@@ -96,9 +101,10 @@ class ChestSound extends ChangeNotifier {
   }
 
   /// Отдача на ключевых кадрах: щелчок замка — лёгкая, приз — посильнее.
-  void haptic(int from, int to) {
-    if (from < lockFrame && to >= lockFrame) HapticFeedback.lightImpact();
-    if (from < kChestWonFrame && to >= kChestWonFrame) HapticFeedback.mediumImpact();
+  void haptic(int from, int to, {int frameMs = kChestFrameMs}) {
+    final lock = lockMs ~/ frameMs, won = wonMs ~/ frameMs;
+    if (from < lock && to >= lock) HapticFeedback.lightImpact();
+    if (from < won && to >= won) HapticFeedback.mediumImpact();
   }
 
   Future<void> stop() async {

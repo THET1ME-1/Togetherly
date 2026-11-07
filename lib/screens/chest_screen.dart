@@ -166,18 +166,37 @@ class _Slot {
   /// Ключ недосмотренного открытия на диске: у каждого сундука свой.
   String pendingKey(String groupId) => season == null ? groupId : '$groupId|${season!.key}';
 
-  String? get idleUrl => season == null ? CatalogService.instance.giftArt('chest_idle')?.lgUrl : season!.file('idle');
-  String? get openUrl => season == null ? CatalogService.instance.giftArt('chest_open')?.lgUrl : season!.file('open');
+  /// Плавное открытие главного сундука (кадр 30 мс) лежит в каталоге рядом с
+  /// прежним. Нет его — играет прежнее, и дорожка с ним своя.
+  bool get smooth => season == null && CatalogService.instance.giftArt('chest_open2')?.lgUrl != null;
+
+  String? get idleUrl {
+    if (season != null) return season!.file('idle');
+    final art = CatalogService.instance;
+    return art.giftArt('chest_idle2')?.lgUrl ?? art.giftArt('chest_idle')?.lgUrl;
+  }
+
+  String? get openUrl {
+    if (season != null) return season!.file('open');
+    return CatalogService.instance.giftArt(smooth ? 'chest_open2' : 'chest_open')?.lgUrl;
+  }
+
+  /// Петля открытого сундука после открытия: обводка живёт, а не застывает.
+  String? get holdUrl => smooth ? CatalogService.instance.giftArt('chest_hold2')?.lgUrl : null;
 
   /// Дорожка приза в кадрах открытия: у сезонного своя, с сервера.
   List<List<double>?> get track {
     final t = season?.track;
-    return t == null || t.isEmpty ? kChestPrizeTrack : t;
+    if (t != null && t.isNotEmpty) return t;
+    return smooth ? kChestPrizeTrack2 : kChestPrizeTrack;
   }
 
   double? get trackPeak => season == null || season!.track.isEmpty ? null : ChestPrizeFlight.trackPeak(track);
-  int get frameMs => season?.trackFrameMs ?? kChestFrameMs;
-  int get wonFrame => season == null ? kChestWonFrame : season!.wonAtMs ~/ frameMs;
+  int get frameMs => season?.trackFrameMs ?? (smooth ? kChestFrameMs2 : kChestFrameMs);
+  int get wonFrame => season == null ? ChestSound.wonMs ~/ frameMs : season!.wonAtMs ~/ frameMs;
+
+  /// Время показанного кадра петли [holdUrl] от начала открытия.
+  final ValueNotifier<Duration?> holdTick = ValueNotifier(null);
   int get lockFrame => season == null ? ChestSound.lockFrame : season!.lockAtMs ~/ frameMs;
   int? get flashFrame => season?.flashColor == null ? null : season!.flashAtMs ~/ frameMs;
 
@@ -260,6 +279,7 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     ChestSound.instance.addListener(_onJar);
     unawaited(ChestSound.instance.load());
     ChestFrames.prefetch(main.openUrl);
+    ChestFrames.prefetch(main.holdUrl);
     _load();
     _restorePending(main);
     _clock = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
@@ -281,6 +301,7 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     for (final s in _slots) {
       s.glitch?.dispose();
       s.frameTick.dispose();
+      s.holdTick.dispose();
     }
     _clock?.cancel();
     _ad.dispose();
@@ -471,6 +492,7 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
       if (!keep.contains(gone)) {
         gone.glitch?.dispose();
         gone.frameTick.dispose();
+        gone.holdTick.dispose();
       }
     }
     _slots
@@ -669,6 +691,7 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
       slot.animating = true;
       slot.soundStarted = false;
       slot.frame = -1;
+      slot.holdTick.value = null;
       slot.openRun++;
       slot.won = null;
       slot.choice = null;
@@ -690,9 +713,9 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     if (slot.isMain) {
       if (!slot.soundStarted) {
         slot.soundStarted = true;
-        ChestSound.instance.start(i);
+        ChestSound.instance.start(i, frameMs: slot.frameMs);
       }
-      ChestSound.instance.haptic(from, i);
+      ChestSound.instance.haptic(from, i, frameMs: slot.frameMs);
     } else {
       // У сезонного сундука вместо фанфары гром на щелчке замка, музыка
       // страницы играет дальше.
@@ -1262,16 +1285,26 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
                   stillUrl: stillUrl,
                   side: side,
                   loop: false,
+                  afterUrl: slot.holdUrl,
                   onFrame: (i) => _onOpenFrame(slot, i),
                   onDone: () => _onOpenDone(slot),
+                  onAfter: (t) => slot.holdTick.value = t,
                 ),
         ),
         if (opening != null)
           Positioned.fill(
-            child: ValueListenableBuilder<int>(
-              valueListenable: slot.frameTick,
-              builder: (context, i, _) {
-                final spot = i >= 0 && i < track.length ? track[i] : null;
+            child: ListenableBuilder(
+              listenable: Listenable.merge([slot.frameTick, slot.holdTick]),
+              builder: (context, _) {
+                final i = slot.frameTick.value;
+                var spot = i >= 0 && i < track.length ? track[i] : null;
+                final hold = slot.holdTick.value;
+                // В петле открытого сундука приз покачивается дальше, как на макете.
+                if (spot != null && hold != null && i == track.length - 1) {
+                  final end = i * slot.frameMs / 1000;
+                  final seconds = end + slot.frameMs / 1000 + hold.inMicroseconds / 1e6;
+                  spot = chestHoldSpot(spot, endSeconds: end, seconds: seconds);
+                }
                 if (spot == null) return const SizedBox.shrink();
                 return Stack(
                   clipBehavior: Clip.none,

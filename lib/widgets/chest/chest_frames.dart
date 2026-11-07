@@ -70,6 +70,8 @@ class ChestFrames extends StatefulWidget {
     this.onFrame,
     this.onPosition,
     this.onDone,
+    this.afterUrl,
+    this.onAfter,
   });
 
   final String? url;
@@ -102,6 +104,15 @@ class ChestFrames extends StatefulWidget {
   /// длинный, и номер перестаёт быть мерой времени (занавес).
   final ValueChanged<Duration>? onPosition;
   final VoidCallback? onDone;
+
+  /// Петля, в которую уходит проигранное один раз открытие ([loop] = false):
+  /// открытый сундук с живой обводкой. Прежде последний кадр стоял намертво, и
+  /// сундук выглядел зависшим (TOG-70). Файла нет в памяти к концу открытия —
+  /// остаётся последний кадр, как раньше. Кадры петли в [onFrame] не идут.
+  final String? afterUrl;
+
+  /// Время от начала петли [afterUrl] на каждом её кадре.
+  final ValueChanged<Duration>? onAfter;
 
   /// Скачать файл заранее: открытие должно начаться сразу после ролика.
   ///
@@ -181,9 +192,20 @@ class _ChestFramesState extends State<ChestFrames> with SingleTickerProviderStat
 
   /// Последний кадр показан и досиживает свою длительность ([holdLast]).
   bool _finishing = false;
-  bool _fetching = false;
   bool _stopped = false;
   bool _disposed = false;
+
+  /// Следующий кадр, распакованный заранее, пока стоит текущий. Раньше
+  /// распаковка начиналась, когда кадр уже пора было показать, и на слабом
+  /// телефоне каждый кадр опаздывал на её время (TOG-70).
+  ui.FrameInfo? _ready;
+  bool _decoding = false;
+
+  /// Играет петля [ChestFrames.afterUrl]; пока готовится её декодер, стоит
+  /// последний кадр открытия.
+  bool _after = false;
+  bool _switching = false;
+  Duration _afterPos = Duration.zero;
 
   @override
   void initState() {
@@ -206,12 +228,17 @@ class _ChestFramesState extends State<ChestFrames> with SingleTickerProviderStat
       if (_ticker.isActive) _ticker.stop();
       _codec?.dispose();
       _codec = null;
+      _ready?.image.dispose();
+      _ready = null;
+      _decoding = false;
       _index = 0;
       _due = Duration.zero;
       _pos = Duration.zero;
-      _fetching = false;
       _stopped = false;
       _finishing = false;
+      _after = false;
+      _switching = false;
+      _afterPos = Duration.zero;
       _start();
     }
   }
@@ -256,6 +283,9 @@ class _ChestFramesState extends State<ChestFrames> with SingleTickerProviderStat
       await _skipToLast(_codec!);
       return;
     }
+    final after = widget.afterUrl;
+    if (after != null && !widget.loop) unawaited(ChestFrames.prefetch(after));
+    _decodeNext();
     _ticker.start();
   }
 
@@ -279,43 +309,72 @@ class _ChestFramesState extends State<ChestFrames> with SingleTickerProviderStat
     widget.onDone?.call();
   }
 
+  /// Распаковать следующий кадр, не дожидаясь его срока.
+  void _decodeNext() {
+    final codec = _codec, gen = _gen;
+    if (codec == null || _decoding || _ready != null || _stopped) return;
+    _decoding = true;
+    codec.getNextFrame().then(
+      (frame) {
+        if (_disposed || gen != _gen || !identical(codec, _codec)) {
+          frame.image.dispose();
+          return;
+        }
+        _decoding = false;
+        _ready = frame;
+      },
+      onError: (Object _) {
+        // Декодер закрыли сменой файла — новый запуск уже идёт сам.
+        if (_disposed || gen != _gen || !identical(codec, _codec)) return;
+        _decoding = false;
+        _stop();
+        if (!_after) widget.onDone?.call();
+      },
+    );
+  }
+
   void _onTick(Duration elapsed) {
-    if (_fetching || _stopped || elapsed < _due) return;
+    if (_stopped || _switching || elapsed < _due) return;
     if (_finishing) {
       _stop();
       widget.onDone?.call();
       return;
     }
-    _fetching = true;
-    _advance(elapsed);
+    final frame = _ready;
+    if (frame == null) {
+      // Распаковка не успела к сроку: кадр покажется, как только будет готов.
+      _decodeNext();
+      return;
+    }
+    _ready = null;
+    _show(frame, elapsed);
   }
 
-  Future<void> _advance(Duration elapsed) async {
-    final codec = _codec, gen = _gen;
-    if (codec == null) return;
-    final ui.FrameInfo frame;
-    try {
-      frame = await codec.getNextFrame();
-    } catch (_) {
-      // Декодер закрыли сменой файла — новый запуск уже идёт сам.
-      if (gen != _gen) return;
-      _stop();
-      widget.onDone?.call();
-      return;
-    }
-    if (_disposed || gen != _gen) {
-      frame.image.dispose();
-      return;
-    }
+  void _show(ui.FrameInfo frame, Duration elapsed) {
+    final codec = _codec!;
     final old = _image;
     setState(() => _image = frame.image);
     old?.dispose();
     final i = _index;
-    widget.onFrame?.call(i);
-    widget.onPosition?.call(_pos);
     final last = i == codec.frameCount - 1;
     final step = frame.duration == Duration.zero ? const Duration(milliseconds: 60) : frame.duration;
+    _due = elapsed + step;
+    if (_after) {
+      widget.onAfter?.call(_afterPos);
+      _afterPos += step;
+      _index = last ? 0 : i + 1;
+      _decodeNext();
+      return;
+    }
+    widget.onFrame?.call(i);
+    widget.onPosition?.call(_pos);
     if (last && !widget.loop) {
+      final after = widget.afterUrl;
+      if (after != null && ChestFrames.isReady(after)) {
+        widget.onDone?.call();
+        unawaited(_startAfter(after));
+        return;
+      }
       if (!widget.holdLast) {
         _stop();
         widget.onDone?.call();
@@ -323,15 +382,40 @@ class _ChestFramesState extends State<ChestFrames> with SingleTickerProviderStat
       }
       // Последний кадр стоит свою длительность, и только потом «кончилось»:
       // у занавеса это хвост, уходящий за край экрана.
-      _due = elapsed + step;
       _finishing = true;
-      _fetching = false;
       return;
     }
     _index = last ? 0 : i + 1;
     _pos = last ? Duration.zero : _pos + step;
-    _due = elapsed + step;
-    _fetching = false;
+    _decodeNext();
+  }
+
+  /// Перейти в петлю: последний кадр открытия стоит, пока готовится декодер.
+  Future<void> _startAfter(String url) async {
+    final gen = _gen;
+    _switching = true;
+    ui.Codec? codec;
+    try {
+      final dpr = ui.PlatformDispatcher.instance.views.first.devicePixelRatio;
+      codec = await chestCodec(ChestFrames._bytes[url]!, wanted: (widget.side * dpr).round());
+    } catch (_) {
+      codec = null;
+    }
+    if (_disposed || gen != _gen) {
+      codec?.dispose();
+      return;
+    }
+    _switching = false;
+    if (codec == null) {
+      _stop();
+      return;
+    }
+    _codec?.dispose();
+    _codec = codec;
+    _after = true;
+    _index = 0;
+    _afterPos = Duration.zero;
+    _decodeNext();
   }
 
   void _stop() {
@@ -344,6 +428,7 @@ class _ChestFramesState extends State<ChestFrames> with SingleTickerProviderStat
     _disposed = true;
     _ticker.dispose();
     _image?.dispose();
+    _ready?.image.dispose();
     _codec?.dispose();
     super.dispose();
   }
