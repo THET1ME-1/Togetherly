@@ -142,7 +142,12 @@ class _Slot {
   /// Приз в открытом сундуке; кадр — для дорожки приза.
   ChestPrize? opening;
   bool animating = false;
-  int frame = -1;
+
+  /// Кадр открытия для дорожки приза. Его слушает только приз над сундуком:
+  /// весь экран на каждом кадре не перестраивается (TOG-70).
+  final ValueNotifier<int> frameTick = ValueNotifier(-1);
+  int get frame => frameTick.value;
+  set frame(int i) => frameTick.value = i;
   int openRun = 0;
 
   /// Название выигрыша под сундуком.
@@ -275,6 +280,7 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     unawaited(SeasonMusic.instance.release());
     for (final s in _slots) {
       s.glitch?.dispose();
+      s.frameTick.dispose();
     }
     _clock?.cancel();
     _ad.dispose();
@@ -462,7 +468,10 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     final current = _s;
     if (!current.isMain && !keep.contains(current)) keep.insert(math.min(_shown - 1, keep.length), current);
     for (final gone in _slots.skip(1)) {
-      if (!keep.contains(gone)) gone.glitch?.dispose();
+      if (!keep.contains(gone)) {
+        gone.glitch?.dispose();
+        gone.frameTick.dispose();
+      }
     }
     _slots
       ..removeRange(1, _slots.length)
@@ -695,10 +704,10 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
       if (flashAt != null && from < flashAt && i >= flashAt) _bolt(_slots.indexOf(slot));
       if (from < slot.wonFrame && i >= slot.wonFrame) HapticFeedback.mediumImpact();
     }
-    setState(() {
-      slot.frame = i;
-      if (i >= slot.wonFrame && slot.won == null && slot.opening != null) slot.won = _wonText(slot.opening!);
-    });
+    slot.frame = i;
+    if (i >= slot.wonFrame && slot.won == null && slot.opening != null) {
+      setState(() => slot.won = _wonText(slot.opening!));
+    }
   }
 
   void _onOpenDone(_Slot slot) {
@@ -1229,7 +1238,6 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
   Widget _chestArt(_Slot slot, double side) {
     final opening = slot.opening;
     final track = slot.track;
-    final spot = opening != null && slot.frame >= 0 && slot.frame < track.length ? track[slot.frame] : null;
     final still = slot.isMain ? kChestStill : null;
     final stillUrl = slot.season?.file('still');
     return Stack(
@@ -1258,8 +1266,20 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
                   onDone: () => _onOpenDone(slot),
                 ),
         ),
-        if (opening != null && spot != null)
-          ChestPrizeFlight(prize: opening, spot: spot, stage: side, peak: slot.trackPeak),
+        if (opening != null)
+          Positioned.fill(
+            child: ValueListenableBuilder<int>(
+              valueListenable: slot.frameTick,
+              builder: (context, i, _) {
+                final spot = i >= 0 && i < track.length ? track[i] : null;
+                if (spot == null) return const SizedBox.shrink();
+                return Stack(
+                  clipBehavior: Clip.none,
+                  children: [ChestPrizeFlight(prize: opening, spot: spot, stage: side, peak: slot.trackPeak)],
+                );
+              },
+            ),
+          ),
       ],
     );
   }
