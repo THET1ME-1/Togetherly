@@ -92,10 +92,29 @@ class TimerItem {
 
   // ── Сериализация ──
 
+  /// Таймер со временем суток: это момент, а не календарный день.
+  ///
+  /// TOG-56: дата уходила часами автора без пояса, и партнёр читал те же цифры
+  /// своими часами — отсчёт до встречи в 19:00 по Киеву в Торонто шёл на семь
+  /// часов дольше. Момент едет отдельным полем `startAt` в UTC, а `startDate`
+  /// остаётся часами автора: его читают сборки, выпущенные до правки. Дата без
+  /// времени (годовщина, день рождения) остаётся днём, у обоих те же цифры.
+  bool get _hasTimeOfDay {
+    final local = startDate.toLocal();
+    return local.hour != 0 || local.minute != 0 || local.second != 0 || local.millisecond != 0;
+  }
+
+  static DateTime _readStart(Map<String, dynamic> json) {
+    final at = DateTime.tryParse((json['startAt'] ?? '').toString());
+    if (at != null) return at.toLocal();
+    return DateTime.parse(json['startDate'] as String).toLocal();
+  }
+
   Map<String, dynamic> toJson() => {
     'id': id,
     'title': title,
-    'startDate': startDate.toIso8601String(),
+    'startDate': startDate.toLocal().toIso8601String(),
+    if (_hasTimeOfDay) 'startAt': startDate.toUtc().toIso8601String(),
     'isDefault': isDefault,
     'emoji': emoji,
     'isSystem': isSystem,
@@ -106,7 +125,7 @@ class TimerItem {
   factory TimerItem.fromJson(Map<String, dynamic> json) => TimerItem(
     id: json['id'] as String,
     title: json['title'] as String,
-    startDate: DateTime.parse(json['startDate'] as String),
+    startDate: _readStart(json),
     isDefault: json['isDefault'] as bool? ?? false,
     emoji: json['emoji'] as String? ?? '❤️',
     isSystem: json['isSystem'] as bool? ?? false,
