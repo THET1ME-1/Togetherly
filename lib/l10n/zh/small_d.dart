@@ -49,10 +49,10 @@ const Map<String, String> smallDZh = {
   'uploadPhotoTooltip': '上传照片',
   'drawLabel': '画一个',
   'streakBroken': '连续记录中断了',
-  'streakKeepHint': '每天打开应用，连续记录就不会中断',
+  'streakKeepHint': '每天打开应用。换了吉祥物，这个连续记录会暂停，换回来时接着算',
   'streakStartHint': '今天打开应用，开始新的连续记录',
   'streakNew': '新的连续记录',
-  'streakNewHint': '每个吉祥物都有自己的连续记录。你们俩在同一天打开应用，这个记录就开始了',
+  'streakNewHint': '每个吉祥物都有自己的连续记录，其他的在暂停中等着。你们俩在同一天打开应用，这个记录就开始了',
   'fromUs': '官方出品',
 
   // wallet_teaser

@@ -31,10 +31,15 @@ class StreakRestoreOffer {
 /// Последний общий день позавчера — ещё не обрыв, если вчера кто-то из пары
 /// уже отметился и ждёт второго ([pendingDay], TOG-26): приход второго
 /// засчитает вчерашний день сам, возвращать нечего.
+///
+/// Серия маскота на паузе ([groupDay], [groupStreak] — серия пары) — тоже не
+/// обрыв: маскота сменили, пара заходила каждый день (07.11.2026).
 StreakRestoreOffer? streakRestoreOffer(
   Map<String, dynamic>? entry,
   DateTime now, {
   String? pendingDay,
+  String? groupDay,
+  int groupStreak = 0,
 }) {
   if (entry == null) return null;
   final s = _int(entry['s']);
@@ -52,7 +57,8 @@ StreakRestoreOffer? streakRestoreOffer(
   final day = _day(entry['d']);
   if (s >= 2 &&
       day != null &&
-      !streakAlive(entry['d']?.toString(), pendingDay: pendingDay, now: now)) {
+      !mascotStreakAlive(entry['d']?.toString(),
+          groupDay: groupDay, groupStreak: groupStreak, pendingDay: pendingDay, now: now)) {
     final gap = _daysBetween(today, day);
     if (gap >= 2 && gap <= kStreakRestoreWindowDays + 1) {
       return StreakRestoreOffer(days: s, key: 'gap:${entry['d']}');

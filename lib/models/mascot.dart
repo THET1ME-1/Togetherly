@@ -199,14 +199,33 @@ class GroupMascotState {
   /// Текущая серия конкретного маскота. Серия порвана — маскот «умер» → 0
   /// (серия начнётся заново при следующем общем дне). Порвана она, когда
   /// продолжить её сервер уже не сможет ([streakAlive]).
-  int streakFor(String? mascotId) {
+  int streakFor(String? mascotId) => streakForAt(mascotId, DateTime.now());
+
+  /// То же на момент [now]. Маскот не на главной держит серию на паузе, пока
+  /// пара не пропускает дни ([mascotStreakAlive]).
+  int streakForAt(String? mascotId, DateTime now) {
     if (mascotId == null || mascotId.isEmpty) return 0;
     final e = mascotStreaks[mascotId];
     if (e is! Map) return 0;
     final s = (e['s'] as num?)?.toInt() ?? 0;
     final d = e['d']?.toString();
     if (d == null || d.isEmpty || s <= 0) return 0;
-    return streakAlive(d, pendingDay: streakPendingDate, now: DateTime.now()) ? s : 0;
+    return mascotStreakAlive(d,
+            groupDay: streakLastOpenedDate, groupStreak: streakDays, pendingDay: streakPendingDate, now: now)
+        ? s
+        : 0;
+  }
+
+  /// Серия маскота стоит на паузе: он не на главной, а пара заходит каждый
+  /// день. Вернут его — счёт продолжится.
+  bool streakPaused(String? mascotId, DateTime now) {
+    if (mascotId == null || mascotId.isEmpty) return false;
+    final e = mascotStreaks[mascotId];
+    if (e is! Map || ((e['s'] as num?)?.toInt() ?? 0) <= 0) return false;
+    final d = e['d']?.toString();
+    if (streakAlive(d, pendingDay: streakPendingDate, now: now)) return false;
+    return streakPausedIn(d,
+        groupDay: streakLastOpenedDate, groupStreak: streakDays, pendingDay: streakPendingDate, now: now);
   }
 
   /// Серия активного маскота (то, что показываем на главной/виджете).

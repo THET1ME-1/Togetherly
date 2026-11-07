@@ -324,6 +324,8 @@ class MascotService extends ChangeNotifier {
       Map<String, dynamic>.from(entry),
       DateTime.now(),
       pendingDay: _state.streakPendingDate,
+      groupDay: _state.streakLastOpenedDate,
+      groupStreak: _state.streakDays,
     );
   }
 

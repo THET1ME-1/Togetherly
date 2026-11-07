@@ -586,8 +586,16 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
   /// хват, низ выше системных кнопок. Пункты крупные (высота 60), потому что
   /// в них целятся большим пальцем на весу; разделителя между шапкой и
   /// действиями нет — заголовок и так отделён отступом.
+  /// Серия маскота, которая стоит на паузе: его сменили, а пара заходит
+  /// каждый день. 0 — паузы нет.
+  int _pausedStreak(String id) {
+    final now = DateTime.now();
+    return _svc.state.streakPaused(id, now) ? _svc.state.streakForAt(id, now) : 0;
+  }
+
   void _showActions(Mascot mascot) {
     final isActive = _svc.state.activeMascotId == mascot.id;
+    final paused = _pausedStreak(mascot.id);
     final canExport = mascot.imageUrl != null;
     final cs = ProfileTheme.themeFor(_t).colorScheme;
     final s = LocaleService.current;
@@ -633,7 +641,10 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          mascot.recordStreak > 0
+                          paused > 0
+                              ? ruEn('Серия на паузе: $paused. Вернёте на главную — продолжится',
+                                  'Streak paused at $paused. Bring it back to keep going')
+                              : mascot.recordStreak > 0
                               ? s.recordStreakDays(mascot.recordStreak)
                               : isActive
                                   ? ruEn('Сейчас на экране', 'On screen now')
@@ -768,6 +779,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
           itemBuilder: (ctx, i) => _MascotCard(
             mascot: items[i],
             isActive: _svc.state.activeMascotId == items[i].id,
+            pausedStreak: _pausedStreak(items[i].id),
             theme: _t,
             service: _svc,
             sleep: widget.user.sleepOf(items[i].id),
@@ -1023,6 +1035,10 @@ class _StreakBanner extends StatelessWidget {
 class _MascotCard extends StatelessWidget {
   final Mascot mascot;
   final bool isActive;
+
+  /// Серия на паузе: маскота сменили, а пара заходит каждый день. Видно на
+  /// плитке, чтобы смена маскота не читалась как потерянная серия.
+  final int pausedStreak;
   final AppTheme theme;
   final MascotService service;
   final VoidCallback onTap;
@@ -1041,6 +1057,7 @@ class _MascotCard extends StatelessWidget {
     required this.service,
     required this.onTap,
     required this.unlocked,
+    this.pausedStreak = 0,
     this.sleep = SleepWindow.standard,
   });
 
@@ -1126,6 +1143,34 @@ class _MascotCard extends StatelessWidget {
                                 color: Theme.of(context)
                                     .colorScheme
                                     .onSecondaryContainer,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  if (!locked && !isActive && pausedStreak > 0)
+                    Positioned(
+                      bottom: 6,
+                      child: Container(
+                        padding: const EdgeInsets.fromLTRB(5, 3, 8, 3),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.secondaryContainer,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SymbolIcon('pause',
+                                size: 13, color: Theme.of(context).colorScheme.onSecondaryContainer),
+                            const SizedBox(width: 2),
+                            Text(
+                              '$pausedStreak',
+                              semanticsLabel: ruEn('Серия $pausedStreak на паузе', 'Streak $pausedStreak paused'),
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.onSecondaryContainer,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
                               ),
