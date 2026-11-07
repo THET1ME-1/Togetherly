@@ -13,3 +13,31 @@ bool coloringMetaNeedsPicture({
   required String? local,
 }) =>
     remoteExists && (local ?? '').isNotEmpty && (remote ?? '').isEmpty;
+
+bool _isOwn(String? id) => (id ?? '').startsWith('own_');
+
+/// Нужно ли забрать контур своей раскраски, которую завёл партнёр.
+///
+/// Раньше контур скачивался только при смене картинки на холсте: сорвалось
+/// скачивание или ссылка приехала следующей записью — и лист оставался пустым
+/// до перезахода (TOG-82, 07.11.2026). Теперь — всякий раз, пока его нет.
+bool coloringOutlineToAdopt({
+  required String? picture,
+  required String? outlineRef,
+  required bool haveOutline,
+}) =>
+    _isOwn(picture) && (outlineRef ?? '').isNotEmpty && !haveOutline;
+
+/// Нужно ли дослать на сервер ссылку на контур своей раскраски.
+///
+/// Контур уходит вместе с заведением листа; не загрузился он тогда — ссылка
+/// так и оставалась пустой, и у партнёра лист был пустым навсегда (на
+/// 07.11.2026 таких 58). Дослать может тот, у кого контур есть, и только для
+/// той же картинки, что на сервере.
+bool coloringMetaNeedsOutline({
+  required String? remotePicture,
+  required String? local,
+  required String? remoteOutline,
+  required bool haveOutline,
+}) =>
+    _isOwn(remotePicture) && remotePicture == local && (remoteOutline ?? '').isEmpty && haveOutline;

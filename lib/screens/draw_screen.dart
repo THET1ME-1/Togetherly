@@ -1062,17 +1062,38 @@ class _DrawScreenState extends State<DrawScreen>
         remoteColoring != _coloringId) {
       _coloringId = remoteColoring;
       coloringChanged = true;
-      // Свою раскраску партнёр загрузил у себя: сперва забираем контур по
-      // ссылке, иначе на этой стороне остался бы пустой лист.
-      final outline = meta.coloringOutline;
-      if (ColoringPicture.isOwnId(remoteColoring) &&
-          outline != null &&
-          outline.isNotEmpty) {
-        unawaited(_adoptRemoteOutline(remoteColoring, outline)
-            .then((_) => _loadColoringOutline()));
-      } else {
+      // Прежний контур принадлежит прежней картинке. Оставь его — и правило
+      // ниже решило бы, что контур уже есть, и не стало бы качать новый.
+      _coloringOutline = null;
+      if (!coloringOutlineToAdopt(
+          picture: remoteColoring, outlineRef: meta.coloringOutline, haveOutline: false)) {
         unawaited(_loadColoringOutline());
       }
+    }
+    // Свою раскраску партнёр загрузил у себя: забираем контур по ссылке, пока
+    // его нет. Раньше — только при смене картинки, и сорвавшееся скачивание
+    // или ссылка, приехавшая следующей записью, оставляли пустой лист (TOG-82).
+    final adoptRef = meta.coloringOutline;
+    final adoptId = _coloringId;
+    if (!_adoptingOutline &&
+        adoptId != null &&
+        coloringOutlineToAdopt(picture: adoptId, outlineRef: adoptRef, haveOutline: _coloringOutline != null)) {
+      _adoptingOutline = true;
+      unawaited(_adoptRemoteOutline(adoptId, adoptRef!)
+          .then((_) => _loadColoringOutline())
+          .whenComplete(() => _adoptingOutline = false));
+    }
+    // У автора контур есть, а ссылки на сервере нет: загрузка при заведении
+    // листа сорвалась. Досылаем, иначе у партнёра лист пуст навсегда.
+    if (_hasSharedCanvas &&
+        !_outlineResent &&
+        coloringMetaNeedsOutline(
+            remotePicture: remoteColoring,
+            local: _coloringId,
+            remoteOutline: meta.coloringOutline,
+            haveOutline: _coloringOutline != null)) {
+      _outlineResent = true;
+      unawaited(_resendOutline());
     }
     // Мета есть, а картинки в ней нет: запись при заведении листа не дошла.
     // Дописываем, иначе у партнёра лист откроется обычным холстом.
@@ -3560,6 +3581,28 @@ class _DrawScreenState extends State<DrawScreen>
 
   /// Картинку уже дописывали в этом заходе: повтор только после отказа.
   bool _coloringPictureSent = false;
+
+  /// Контур партнёра сейчас качается: второй раз параллельно не начинаем.
+  bool _adoptingOutline = false;
+
+  /// Ссылку на свой контур уже досылали в этом заходе: повтор после отказа.
+  bool _outlineResent = false;
+
+  /// Досылает ссылку на контур своей раскраски, не трогая «Готово».
+  Future<void> _resendOutline() async {
+    final id = _coloringId;
+    if (id == null) return;
+    final ref = await _shareOwnOutline(id);
+    final ok = ref != null &&
+        await CanvasRepository().restoreColoring(
+          _groupId,
+          _canvasId,
+          pictureId: id,
+          mode: _coloringMode.storage,
+          outlineRef: ref,
+        );
+    if (!ok) _outlineResent = false;
+  }
 
   /// Дописывает в мету картинку и режим, не трогая «Готово».
   Future<void> _resendColoringPicture() async {

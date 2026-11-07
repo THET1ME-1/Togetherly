@@ -61,4 +61,44 @@ void main() {
       expect(repo, contains('exists: true'));
     });
   });
+
+  // TOG-82, 07.11.2026: «загружала свою раскраску… а фон просто удалился у
+  // партнёра». Контур своей раскраски партнёр скачивал только при смене
+  // картинки на холсте: сорвалось скачивание или ссылка пришла позже — второй
+  // попытки не было. А у автора сорвавшаяся загрузка контура не повторялась
+  // вовсе: на 07.11.2026 так 58 листов, у партнёров там пустой лист навсегда.
+  group('контур своей раскраски', () {
+    test('партнёр забирает контур, пока его нет, даже без смены картинки', () {
+      expect(coloringOutlineToAdopt(picture: 'own_1', outlineRef: 'pb://media/a/b.png', haveOutline: false), isTrue);
+    });
+
+    test('контур уже есть — второй раз не качаем', () {
+      expect(coloringOutlineToAdopt(picture: 'own_1', outlineRef: 'pb://media/a/b.png', haveOutline: true), isFalse);
+    });
+
+    test('ссылки нет или раскраска встроенная — качать нечего', () {
+      expect(coloringOutlineToAdopt(picture: 'own_1', outlineRef: '', haveOutline: false), isFalse);
+      expect(coloringOutlineToAdopt(picture: 'own_1', outlineRef: null, haveOutline: false), isFalse);
+      expect(coloringOutlineToAdopt(picture: 'metro', outlineRef: 'pb://x', haveOutline: false), isFalse);
+      expect(coloringOutlineToAdopt(picture: null, outlineRef: 'pb://x', haveOutline: false), isFalse);
+    });
+
+    test('у автора контур есть, а на сервере ссылки нет — дослать', () {
+      expect(coloringMetaNeedsOutline(remotePicture: 'own_1', local: 'own_1', remoteOutline: '', haveOutline: true), isTrue);
+      expect(coloringMetaNeedsOutline(remotePicture: 'own_1', local: 'own_1', remoteOutline: null, haveOutline: true), isTrue);
+    });
+
+    test('ссылка на сервере есть, контура у себя нет, картинка другая или встроенная — молчим', () {
+      expect(coloringMetaNeedsOutline(remotePicture: 'own_1', local: 'own_1', remoteOutline: 'pb://x', haveOutline: true), isFalse);
+      expect(coloringMetaNeedsOutline(remotePicture: 'own_1', local: 'own_1', remoteOutline: '', haveOutline: false), isFalse);
+      expect(coloringMetaNeedsOutline(remotePicture: 'own_2', local: 'own_1', remoteOutline: '', haveOutline: true), isFalse);
+      expect(coloringMetaNeedsOutline(remotePicture: 'metro', local: 'metro', remoteOutline: '', haveOutline: true), isFalse);
+    });
+
+    test('экран спрашивает оба правила', () {
+      final screen = File('lib/screens/draw_screen.dart').readAsStringSync();
+      expect(screen, contains('coloringOutlineToAdopt('));
+      expect(screen, contains('coloringMetaNeedsOutline('));
+    });
+  });
 }
