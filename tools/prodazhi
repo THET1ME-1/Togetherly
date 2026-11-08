@@ -1,0 +1,42 @@
+#!/usr/bin/env python3
+"""Продажи и РСЯ за день — мгновенно, из готового итога на сервере.
+
+Сервер раз в пять минут считает сегодня и вчера (`/opt/income/sales_day.py
+--save`, крон), команда только читает файл. Сутки — по Кишинёву.
+
+    продажи            сегодня
+    продажи вчера      вчера
+    продажи 2026-11-05 любой день (считается сейчас, секунд 30–40)
+"""
+import datetime as dt
+import json
+import os
+import subprocess
+import sys
+import time
+from zoneinfo import ZoneInfo
+
+SSH = ['ssh', '-i', os.path.expanduser('~/.ssh/togetherly_vps'), '-o', 'ConnectTimeout=10', 'root@86.110.220.22']
+
+today = dt.datetime.now(ZoneInfo('Europe/Chisinau')).date()
+arg = sys.argv[1] if len(sys.argv) > 1 else 'сегодня'
+day = {'сегодня': today, 'вчера': today - dt.timedelta(days=1)}.get(arg)
+if day is None:
+    day = dt.date.fromisoformat(arg)
+
+saved = {}
+if day >= today - dt.timedelta(days=1):
+    out = subprocess.run(SSH + ['cat', '/opt/income/.sales_days.json'], capture_output=True, text=True)
+    if out.returncode == 0:
+        saved = json.loads(out.stdout)
+
+text = saved.get('days', {}).get(str(day))
+if text:
+    print(text)
+    age = (time.time() - saved['at']) / 60
+    if age > 15:
+        print(f'(посчитано {int(age)} мин назад)')
+else:
+    # Старый день или крон ещё не успел: считаем на сервере прямо сейчас.
+    out = subprocess.run(SSH + ['cd /opt/income && python3 sales_day.py ' + str(day)], capture_output=True, text=True)
+    print(out.stdout.strip() or out.stderr.strip())
