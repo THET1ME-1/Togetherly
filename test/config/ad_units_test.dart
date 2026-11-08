@@ -31,6 +31,17 @@ void main() {
       expect(AdUnits.yandexRewardedChest(ios: false), 'R-M-19386995-4');
     });
 
+    test('у гардероба Ту свой ролик за награду', () {
+      // «Гардероб Ту (вещи за ролики)» в кабинете (09.11.2026): вещи за
+      // ролики РСЯ считает своей строкой, отдельно от монет и сундука.
+      for (final ios in [true, false]) {
+        expect(AdUnits.yandexRewardedWardrobe(ios: ios), isNot(AdUnits.yandexRewarded(ios: ios)));
+        expect(AdUnits.yandexRewardedWardrobe(ios: ios), isNot(AdUnits.yandexRewardedChest(ios: ios)));
+      }
+      expect(AdUnits.yandexRewardedWardrobe(ios: true), 'R-M-19461868-6');
+      expect(AdUnits.yandexRewardedWardrobe(ios: false), 'R-M-19386995-6');
+    });
+
     test('у комнаты просмотра свой межстраничный блок', () {
       // «Совместный просмотр» в кабинете (19.10.2026): доход комнаты РСЯ
       // считает своей строкой.

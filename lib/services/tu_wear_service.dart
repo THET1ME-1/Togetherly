@@ -78,12 +78,45 @@ class TuWearService extends ChangeNotifier {
   int? _coins;
   int get coins => _coins ?? ((PocketBaseService().currentUser?.data['coins'] as num?)?.toInt() ?? 0);
 
-  /// Покупка вещи магазина: за монеты или после досмотренного ролика ([ad]).
-  /// Купленная вещь сразу надевается. Ответ — код отказа (`insufficient`,
-  /// `not_for_sale`, `network`) или null, если вещь теперь своя.
-  Future<String?> buy(TuWear item, {bool ad = false}) async {
+  /// Досмотренные ролики по ответам сервера за этот запуск: запись аккаунта
+  /// обновится позже.
+  final Map<String, int> _adProgress = {};
+
+  /// Сколько роликов за вещь [key] уже досмотрено.
+  int adProgress(String key) =>
+      _adProgress[key] ?? wearAdProgress(PocketBaseService().currentUser?.data['wear_ad_views'], key);
+
+  /// Один досмотренный ролик за вещь: сервер засчитывает его и на последнем
+  /// выдаёт вещь, она сразу надевается. [error] — код отказа (`too_fast`,
+  /// `not_for_sale`, `network`), [granted] — вещь теперь своя.
+  Future<({String? error, bool granted, int progress})> adStep(TuWear item) async {
     try {
-      final res = await PocketBaseService().pb.send('/api/wear/buy', method: 'POST', body: {'key': item.key, 'ad': ad});
+      final res = await PocketBaseService().pb.send('/api/wear/buy', method: 'POST', body: {'key': item.key, 'ad': true});
+      if (res is! Map || res['ok'] != true) return (error: 'network', granted: false, progress: adProgress(item.key));
+      final progress = (res['progress'] as num?)?.toInt() ?? item.adsNeeded;
+      final granted = res['granted'] != false;
+      _adProgress[item.key] = granted ? 0 : progress;
+      if (granted) {
+        final owned = res['ownedWear'];
+        if (owned is List) await setOwned(owned.whereType<String>());
+        await wear(item);
+      } else {
+        notifyListeners();
+      }
+      return (error: null, granted: granted, progress: progress);
+    } on ClientException catch (e) {
+      return (error: e.response['error'] as String? ?? 'network', granted: false, progress: adProgress(item.key));
+    } catch (_) {
+      return (error: 'network', granted: false, progress: adProgress(item.key));
+    }
+  }
+
+  /// Покупка вещи магазина за монеты. Купленная вещь сразу надевается.
+  /// Ответ — код отказа (`insufficient`, `not_for_sale`, `network`) или null,
+  /// если вещь теперь своя.
+  Future<String?> buy(TuWear item) async {
+    try {
+      final res = await PocketBaseService().pb.send('/api/wear/buy', method: 'POST', body: {'key': item.key});
       if (res is! Map || res['ok'] != true) return 'network';
       final coins = res['coins'];
       if (coins is num) _coins = coins.toInt();

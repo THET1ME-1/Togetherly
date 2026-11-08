@@ -25,6 +25,11 @@ class AdUnits {
   static String yandexRewardedChest({required bool ios}) =>
       ios ? 'R-M-19461868-4' : 'R-M-19386995-4';
 
+  /// Ролики гардероба Ту («Гардероб Ту (вещи за ролики)» в кабинете,
+  /// 09.11.2026): вещи за ролик и вещи за монеты, взятые роликами.
+  static String yandexRewardedWardrobe({required bool ios}) =>
+      ios ? 'R-M-19461868-6' : 'R-M-19386995-6';
+
   static String yandexInterstitial({required bool ios}) =>
       ios ? 'R-M-19461868-3' : 'R-M-19386995-3';
 

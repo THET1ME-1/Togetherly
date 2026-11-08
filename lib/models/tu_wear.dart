@@ -51,6 +51,14 @@ class TuWear {
 
   bool get fromChest => src == 'chest';
 
+  /// Сколько роликов отдать за вещь: за ролик — один, за монеты — по
+  /// [wearAdsNeeded], из сундука не берётся вовсе.
+  int get adsNeeded => switch (src) {
+        'ad' => 1,
+        'coins' => wearAdsNeeded(price),
+        _ => 0,
+      };
+
   ({String? back, String? front}) layersFor(String scene) {
     final pair = layers[scene];
     if (pair == null) return (back: null, front: null);
@@ -84,6 +92,21 @@ class TuWear {
       retired: row['enabled'] == false,
     );
   }
+}
+
+/// Вещь за монеты можно забрать и роликами (09.11.2026): ролик на каждые 50
+/// монет цены, с округлением вверх, — от одного за 50 до пяти за 250. Сервер
+/// считает тем же правилом (`wear.pb.js`), сторожит `tu_wear_ads_test.dart`.
+int wearAdsNeeded(int price) => price <= 0 ? 0 : (price + 49) ~/ 50;
+
+/// Сколько роликов за вещь [key] человек уже досмотрел: `users.wear_ad_views`
+/// вида `{ключ: {n, at}}`, пишет только сервер.
+int wearAdProgress(Object? raw, String key) {
+  if (raw is! Map) return 0;
+  final entry = raw[key];
+  if (entry is! Map) return 0;
+  final n = entry['n'];
+  return n is num ? n.toInt() : 0;
 }
 
 /// Что показывать в гардеробе: все живые вещи и снятые, если они у человека

@@ -79,6 +79,9 @@ USERS_CUSTOM = [
     jsonf("owned_themes"), jsonf("owned_icons"), jsonf("owned_features"),
     # Вещи Ту из гардероба (ключи вещей). Пишет только сервер: сундук.
     jsonf("owned_wear"),
+    # Досмотренные ролики за вещи гардероба: {ключ: {n, at}}. Пишет только
+    # сервер (/api/wear/buy), клиент читает.
+    jsonf("wear_ad_views"),
     jsonf("granted_badges"), text("badge"), text("pair_id"), jsonf("pair_ids"),
     text("invite_code"), text("fcm_token"), jsonf("fcm_tokens"),
     boolean("notif_miss_you"), boolean("notif_new_memory"),

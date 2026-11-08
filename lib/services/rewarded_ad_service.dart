@@ -22,11 +22,14 @@ import 'pb_coins_service.dart';
 /// Факт досмотра возвращается из [show] (`true`), награду начисляет сервер
 /// (`/api/coins/ad-reward`, с дневным лимитом) прямо в [_showYandex].
 class RewardedAdService {
-  RewardedAdService({this.chest = false});
+  RewardedAdService({this.chest = false, this.wardrobe = false});
 
   /// Ролик сундука недели: свой блок Яндекса, чтобы вся статистика сундука
   /// лежала в одном блоке РСЯ.
   final bool chest;
+
+  /// Ролик гардероба Ту: тоже свой блок.
+  final bool wardrobe;
   // Яндекс — основная сеть. Debug использует официальный demo-блок Яндекса.
   static const String _demoYandexRewardedUnit = 'demo-rewarded-yandex';
 
@@ -57,7 +60,9 @@ class RewardedAdService {
       ? _demoYandexRewardedUnit
       : chest
           ? AdUnits.yandexRewardedChest(ios: Platform.isIOS)
-          : AdUnits.yandexRewarded(ios: Platform.isIOS);
+          : wardrobe
+              ? AdUnits.yandexRewardedWardrobe(ios: Platform.isIOS)
+              : AdUnits.yandexRewarded(ios: Platform.isIOS);
 
   /// Готова реклама хоть из одной сети.
   bool get isReady => _yandexAd != null;

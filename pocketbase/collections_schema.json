@@ -222,6 +222,12 @@
           "maxSize": 2000000
         },
         {
+          "name": "wear_ad_views",
+          "type": "json",
+          "required": false,
+          "maxSize": 2000000
+        },
+        {
           "name": "waiting_mode",
           "type": "bool",
           "required": false,
