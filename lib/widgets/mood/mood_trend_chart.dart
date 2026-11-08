@@ -15,10 +15,15 @@ class MoodTrendChart extends StatelessWidget {
     required this.points,
     required this.scheme,
     required this.emptyText,
+    this.labelOf,
   });
 
   final List<MoodTrendPoint> points;
   final ColorScheme scheme;
+
+  /// Подпись точки при нажатии (`moodTrendPointLabel`): дата и среднее.
+  /// Без неё график показывал голую цифру.
+  final String Function(MoodTrendPoint point)? labelOf;
 
   /// Подпись, когда точка одна или их нет.
   final String emptyText;
@@ -101,6 +106,27 @@ class MoodTrendChart extends StatelessWidget {
           ),
         ),
         borderData: FlBorderData(show: false),
+        lineTouchData: LineTouchData(
+          touchTooltipData: LineTouchTooltipData(
+            getTooltipColor: (_) => scheme.inverseSurface,
+            tooltipBorderRadius: BorderRadius.circular(12),
+            fitInsideHorizontally: true,
+            fitInsideVertically: true,
+            getTooltipItems: (spots) => [
+              for (final s in spots)
+                LineTooltipItem(
+                  labelOf?.call(points[s.spotIndex]) ?? s.y.toStringAsFixed(1),
+                  TextStyle(
+                    fontFamily: 'Onest',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    fontVariations: const [FontVariation('wght', 700)],
+                    color: scheme.onInverseSurface,
+                  ),
+                ),
+            ],
+          ),
+        ),
         minX: 0,
         maxX: (points.length - 1).toDouble(),
         minY: 1,

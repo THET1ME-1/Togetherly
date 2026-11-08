@@ -56,6 +56,39 @@ void main() {
     expect(points.every((p) => p.start.day == 1), isTrue);
   });
 
+  group('подпись точки при нажатии', () {
+    const months = ['', 'января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля',
+      'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+    const monthsNom = ['', 'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль',
+      'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+
+    test('день', () {
+      final p = MoodTrendPoint(DateTime(2026, 10, 12), 4.2);
+      expect(moodTrendPointLabel(p, months, monthsNom), '12 октября · 4,2');
+    });
+
+    test('неделя внутри месяца', () {
+      final p = MoodTrendPoint(DateTime(2026, 10, 12), 3, end: DateTime(2026, 10, 18));
+      expect(moodTrendPointLabel(p, months, monthsNom), '12–18 октября · 3,0');
+    });
+
+    test('неделя на стыке месяцев', () {
+      final p = MoodTrendPoint(DateTime(2026, 9, 28), 4.5, end: DateTime(2026, 10, 4));
+      expect(moodTrendPointLabel(p, months, monthsNom), '28 сентября – 4 октября · 4,5');
+    });
+
+    test('месяц', () {
+      final p = MoodTrendPoint(DateTime(2026, 3, 1), 2.25, end: DateTime(2026, 3, 31), wholeMonth: true);
+      expect(moodTrendPointLabel(p, months, monthsNom), 'Март · 2,3');
+    });
+
+    test('недельные точки знают свой конец', () {
+      final days = {for (var i = 0; i < 20; i++) DateTime(2026, 10, 1 + i): 3.0};
+      final first = moodTrendPoints(days).first;
+      expect(first.end, DateTime(2026, 10, 4));
+    });
+  });
+
   test('кружки только пока точек немного', () {
     expect(moodTrendShowsDots(12), isTrue);
     expect(moodTrendShowsDots(22), isFalse);

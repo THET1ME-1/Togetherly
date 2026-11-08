@@ -50,6 +50,9 @@ void main() {
       ),
     ));
     await t.pump(const Duration(milliseconds: 500));
+    // Месяц назад — появляется кнопка «Сегодня».
+    await t.fling(find.byKey(const ValueKey('cal_swipe-false')), const Offset(300, 0), 1500);
+    await t.pump(const Duration(milliseconds: 500));
     await t.tap(find.byKey(const ValueKey('cal_title')));
     // Барабан выезжает анимацией размера: снимок после неё.
     await t.pump(const Duration(milliseconds: 300));

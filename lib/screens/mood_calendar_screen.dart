@@ -212,6 +212,27 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
     }
   }
 
+  /// Сегодняшний день внутри открытого периода.
+  bool get _showsToday {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return !today.isBefore(_periodStart) && !today.isAfter(_periodEnd);
+  }
+
+  static String _sentenceCase(String s) =>
+      s.isEmpty ? s : s.substring(0, 1).toUpperCase() + s.substring(1).toLowerCase();
+
+  /// Вернуться к текущему периоду после долгого листания.
+  void _goToday() {
+    HapticFeedback.selectionClick();
+    final now = DateTime.now();
+    setState(() {
+      _slideDir = 0;
+      _wheelOpen = false;
+      _calAnchor = DateTime(now.year, now.month, now.day);
+    });
+  }
+
   void _shiftAnchor(int dir) {
     HapticFeedback.selectionClick();
     setState(() {
@@ -716,6 +737,32 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                     Icon(Icons.chevron_right_rounded, color: scheme.onSurface),
               ),
             ],
+          ),
+          // Ушли от текущего периода — кнопка обратно, без листания назад.
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOutCubic,
+            child: _showsToday
+                ? const SizedBox(width: double.infinity)
+                : Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: TextButton.icon(
+                      key: const ValueKey('cal_today'),
+                      onPressed: _goToday,
+                      icon: Icon(Icons.today_rounded, size: 18, color: scheme.primary),
+                      label: Text(
+                        // В словаре строка капсом для заголовков: «СЕГОДНЯ».
+                        _sentenceCase(LocaleService.current.today),
+                        style: TextStyle(
+                          fontFamily: 'Onest',
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          fontVariations: const [FontVariation('wght', 700)],
+                          color: scheme.primary,
+                        ),
+                      ),
+                    ),
+                  ),
           ),
           AnimatedSize(
             duration: const Duration(milliseconds: 220),
@@ -1633,6 +1680,12 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
               points: points,
               scheme: scheme,
               emptyText: LocaleService.current.notEnoughData,
+              labelOf: (p) => moodTrendPointLabel(
+                p,
+                ['', ...LocaleService.current.cycleMonthsGenitive],
+                LocaleService.current.fullMonths,
+                decimalComma: !const ['en', 'zh'].contains(LocaleService.instance.language.code),
+              ),
             ),
           ),
         ],
@@ -1692,14 +1745,38 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            height: 26,
-            width: 26,
-            child: path.isNotEmpty
-                ? ClipOval(
-                    child: MoodImage(path, fit: BoxFit.cover),
-                  )
-                : Icon(Icons.mood_rounded, size: 22, color: scheme.primary),
+          // Картинка и название рядом: одной картинкой эмоцию приходилось
+          // угадывать.
+          Row(
+            children: [
+              SizedBox(
+                height: 26,
+                width: 26,
+                child: path.isNotEmpty
+                    ? ClipOval(
+                        child: MoodImage(path, fit: BoxFit.cover),
+                      )
+                    : Icon(Icons.mood_rounded, size: 22, color: scheme.primary),
+              ),
+              if (mood != null) ...[
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    mood.localizedLabel,
+                    key: const ValueKey('top_mood_name'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'Onest',
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      fontVariations: const [FontVariation('wght', 800)],
+                      color: scheme.primary,
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
           const SizedBox(height: 4),
           Text(

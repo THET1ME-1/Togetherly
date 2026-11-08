@@ -53,6 +53,25 @@ void main() {
     expect(find.text(title(DateTime(now.year, now.month - 1, 1))), findsOneWidget);
   });
 
+  testWidgets('«Сегодня» есть только вдали от текущего месяца и возвращает к нему', (t) async {
+    await pump(t);
+    final now = DateTime.now();
+    expect(find.byKey(const ValueKey('cal_today')), findsNothing);
+
+    final card = find.byKey(const ValueKey('cal_swipe-false'));
+    await t.ensureVisible(card);
+    await t.fling(card, const Offset(300, 0), 1500);
+    await t.fling(card, const Offset(300, 0), 1500);
+    await t.pump(const Duration(milliseconds: 500));
+    expect(find.text(title(DateTime(now.year, now.month - 2, 1))), findsOneWidget);
+
+    await t.ensureVisible(find.byKey(const ValueKey('cal_today')));
+    await t.tap(find.byKey(const ValueKey('cal_today')));
+    await t.pump(const Duration(milliseconds: 500));
+    expect(find.text(title(now)), findsOneWidget);
+    expect(find.byKey(const ValueKey('cal_today')), findsNothing);
+  });
+
   testWidgets('нажатие на месяц открывает барабан на календаре', (t) async {
     await pump(t);
     expect(find.byType(MonthYearWheel), findsNothing);
