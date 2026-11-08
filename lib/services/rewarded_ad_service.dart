@@ -102,6 +102,7 @@ class RewardedAdService {
 
   /// Номер открытия сундука, за который идёт этот ролик (уходит в начисление).
   String? _chestOpenId;
+  bool _forCoins = false;
 
   /// Предзагружает ролик Яндекса; при отказе — фоновый повтор.
   /// Безопасно дёргать несколько раз.
@@ -190,12 +191,14 @@ class RewardedAdService {
   /// Возвращает true, если человек досмотрел до награды; награду начисляет
   /// сервер внутри [_showYandex]. [uid] оставлен ради прежних вызовов.
   /// [chestOpenId] — ролик за сундук: номер открытия едет в начисление.
+  /// [forCoins] — ролик кнопки «Посмотреть рекламу»: только он платит
+  /// монетами и тратит дневной счётчик, остальные дают свою награду.
   ///
   /// [onEarned] зовётся, как только награда положена, не дожидаясь закрытия
   /// ролика: сундук кладёт открытие на диск сразу. Закрытие на iPhone бывало
   /// не видно по полчаса, и выгруженное за это время приложение теряло
   /// оплаченное открытие (TOG-37).
-  Future<bool> show({required String uid, String? chestOpenId, VoidCallback? onEarned}) async {
+  Future<bool> show({required String uid, String? chestOpenId, bool forCoins = false, VoidCallback? onEarned}) async {
     // Уже идёт показ — игнорируем повторный вызов (двойной тап/гонка), иначе
     // запустится второй ролик подряд.
     if (_isShowing) return false;
@@ -208,6 +211,7 @@ class RewardedAdService {
     _lastSecondsAway = 0;
     _lastCloseSignal = '';
     _chestOpenId = chestOpenId;
+    _forCoins = forCoins;
     try {
       if (_yandexAd != null) {
         _lastShowWasYandex = true;
@@ -424,7 +428,7 @@ class RewardedAdService {
   /// применяет точный баланс и не рисует фейк при лимите.
   Future<void> _grantAdReward() async {
     try {
-      final res = await PbCoinsService().adReward(groupId: PairJarService.instance.groupId, chestOpenId: _chestOpenId);
+      final res = await PbCoinsService().adReward(groupId: PairJarService.instance.groupId, chestOpenId: _chestOpenId, forCoins: _forCoins);
       if (res != null) {
         // Копилка пары: капля падает за каждый засчитанный ролик, и после
         // дневного предела монет тоже.

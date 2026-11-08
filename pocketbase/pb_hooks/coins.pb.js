@@ -338,16 +338,25 @@ routerAdd("POST", "/api/coins/memory-reward", (e) => {
 }, $apis.requireAuth());
 
 // ── Награда за рекламу (3 монеты, 3/сутки; входит в общий потолок 8) ─────────
+// Только у кнопки за монеты, см. ad_reward_rule.js.
 //
 // Потолок просмотров общий на всю рекламу: монеты, пробы тем и фонов черпают
 // из одного счётчика ad_views_today. Два независимых счётчика разъехались бы
 // на первой же правке баланса.
 routerAdd("POST", "/api/coins/ad-reward", (e) => {
   const PER_DAY = 3, AMOUNT = 3, VIEW_CAP = 8;
+  // Монеты платит только ролик за монеты (ad_reward_rule.js): остальные ролики
+  // сюда идут ради копилки и журнала сундука, счётчиков не трогают.
+  let forCoins = true;
+  try { forCoins = require(`${__hooks}/ad_reward_rule.js`).adRewardForCoins(e.requestInfo().body); } catch (_) {}
   let out;
   try {
     $app.runInTransaction((txApp) => {
       const rec = txApp.findRecordById("users", e.auth.id);
+      if (!forCoins) {
+        out = { s: 200, b: { ok: true, awarded: 0, coins: rec.getInt("coins") || 0 } };
+        return;
+      }
       const today = new Date().toISOString().slice(0, 10);
       const countToday = rec.getString("ad_rewards_date") === today
         ? (rec.getInt("ad_rewards_today") || 0) : 0;

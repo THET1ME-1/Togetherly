@@ -92,7 +92,9 @@ class PbCoinsService {
   /// [groupId] — пара, в копилку которой падает капля за ролик.
   /// [chestOpenId] — ролик за сундук: сервер пишет номер открытия в журнал,
   /// и ролик без открытия находится (`tools/chest_lost_ads.py`).
-  Future<Map<String, dynamic>?> adReward({String? groupId, String? chestOpenId}) => _call('ad-reward', {
+  Future<Map<String, dynamic>?> adReward({String? groupId, String? chestOpenId, bool forCoins = false}) => _call('ad-reward', {
+        // Монеты платит только кнопка за монеты (ad_reward_rule.js на сервере).
+        'purpose': forCoins ? 'coins' : 'other',
         if (groupId != null && groupId.isNotEmpty) 'groupId': groupId,
         if (chestOpenId != null && chestOpenId.isNotEmpty) 'chestOpenId': chestOpenId,
       });

@@ -5222,7 +5222,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
     final uid = widget.userData.uid;
     if (uid.isEmpty) return;
-    final earned = await _rewardedAd.show(uid: uid);
+    final earned = await _rewardedAd.show(uid: uid, forCoins: true);
     unawaited(_rewardedAd.load());
     if (!mounted) return;
     if (!earned) {
