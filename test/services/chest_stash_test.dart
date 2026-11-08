@@ -37,14 +37,38 @@ void main() {
 
   const cocoa = Gift(key: 'cocoa', price: 0, engine: GiftEngine.response, titleRu: 'Какао', titleEn: 'Cocoa');
 
+  late Future<void> Function(Set<String>) originalEnsure;
+
   setUp(() {
     original = ChestService.catalogRefresh;
+    originalEnsure = ChestService.catalogEnsureGifts;
+    ChestService.catalogEnsureGifts = (_) async {};
     GiftCatalog.registerSeasonal(const {});
   });
 
   tearDown(() {
     ChestService.catalogRefresh = original;
+    ChestService.catalogEnsureGifts = originalEnsure;
     GiftCatalog.registerSeasonal(const {});
+  });
+
+  test('незнакомый подарок запаса дотягивается одной записью', () async {
+    serverStash([
+      {'id': 'aaaaaaaaaaaaaa1', 'prize': 'cocoa', 'day': 'au|2026-11-08'},
+    ]);
+    var refreshed = 0;
+    final asked = <String>{};
+    ChestService.catalogRefresh = () async => refreshed++;
+    ChestService.catalogEnsureGifts = (keys) async {
+      asked.addAll(keys);
+      GiftCatalog.registerSeasonal({'cocoa': cocoa});
+    };
+
+    final items = await ChestService.instance.stash();
+
+    expect([for (final i in items) i.giftKey], ['cocoa']);
+    expect(asked, {'cocoa'});
+    expect(refreshed, 0);
   });
 
   test('подарок сезона до каталога не пропадает из запаса', () async {

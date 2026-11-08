@@ -3462,6 +3462,17 @@ class PbDataService {
     }
   }
 
+  /// Несколько записей каталога по id — одним запросом, без всего каталога.
+  Future<List<RecordModel>> loadCatalogByIds(Iterable<String> ids) async {
+    final safe = [for (final id in ids) if (RegExp(r'^[a-z0-9_]+$').hasMatch(id)) id];
+    if (safe.isEmpty) return const [];
+    final res = await _pb.collection('catalog_items').getList(
+          perPage: safe.length,
+          filter: safe.map((id) => "id = '$id'").join(' || '),
+        );
+    return res.items;
+  }
+
   /// Минимально поддерживаемая сборка (force-update) из коллекции `app_config`.
   /// 0 = не блокировать (нет записи / ошибка / пустое поле). Заменяет
   /// `SupabaseService.fetchMinSupportedBuild` на cutover.

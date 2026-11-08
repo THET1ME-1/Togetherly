@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:image_picker/image_picker.dart';
 import '../utils/calendar_day.dart';
+import '../utils/clear_sent_text.dart';
 import '../utils/safe_pick.dart';
 import '../utils/safe_text.dart';
 import '../utils/readable_text.dart';
@@ -1469,9 +1470,11 @@ class _ChatScreenState extends State<ChatScreen> {
 
     // Оптимистично очищаем ввод СРАЗУ (до сети). RTDB с offline-persistence
     // ставит одну запись в очередь и доставит её ровно один раз при реконнекте,
-    // поэтому очистка до await безопасна и исключает дубликаты.
+    // поэтому очистка до await безопасна и исключает дубликаты. Клавиатура с
+    // недописанным словом может вернуть текст в поле следом — его стирает
+    // clearSentText.
     _sending = true;
-    _controller.clear();
+    clearSentText(_controller, text, () => mounted);
     _stopTyping();
     setState(() {
       _editing = null;

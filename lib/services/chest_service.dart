@@ -81,6 +81,23 @@ class ChestService {
   @visibleForTesting
   static Future<void> Function() catalogRefresh = () => CatalogService.instance.refresh();
 
+  /// Как дотянуть только незнакомые подарки — их записи, а не весь каталог.
+  /// Тест подменяет, чтобы не ходить в сеть.
+  @visibleForTesting
+  static Future<void> Function(Set<String> keys) catalogEnsureGifts =
+      (keys) => CatalogService.instance.ensureGifts(keys);
+
+  /// Узнать незнакомые подарки: сперва их записи, не вышло — весь каталог.
+  static Future<void> _learnGifts(Set<String> keys) async {
+    try {
+      await catalogEnsureGifts(keys).timeout(const Duration(seconds: 8));
+    } catch (_) {}
+    if (keys.every((k) => GiftCatalog.byKey(k) != null)) return;
+    try {
+      await catalogRefresh().timeout(const Duration(seconds: 8));
+    } catch (_) {}
+  }
+
   int get _tz => DateTime.now().timeZoneOffset.inMinutes;
   String get _platform => Platform.isIOS ? 'ios' : 'android';
 
@@ -196,9 +213,9 @@ class ChestService {
     // чем каталог доехал: дотягиваем его и разбираем ответ ещё раз. Сервер
     // приз уже выдал, и «не открылся» здесь врал (19.10.2026, пять раз за сутки).
     if (res.error == 'unknown_prize') {
-      try {
-        await catalogRefresh().timeout(const Duration(seconds: 8));
-      } catch (_) {}
+      final prize = body?['prize'];
+      final key = prize is Map ? '${prize['key'] ?? ''}' : '';
+      await _learnGifts({if (key.isNotEmpty) key});
       res = parseChestOpen(body);
     }
     ChestTelemetry.step(openId, res.ok ? 'open:ok' : 'open:refused', data: {
@@ -259,11 +276,8 @@ class ChestService {
         for (final r in res.items)
           (id: r.id, prize: r.getStringValue('prize'), day: r.getStringValue('day')),
       ];
-      if (rows.any((r) => GiftCatalog.byKey(r.prize) == null)) {
-        try {
-          await catalogRefresh().timeout(const Duration(seconds: 8));
-        } catch (_) {}
-      }
+      final unknown = {for (final r in rows) if (GiftCatalog.byKey(r.prize) == null) r.prize};
+      if (unknown.isNotEmpty) await _learnGifts(unknown);
       return [
         for (final r in rows)
           if (GiftCatalog.byKey(r.prize) != null)

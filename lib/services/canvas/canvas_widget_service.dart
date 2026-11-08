@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../models/canvas_meta.dart';
 import '../home_widget_service.dart';
+import 'canvas_free_ratio.dart';
 import '../../models/draw_stroke.dart';
 import '../../utils/canvas_image_cache.dart';
 import '../../widgets/draw/canvas_preview.dart';
@@ -118,7 +119,12 @@ class CanvasWidgetService {
       final deadline = DateTime.now().add(const Duration(seconds: 10));
       final items = <CanvasWidgetItem>[];
       for (final meta in picked) {
-        final png = await _render(meta, await strokesOf(meta), deadline: deadline);
+        final png = await _render(
+          meta,
+          await strokesOf(meta),
+          ratio: widgetSheetRatio(sheet: meta.effectiveRatio, free: await freeRatioOf(groupId, meta.id)),
+          deadline: deadline,
+        );
         if (png == null) continue;
         final file = File('${dir.path}/canvas_${_safe(meta.id)}_$rev.png');
         await file.writeAsBytes(png, flush: true);
@@ -200,10 +206,10 @@ class CanvasWidgetService {
   Future<Uint8List?> _render(
     CanvasMeta meta,
     List<DrawStroke> strokes, {
+    required double ratio,
     required DateTime deadline,
   }) async {
     if (strokes.isEmpty) return null;
-    final ratio = meta.effectiveRatio ?? 0.8;
     final height = ratio >= 1 ? (longSide / ratio).round() : longSide;
     final width = ratio >= 1 ? longSide : (longSide * ratio).round();
     final size = Size(width.toDouble(), height.toDouble());

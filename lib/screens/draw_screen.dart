@@ -44,6 +44,7 @@ import '../models/pair_data.dart';
 import '../models/ad_grants.dart';
 import '../models/user_data.dart';
 import '../services/analytics_service.dart';
+import '../services/canvas/canvas_free_ratio.dart';
 import '../services/canvas/canvas_widget_service.dart';
 import '../widgets/draw/canvas_preview.dart' show kPreviewStrokeLimit;
 import '../services/canvas_storage_service.dart';
@@ -4429,6 +4430,11 @@ class _DrawScreenState extends State<DrawScreen>
           // хранится в долях, поэтому любая другая форма его растягивает.
           // Раньше форма менялась вместе с областью — панель открылась или
           // телефон повернули, и круг превращался в блин.
+          if (_freeRatio == null && _hasSharedCanvas) {
+            // Виджет рисует этот холст в той же форме, иначе он на столе
+            // перекошен (отзыв в Google Play на 1.37).
+            unawaited(rememberFreeRatio(_groupId, widget.canvasId, fullW / fullH));
+          }
           final r = _freeRatio ??= fullW / fullH;
           var w = fullW;
           var h = w / r;

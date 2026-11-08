@@ -17,9 +17,12 @@ import 'package:love_app/services/pocketbase_service.dart';
 /// сундуки не работают? у меня уже просто не первый раз такое».
 void main() {
   late Future<void> Function() original;
+  late Future<void> Function(Set<String>) originalEnsure;
 
   setUp(() {
     original = ChestService.catalogRefresh;
+    originalEnsure = ChestService.catalogEnsureGifts;
+    ChestService.catalogEnsureGifts = (_) async {};
     GiftCatalog.registerSeasonal(const {});
     PocketBaseService().debugUse(PocketBase(
       'https://togetherly.day',
@@ -38,6 +41,7 @@ void main() {
 
   tearDown(() {
     ChestService.catalogRefresh = original;
+    ChestService.catalogEnsureGifts = originalEnsure;
     GiftCatalog.registerSeasonal(const {});
   });
 
@@ -61,6 +65,24 @@ void main() {
     expect(res.ok, isTrue, reason: 'Сервер приз выдал — «не открылся» здесь врёт');
     expect(res.prize?.key, 'cocoa');
     expect(refreshed, 1);
+  });
+
+  test('подарок дотягивается одной записью, весь каталог не нужен', () async {
+    var refreshed = 0;
+    final asked = <String>[];
+    ChestService.catalogRefresh = () async => refreshed++;
+    ChestService.catalogEnsureGifts = (keys) async {
+      asked.addAll(keys);
+      GiftCatalog.registerSeasonal({
+        'cocoa': const Gift(key: 'cocoa', price: 0, engine: GiftEngine.response, titleRu: 'Какао', titleEn: 'Cocoa'),
+      });
+    };
+
+    final res = await ChestService.instance.open(openId: 'abcdefghijklmno', groupId: 'g');
+
+    expect(res.ok, isTrue);
+    expect(asked, ['cocoa']);
+    expect(refreshed, 0, reason: 'Каталог целиком на плохой сети не приходит');
   });
 
   test('подарка нет и в свежем каталоге — приложение честно говорит о сбое', () async {

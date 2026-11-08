@@ -56,6 +56,11 @@ class CatalogService extends ChangeNotifier {
   Map<int, RankArt> _ranks = const {};
   bool _initialized = false;
 
+  /// Строки, из которых собран каталог сейчас, и версия сборки при разборе:
+  /// [ensureGifts] дописывает к ним запись, не перекачивая остальное.
+  List _rows = const [];
+  String? _rowsVersion;
+
   /// Эмблема звания по номеру (kind='rank'); null — каталог ещё не пришёл.
   RankArt? rankArt(int index) => _ranks[index];
 
@@ -227,6 +232,34 @@ class CatalogService extends ChangeNotifier {
     }
   }
 
+  /// Дотянуть подарки, которых нет в каталоге на телефоне, — только их записи.
+  ///
+  /// Весь каталог — 5,6 тысячи записей и 2,5 МБ, на плохой сети он не
+  /// приходит и за десятки секунд. А подарок осеннего сундука, которого
+  /// телефон не знает, превращал выданный приз в «Сундук не открылся» и
+  /// прятал его из запаса («вещи из сундука просто пропадают», отзыв в App
+  /// Store 26.10.2026). У подарков каталога id всегда `gift_<ключ>`.
+  Future<void> ensureGifts(Iterable<String> keys) async {
+    final missing = {for (final k in keys) if (GiftCatalog.byKey(k) == null) k};
+    if (missing.isEmpty) return;
+    final recs = await PbDataService.instance.loadCatalogByIds([for (final k in missing) 'gift_$k']);
+    if (recs.isEmpty) return;
+    final added = [
+      for (final r in recs) {...r.data, 'id': r.id},
+    ];
+    final ids = {for (final a in added) a['id']};
+    final rows = [
+      for (final r in _rows)
+        if (r is! Map || !ids.contains(r['id'])) r,
+      ...added,
+    ];
+    _apply(rows, _rowsVersion ?? await _appVersion());
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_cacheKey, jsonEncode(rows));
+    } catch (_) {}
+  }
+
   /// Ссылка на оплату элемента каталога, который продаётся за деньги.
   ///
   /// Счёт заводит сервер (`/api/lava/checkout`) на почту аккаунта: покупка по
@@ -260,6 +293,8 @@ class CatalogService extends ChangeNotifier {
   // ── Парсинг манифеста ───────────────────────────────────────────────────────
 
   void _apply(List rows, String appVersion) {
+    _rows = rows;
+    _rowsVersion = appVersion;
     final packs = <MoodPack>[];
     final remoteMoods = <MoodOption>[];
     final mascots = <Mascot>[];
