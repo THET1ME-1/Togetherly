@@ -271,17 +271,23 @@ class _PairQuizScreenState extends State<PairQuizScreen> {
     final mine = _mine!;
     final theirs = _theirs;
     final partner = widget.partnerName.trim();
+    // У «Насколько вы похожи» своего типа нет, карточка обещает «партнёру
+    // достанутся те же вопросы». Когда оба ответили на одни вопросы, это
+    // неправда: итог целиком в блоке «Вместе».
+    final compared = widget.kind == QuizKind.alike && theirs != null && quizMatch(mine, theirs, _lang).total > 0;
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
       children: [
-        _ResultCard(
-          label: quizUi('mine', _lang),
-          result: mine,
-          lang: _lang,
-          color: cs.primaryContainer,
-          ink: cs.onPrimaryContainer,
-        ),
-        const SizedBox(height: 12),
+        if (!compared) ...[
+          _ResultCard(
+            label: quizUi('mine', _lang),
+            result: mine,
+            lang: _lang,
+            color: cs.primaryContainer,
+            ink: cs.onPrimaryContainer,
+          ),
+          const SizedBox(height: 12),
+        ],
         if (theirs != null) ...[
           // У «Насколько вы похожи» своего типа нет: карточка партнёра
           // повторила бы «Ответы готовы», итог целиком в блоке «Вместе».

@@ -51,12 +51,16 @@ void main() {
         await t.tap(find.byKey(const ValueKey('quiz_option_0')));
         await t.pump();
       }
-      expect(find.text('Ваш результат'), findsOneWidget);
       if (kind == QuizKind.alike) {
+        // Оба ответили — карточка «Ответы готовы» с обещанием, что партнёру
+        // «достанутся те же вопросы», врала бы: итог целиком в «Вместе»
+        // (замечено на эмуляторе 08.11.2026).
+        expect(find.text('Ответы готовы'), findsNothing);
         // Вопросы взяты у партнёра, поэтому сравниваются все пятнадцать.
         await t.scrollUntilVisible(find.textContaining('из 15'), 200);
         expect(find.textContaining('%'), findsOneWidget);
       } else {
+        expect(find.text('Ваш результат'), findsOneWidget);
         await t.scrollUntilVisible(find.text('Маша'), 200);
         expect(find.text('Маша'), findsOneWidget);
       }
