@@ -120,6 +120,7 @@ import '../services/daily_task_service.dart';
 import '../services/apns_service.dart';
 import '../services/fcm_service.dart';
 import '../services/lang_tag.dart';
+import '../services/widget_labels.dart';
 import '../services/platform_tag.dart';
 import '../widgets/plus/plus_promo_rule.dart';
 import '../widgets/plus/plus_promo_sheet.dart';
@@ -408,8 +409,10 @@ class _HomeScreenState extends State<HomeScreen> {
     // встретив её названия. Пары для этого не требуется, поэтому здесь, а не
     // в привязке к группе.
     unawaited(PlatformTag.sync());
-    // Язык приложения: на нём сервер пишет уведомления.
+    // Язык приложения: на нём сервер пишет уведомления, а виджеты на рабочем
+    // столе — подписи.
     unawaited(LangTag.start());
+    unawaited(WidgetLabels.start());
 
     // Токен пушей мог приехать раньше входа: на первом запуске система отдаёт
     // его, пока человек ещё регистрируется, и записывать его тогда некуда.

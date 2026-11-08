@@ -305,17 +305,6 @@ open class MissWidgetProvider : HomeWidgetProvider() {
         manager.updateAppWidget(widgetId, views)
     }
 
-    /** «Мише», «Ане» — дательный падеж для коротких русских имён. */
-    private fun dativeName(name: String): String {
-        val n = name.trim()
-        if (n.isEmpty()) return "Партнёру"
-        return when {
-            n.endsWith("а", true) || n.endsWith("я", true) -> n.dropLast(1) + "е"
-            n.endsWith("й", true) -> n.dropLast(1) + "ю"
-            else -> n + "у"
-        }
-    }
-
     companion object {
         /** Тап по кнопке «Скучаю». Ловится в onReceive этого же провайдера. */
         const val ACTION_TAP = "com.togetherly.love.action.MISS_TAP"

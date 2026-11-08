@@ -62,7 +62,7 @@ open class MoodTilesWidgetProvider : HomeWidgetProvider() {
         val prefix = if (g.isEmpty()) "" else "tgmood_${g}_"
         prefs.edit()
             .putString("${prefix}my_id", moodId)
-            .putString("${prefix}my_label", localLabel(moodId))
+            .putString("${prefix}my_label", localLabel(context, moodId))
             // Отметка «ждёт сервера»: если фоновый движок не поднимется,
             // приложение допишет настроение при следующем запуске.
             .putString("${prefix}pending_mood", moodId)
@@ -116,6 +116,11 @@ open class MoodTilesWidgetProvider : HomeWidgetProvider() {
         val views = RemoteViews(context.packageName, layout).apply {
             tint(R.id.bg, theme.surface)
             setTextColor(R.id.header, theme.onSurfaceVariant)
+            setTextViewText(
+                R.id.header,
+                if (layout == R.layout.tg_mood_2x2) WidgetText.get(context, "today_caps", "СЕГОДНЯ")
+                else WidgetText.get(context, "mood_week_caps", "НЕДЕЛЯ НАСТРОЕНИЙ"),
+            )
 
             when (layout) {
                 R.layout.tg_mood_2x2 -> {
@@ -127,15 +132,16 @@ open class MoodTilesWidgetProvider : HomeWidgetProvider() {
                         if (partnerLabel.isEmpty()) theme.outline else theme.tertiary,
                     )
 
+                    val me = WidgetText.get(context, "me", "Я")
+                    val notMarked = WidgetText.get(context, "not_marked", "не отмечено")
                     setTextViewText(
                         R.id.my_line,
-                        if (myLabel.isEmpty()) "Я · не отмечено" else "Я · $myLabel",
+                        "$me · ${myLabel.ifEmpty { notMarked }}",
                     )
-                    val pName = partnerName.ifEmpty { "Партнёр" }
+                    val pName = partnerName.ifEmpty { WidgetText.get(context, "partner", "Партнёр") }
                     setTextViewText(
                         R.id.partner_line,
-                        if (partnerLabel.isEmpty()) "$pName · не отмечено"
-                        else "$pName · $partnerLabel",
+                        "$pName · ${partnerLabel.ifEmpty { notMarked }}",
                     )
                     setTextViewTextSize(
                         R.id.my_line, TypedValue.COMPLEX_UNIT_DIP, 12f * scale)
@@ -161,14 +167,20 @@ open class MoodTilesWidgetProvider : HomeWidgetProvider() {
 
                 else -> {
                     setTextColor(R.id.matched, theme.outline)
+                    val weekdays = WidgetText.list(
+                        context, "weekdays", listOf("пн", "вт", "ср", "чт", "пт", "сб", "вс"),
+                    )
                     listOf(
                         R.id.day_1, R.id.day_2, R.id.day_3, R.id.day_4,
                         R.id.day_5, R.id.day_6, R.id.day_7,
-                    ).forEach { setTextColor(it, theme.outline) }
+                    ).forEachIndexed { i, id ->
+                        setTextColor(id, theme.outline)
+                        setTextViewText(id, weekdays[i])
+                    }
 
                     setTextViewText(
                         R.id.matched,
-                        if (matched > 0) "совпало $matched из 7" else "",
+                        if (matched > 0) WidgetText.fmt(context, "matched", "совпало {n} из 7", "n" to matched) else "",
                     )
 
                     val week = parseWeek(weekRaw)
@@ -225,10 +237,10 @@ open class MoodTilesWidgetProvider : HomeWidgetProvider() {
     }
 
     /** Подпись выбранного настроения до того, как ответит сервер. */
-    private fun localLabel(moodId: String): String = when (moodId) {
-        MOOD_GOOD -> "хорошо"
-        MOOD_OK -> "обычно"
-        MOOD_BAD -> "грустно"
+    private fun localLabel(context: Context, moodId: String): String = when (moodId) {
+        MOOD_GOOD -> WidgetText.get(context, "mood_good", "хорошо")
+        MOOD_OK -> WidgetText.get(context, "mood_ok", "обычно")
+        MOOD_BAD -> WidgetText.get(context, "mood_bad", "грустно")
         else -> ""
     }
 

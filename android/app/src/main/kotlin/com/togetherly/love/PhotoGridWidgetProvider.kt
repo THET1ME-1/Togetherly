@@ -54,6 +54,7 @@ class PhotoGridWidgetProvider : HomeWidgetProvider() {
                 when (count) {
                     1 -> {
                         setViewVisibility(R.id.layout_1_photo, View.VISIBLE)
+                        setTextViewText(R.id.placeholder_0_text, WidgetText.get(context, "no_photo", "Нет фото"))
                         loadSlot(this, widgetData, widgetId, 0, R.id.photo_0, R.id.placeholder_0, 400)
                     }
                     2 -> {

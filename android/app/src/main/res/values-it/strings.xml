@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Testi italiani del selettore di widget (lingua del telefono). I testi sui
+     widget seguono la lingua dell’app (WidgetText). -->
+<resources>
+    <string name="tg_desc_together_2x2">Giorni insieme e i vostri avatar</string>
+    <string name="tg_desc_together_4x2">Giorni insieme e progresso verso la data tonda</string>
+    <string name="tg_desc_together_4x4">Giorni insieme e le vostre prossime date</string>
+    <string name="tg_desc_note_2x2">Nota condivisa: uno scrive, l’altro vede</string>
+    <string name="tg_desc_note_4x2">Nota condivisa per due, qualche riga</string>
+    <string name="tg_desc_note_4x4">Nota condivisa per due, una lista intera</string>
+    <string name="tg_note_empty">Tocca per scrivere</string>
+    <string name="tg_note_editor_title">Nota per due</string>
+    <string name="tg_note_hint">Cosa scrivere?</string>
+    <string name="tg_note_cancel">Annulla</string>
+    <string name="tg_note_save">Salva</string>
+    <string name="tg_desc_miss_2x2">Invia «mi manchi» con un tocco</string>
+    <string name="tg_desc_miss_4x2">I contatori «mi manchi» di entrambi e un pulsante</string>
+    <string name="tg_desc_miss_4x1">Striscia: invia «mi manchi»</string>
+    <string name="tg_desc_mood_2x2">L’umore di entrambi e segnarlo con un tocco</string>
+    <string name="tg_desc_mood_4x2">La vostra settimana di umore</string>
+    <string name="tg_desc_countdown_2x2">Quanti giorni al prossimo incontro</string>
+    <string name="tg_desc_countdown_4x2">Al prossimo incontro: giorni, ore e minuti</string>
+    <string name="tg_desc_ring_2x2">Anello dell’anno: giorni insieme e strada verso l’anniversario</string>
+    <string name="tg_desc_ring_4x2">Anello dell’anno, contatori e data dell’anniversario</string>
+    <string name="tg_desc_grid_2x2">Calendario degli anni: un punto è un mese, una riga è un anno</string>
+    <string name="tg_desc_grid_4x2">Calendario degli anni e conto alla rovescia all’anniversario</string>
+    <string name="tg_widget_no_start_date">Imposta la data di inizio</string>
+    <string name="tg_map_label">Dove siamo: una mappa per due</string>
+    <string name="tg_desc_map_2x2">Voi due e la distanza tra voi</string>
+    <string name="tg_desc_map_4x2">Mappa per due: arco, distanza e quando il partner era lì</string>
+    <string name="tg_desc_map_4x4">Mappa con la zona e chi è dove: quartieri e ora</string>
+    <string name="tg_desc_mascot_4x1">La vostra mascotte a striscia: nome, livello e serie</string>
+    <string name="tg_desc_mascot_2x2">La vostra mascotte e la barra fino al prossimo livello</string>
+    <string name="tg_desc_mascot_4x2">La vostra mascotte, serie e barra di crescita</string>
+    <string name="tg_desc_mascot_4x4">La vostra mascotte a tutto schermo: serie, crescita e record</string>
+    <string name="tg_mascot_empty">Scegli una mascotte nell’app</string>
+    <string name="tg_desc_canvas_2x2">Il vostro disegno condiviso, quadrato</string>
+    <string name="tg_desc_canvas_2x3">Il vostro disegno condiviso, foglio intero</string>
+    <string name="tg_desc_canvas_4x4">Il vostro disegno condiviso su tutta la riga</string>
+    <string name="tg_canvas_empty">Disegnate qualcosa insieme</string>
+    <string name="tg_canvas_pick_title">Quale disegno mostrare</string>
+    <string name="tg_canvas_pick_subtitle">Tocca una tela per metterla nella schermata Home</string>
+    <string name="tg_canvas_pick_empty">Ancora nessun disegno. Apri Togetherly e disegna il primo.</string>
+    <string name="tg_canvas_unnamed">Senza titolo</string>
+    <string name="love_hint_fail_title">La foto non si è caricata</string>
+    <string name="love_hint_fail_sub">Tocca per aggiornare</string>
+    <string name="love_hint_own_title">Aggiungi una foto e il tuo umore</string>
+    <string name="love_hint_own_sub">Tocca il widget</string>
+    <string name="love_hint_partner_title">Dal partner ancora niente</string>
+    <string name="love_hint_partner_sub">La sua foto e il suo umore appariranno qui</string>
+    <string name="widget_description">Stato condiviso, umore e messaggi per te e il partner</string>
+    <string name="petal_timer_widget_description">Timer a petali: anni, mesi, giorni, ore, minuti, secondi</string>
+</resources>

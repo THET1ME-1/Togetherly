@@ -97,7 +97,7 @@ open class CountdownWidgetProvider : HomeWidgetProvider() {
             )
             setTextViewText(
                 R.id.event_title,
-                title.ifEmpty { "Нет ближайшего события" },
+                title.ifEmpty { WidgetText.get(context, "no_event", "Нет ближайшего события") },
             )
 
             when (layout) {
@@ -110,7 +110,10 @@ open class CountdownWidgetProvider : HomeWidgetProvider() {
                     setTextColor(R.id.days_label, theme.onTertiaryContainer)
 
                     setTextViewText(R.id.days_value, days.toString())
-                    setTextViewText(R.id.days_label, "${daysWord(days)} до встречи")
+                    setTextViewText(
+                        R.id.days_label,
+                        WidgetText.fmt(context, "until_meet", "{w} до встречи", "w" to WidgetWords.days(context, days)),
+                    )
                     setTextViewTextSize(
                         R.id.days_value, TypedValue.COMPLEX_UNIT_DIP, 40f * scale)
                 }
@@ -132,11 +135,11 @@ open class CountdownWidgetProvider : HomeWidgetProvider() {
 
                     setTextViewText(R.id.date_chip, dateLabel)
                     setTextViewText(R.id.days_value, days.toString())
-                    setTextViewText(R.id.days_label, daysWord(days))
+                    setTextViewText(R.id.days_label, WidgetWords.days(context, days))
                     setTextViewText(R.id.hours_value, hours.toString())
-                    setTextViewText(R.id.hours_label, hoursWord(hours))
+                    setTextViewText(R.id.hours_label, WidgetWords.hours(context, hours))
                     setTextViewText(R.id.minutes_value, minutes.toString())
-                    setTextViewText(R.id.minutes_label, minutesWord(minutes))
+                    setTextViewText(R.id.minutes_label, WidgetWords.minutes(context, minutes))
 
                     val barWidthPx = (((minWidth - 30).coerceAtLeast(80)) * density).toInt()
                     val barHeightPx = (8 * density).toInt()
@@ -201,20 +204,6 @@ open class CountdownWidgetProvider : HomeWidgetProvider() {
         )
     }
 
-    private fun daysWord(n: Int): String = plural(n, "день", "дня", "дней")
-    private fun hoursWord(n: Int): String = plural(n, "час", "часа", "часов")
-    private fun minutesWord(n: Int): String = plural(n, "минута", "минуты", "минут")
-
-    private fun plural(n: Int, one: String, few: String, many: String): String {
-        val a = n % 100
-        val b = n % 10
-        return when {
-            a in 11..19 -> many
-            b == 1 -> one
-            b in 2..4 -> few
-            else -> many
-        }
-    }
 }
 
 /** «До встречи» 2×2 — отдельная позиция в списке виджетов. */

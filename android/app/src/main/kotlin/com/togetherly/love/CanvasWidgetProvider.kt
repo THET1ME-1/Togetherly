@@ -91,7 +91,10 @@ open class CanvasWidgetProvider : HomeWidgetProvider() {
                 // он не добавился.
                 setViewVisibility(R.id.canvas, View.GONE)
                 setViewVisibility(R.id.empty_label, View.VISIBLE)
-                setTextViewText(R.id.empty_label, context.getString(R.string.tg_canvas_empty))
+                setTextViewText(
+                    R.id.empty_label,
+                    WidgetText.get(context, "canvas_empty", context.getString(R.string.tg_canvas_empty)),
+                )
                 setTextColor(R.id.empty_label, theme.onSurfaceVariant)
             }
 

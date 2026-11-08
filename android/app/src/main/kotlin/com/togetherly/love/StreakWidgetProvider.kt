@@ -66,14 +66,21 @@ class StreakWidgetProvider : HomeWidgetProvider() {
                 setImageViewBitmap(R.id.streak_flame, drawFlame(200, warm))
                 setImageViewBitmap(R.id.streak_bg_flame, drawFlame(360, warm))
 
+                setTextViewText(R.id.streak_header, WidgetText.get(context, "streak_caps", "СЕРИЯ ВМЕСТЕ"))
                 setTextViewText(R.id.streak_number, days.toString())
-                setTextViewText(R.id.streak_label, "${pluralDays(days)} подряд")
+                setTextViewText(
+                    R.id.streak_label,
+                    WidgetText.fmt(context, "in_a_row", "{w} подряд", "w" to WidgetWords.days(context, days)),
+                )
 
                 val sub: String = when {
-                    !warm -> "Зайдите вдвоём сегодня"
-                    record > days -> "Рекорд: $record ${pluralDays(record)}"
-                    days >= 7 -> "Так держать! 🔥"
-                    else -> "Заходите каждый день"
+                    !warm -> WidgetText.get(context, "streak_come", "Зайдите вдвоём сегодня")
+                    record > days -> WidgetText.fmt(
+                        context, "streak_record", "Рекорд: {n} {w}",
+                        "n" to record, "w" to WidgetWords.days(context, record),
+                    )
+                    days >= 7 -> WidgetText.get(context, "streak_keep", "Так держать! 🔥")
+                    else -> WidgetText.get(context, "streak_daily", "Заходите каждый день")
                 }
                 setTextViewText(R.id.streak_sub, sub)
             }
@@ -92,17 +99,6 @@ class StreakWidgetProvider : HomeWidgetProvider() {
         return "%04d-%02d-%02d".format(y, m, d)
     }
 
-    // ─── Склонение «день / дня / дней» ───────────────────────────────────────
-
-    private fun pluralDays(n: Int): String {
-        val n100 = n % 100
-        val n10 = n % 10
-        return when {
-            n10 == 1 && n100 != 11 -> "день"
-            n10 in 2..4 && (n100 < 10 || n100 >= 20) -> "дня"
-            else -> "дней"
-        }
-    }
 
     // ─── Рисование огонька ───────────────────────────────────────────────────
 

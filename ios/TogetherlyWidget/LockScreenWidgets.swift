@@ -68,7 +68,7 @@ struct LockEmptyView: View {
     var body: some View {
         switch family {
         case .accessoryInline:
-            Text("Откройте Togetherly")
+            Text(WidgetText.get("open_togetherly", "Откройте Togetherly"))
         case .accessoryCircular:
             ZStack {
                 AccessoryWidgetBackground()
@@ -77,11 +77,11 @@ struct LockEmptyView: View {
             }
         default:
             VStack(alignment: .leading, spacing: 2) {
-                Text("Откройте Togetherly")
+                Text(WidgetText.get("open_togetherly", "Откройте Togetherly"))
                     .font(.system(size: 14, weight: .heavy))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
-                Text("виджет наполнится сразу")
+                Text(WidgetText.get("fills_at_once", "виджет наполнится сразу"))
                     .font(.system(size: 11, weight: .medium))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -110,7 +110,7 @@ struct LockDaysView: View {
         switch family {
         case .accessoryInline:
             // Одна строка рядом с часами: сюда влезает только короткая фраза.
-            Text("Вместе \(data.days) дн.")
+            Text(WidgetText.fmt("together_days_short", "Вместе {n} дн.", ["n": data.days]))
         case .accessoryCircular:
             ZStack {
                 AccessoryWidgetBackground()
@@ -119,14 +119,14 @@ struct LockDaysView: View {
                         .font(.system(size: 22, weight: .heavy, design: .rounded))
                         .minimumScaleFactor(0.5)
                         .lineLimit(1)
-                    Text("дней")
+                    Text(daysWord(data.days))
                         .font(.system(size: 9, weight: .semibold))
                 }
                 .padding(4)
             }
         default:
             VStack(alignment: .leading, spacing: 2) {
-                Text("Вместе \(data.days) дней")
+                Text(WidgetText.fmt("together_days", "Вместе {n} {w}", ["n": data.days, "w": daysWord(data.days)]))
                     .font(.system(size: 15, weight: .heavy))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -135,7 +135,7 @@ struct LockDaysView: View {
                         .font(.system(size: 12, weight: .medium))
                         .lineLimit(1)
                 } else if !data.anniversary.isEmpty {
-                    Text("с \(data.anniversary)")
+                    Text(WidgetText.fmt("since", "с {date}", ["date": data.anniversary]))
                         .font(.system(size: 12, weight: .medium))
                         .lineLimit(1)
                 }
@@ -182,7 +182,7 @@ struct LockMissView: View {
 
         switch family {
         case .accessoryInline:
-            Text("Скучаю \(mine) · \(theirs)")
+            Text(WidgetText.fmt("miss_counts", "Скучаю {m} · {t}", ["m": mine, "t": theirs]))
         case .accessoryCircular:
             ZStack {
                 AccessoryWidgetBackground()
@@ -199,11 +199,13 @@ struct LockMissView: View {
             HStack(spacing: 8) {
                 Image(systemName: "heart.fill").font(.system(size: 18))
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Скучаю")
+                    Text(WidgetText.get("miss", "Скучаю"))
                         .font(.system(size: 14, weight: .heavy))
                     Text(name.isEmpty
-                         ? "от меня \(mine) · в ответ \(theirs)"
-                         : "от меня \(mine) · от \(name) \(theirs)")
+                         ? WidgetText.fmt("miss_from_me_reply", "от меня {m} · в ответ {t}",
+                                          ["m": mine, "t": theirs])
+                         : WidgetText.fmt("miss_from_me_name", "от меня {m} · от {name} {t}",
+                                          ["m": mine, "name": name, "t": theirs]))
                         .font(.system(size: 11, weight: .medium))
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
@@ -250,11 +252,12 @@ struct LockMoodView: View {
     private func content(_ s: Store, _ g: String) -> some View {
         let mine = s.string("tgmood_\(g)_my_label")
         let theirs = s.string("tgmood_\(g)_partner_label")
-        let name = s.string("tgmood_\(g)_partner_name")
+        let stored = s.string("tgmood_\(g)_partner_name")
+        let name = stored.isEmpty ? WidgetText.get("partner", "Партнёр") : stored
 
         switch family {
         case .accessoryInline:
-            Text(theirs.isEmpty ? "Настроение не отмечено" : "\(name.isEmpty ? "Партнёр" : name): \(theirs)")
+            Text(theirs.isEmpty ? WidgetText.get("mood_not_marked", "Настроение не отмечено") : "\(name): \(theirs)")
         case .accessoryCircular:
             ZStack {
                 AccessoryWidgetBackground()
@@ -263,13 +266,15 @@ struct LockMoodView: View {
             }
         default:
             VStack(alignment: .leading, spacing: 2) {
-                Text(mine.isEmpty ? "Вы ещё не отметились" : "Я: \(mine)")
+                Text(mine.isEmpty
+                     ? WidgetText.get("you_not_marked", "Вы ещё не отметились")
+                     : WidgetText.fmt("me_colon", "Я: {mood}", ["mood": mine]))
                     .font(.system(size: 13, weight: .heavy))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                 Text(theirs.isEmpty
-                     ? "\(name.isEmpty ? "Партнёр" : name) молчит"
-                     : "\(name.isEmpty ? "Партнёр" : name): \(theirs)")
+                     ? WidgetText.fmt("name_silent", "{name} молчит", ["name": name])
+                     : "\(name): \(theirs)")
                     .font(.system(size: 12, weight: .medium))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)

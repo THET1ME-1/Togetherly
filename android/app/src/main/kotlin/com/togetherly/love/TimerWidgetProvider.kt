@@ -41,7 +41,7 @@ class TimerWidgetProvider : HomeWidgetProvider() {
                 setOnClickPendingIntent(R.id.widget_root, pendingIntent)
 
                 val title = if (g.isEmpty()) "—" else widgetData.getString("timer_${g}_title", null)
-                    .takeIf { !it.isNullOrEmpty() } ?: "Таймер"
+                    .takeIf { !it.isNullOrEmpty() } ?: WidgetText.get(context, "timer", "Таймер")
                 val daysStr = if (g.isEmpty()) "0" else widgetData.getString("timer_${g}_days", null)
                     .takeIf { !it.isNullOrEmpty() } ?: "0"
                 val days = abs(daysStr.toIntOrNull() ?: 0)
@@ -60,7 +60,11 @@ class TimerWidgetProvider : HomeWidgetProvider() {
                 )
 
                 // Тексты
-                val daysLabel = if (isCountdown) "дней осталось" else "дней вместе"
+                val daysLabel = if (isCountdown) {
+                    WidgetText.get(context, "days_left", "дней осталось")
+                } else {
+                    WidgetText.get(context, "days_together", "дней вместе")
+                }
                 setTextViewText(R.id.timer_title, title)
                 setTextViewText(R.id.timer_days_number, days.toString())
                 setTextViewText(R.id.timer_days_label, daysLabel)

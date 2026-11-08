@@ -66,6 +66,18 @@ const _lowercaseOnPurpose = <String>{
   // «Общий бюджет ······ на двоих».
   'walletRowBudgetValue', 'walletRowPersonalValue', 'walletRowSplitValue',
   'walletRowGoalsValue', 'walletRowBankValue', 'walletRowChatValue',
+  // Подписи виджетов рабочего стола: слово при числе и хвосты фраз
+  // («12 дней», «5 лет уже ❤️», «Я · не отмечено»), с заглавной их ставит
+  // сам нативный код, где подпись начинает строку.
+  'wlDaysOne', 'wlDaysFew', 'wlDaysMany', 'wlYearsOne', 'wlYearsFew', 'wlYearsMany',
+  'wlYearsgenOne', 'wlYearsgenFew', 'wlYearsgenMany', 'wlMonthsOne', 'wlMonthsFew',
+  'wlMonthsMany', 'wlMemoriesOne', 'wlMemoriesFew', 'wlMemoriesMany', 'wlHoursOne',
+  'wlHoursFew', 'wlHoursMany', 'wlMinutesOne', 'wlMinutesFew', 'wlMinutesMany',
+  'wlMonthsGen', 'wlWeekdays', 'wlDaysLeft', 'wlDaysTogether', 'wlNotMarked',
+  'wlMatched', 'wlMoodGood', 'wlMoodOk', 'wlMoodBad', 'wlMonthsShort', 'wlFillsAtOnce',
+  'wlSince', 'wlMissFromMeReply', 'wlMissFromMeName', 'wlDateDayMonth',
+  'wlYearNth', 'wlYearTogether', 'wlYearsAlready', 'wlUntilMeet', 'wlInARow',
+  'wlTogetherWord', 'wlDaysUntilYears',
 };
 
 /// Строчная, законная только в отдельных языках.

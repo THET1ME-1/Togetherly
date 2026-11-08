@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 小组件选择列表的中文文字（随手机语言）。小组件上的文字随应用语言
+     （WidgetText）。 -->
+<resources>
+    <string name="tg_desc_together_2x2">在一起的天数和两人头像</string>
+    <string name="tg_desc_together_4x2">在一起的天数和距下一个整数日的进度</string>
+    <string name="tg_desc_together_4x4">在一起的天数和即将到来的日子</string>
+    <string name="tg_desc_note_2x2">共享便签：一人写，另一人看</string>
+    <string name="tg_desc_note_4x2">两人共享便签，几行字</string>
+    <string name="tg_desc_note_4x4">两人共享便签，一整张清单</string>
+    <string name="tg_note_empty">点按书写</string>
+    <string name="tg_note_editor_title">两人便签</string>
+    <string name="tg_note_hint">写点什么？</string>
+    <string name="tg_note_cancel">取消</string>
+    <string name="tg_note_save">保存</string>
+    <string name="tg_desc_miss_2x2">一键发送“想你”</string>
+    <string name="tg_desc_miss_4x2">两人的“想你”计数和按钮</string>
+    <string name="tg_desc_miss_4x1">横条：发送“想你”</string>
+    <string name="tg_desc_mood_2x2">两人的心情，一键记录</string>
+    <string name="tg_desc_mood_4x2">两人一周的心情</string>
+    <string name="tg_desc_countdown_2x2">距离见面还有几天</string>
+    <string name="tg_desc_countdown_4x2">距离见面：天、小时和分钟</string>
+    <string name="tg_desc_ring_2x2">年度圆环：在一起的天数和到纪念日的进度</string>
+    <string name="tg_desc_ring_4x2">年度圆环、计数和纪念日日期</string>
+    <string name="tg_desc_grid_2x2">年历：一点一个月，一行一年</string>
+    <string name="tg_desc_grid_4x2">年历和纪念日倒计时</string>
+    <string name="tg_widget_no_start_date">设置开始日期</string>
+    <string name="tg_map_label">我们在哪：两人地图</string>
+    <string name="tg_desc_map_2x2">你们两人和彼此之间的距离</string>
+    <string name="tg_desc_map_4x2">两人地图：弧线、距离和伴侣何时在那里</string>
+    <string name="tg_desc_map_4x4">带周边的地图和谁在哪：街区和时间</string>
+    <string name="tg_desc_mascot_4x1">横条吉祥物：名字、阶段和连续天数</string>
+    <string name="tg_desc_mascot_2x2">吉祥物和到下一阶段的进度条</string>
+    <string name="tg_desc_mascot_4x2">吉祥物、连续天数和成长条</string>
+    <string name="tg_desc_mascot_4x4">全屏吉祥物：连续天数、成长和纪录</string>
+    <string name="tg_mascot_empty">在应用中选择吉祥物</string>
+    <string name="tg_desc_canvas_2x2">两人共同的画，正方形</string>
+    <string name="tg_desc_canvas_2x3">两人共同的画，整张画纸</string>
+    <string name="tg_desc_canvas_4x4">两人共同的画，占满一行</string>
+    <string name="tg_canvas_empty">一起画点什么吧</string>
+    <string name="tg_canvas_pick_title">显示哪幅画</string>
+    <string name="tg_canvas_pick_subtitle">点按一张画布，把它放到桌面上</string>
+    <string name="tg_canvas_pick_empty">还没有画。打开 Togetherly 画第一幅吧。</string>
+    <string name="tg_canvas_unnamed">未命名</string>
+    <string name="love_hint_fail_title">照片没加载出来</string>
+    <string name="love_hint_fail_sub">点按刷新</string>
+    <string name="love_hint_own_title">添加照片和心情</string>
+    <string name="love_hint_own_sub">点按小组件</string>
+    <string name="love_hint_partner_title">伴侣还没有内容</string>
+    <string name="love_hint_partner_sub">对方的照片和心情会出现在这里</string>
+    <string name="widget_description">你和伴侣共同的状态、心情和消息</string>
+    <string name="petal_timer_widget_description">花瓣计时器：年、月、日、时、分、秒</string>
+</resources>

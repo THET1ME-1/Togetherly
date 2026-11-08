@@ -19,7 +19,10 @@ void main() {
 
   /// Ключи App Group, которые читают виджеты экрана блокировки.
   Set<String> lockKeys() {
-    final swift = read('ios/TogetherlyWidget/LockScreenWidgets.swift');
+    // Подписи (`WidgetText.get("miss_counts", …)`) — не данные: их пишет
+    // `widget_labels.dart` ключами `wl_…`, и сверяет их widget_labels_test.
+    final swift = read('ios/TogetherlyWidget/LockScreenWidgets.swift')
+        .replaceAll(RegExp(r'WidgetText\.\w+\(\s*"[^"]*"'), '');
     final re = RegExp(r'"((?:together|miss|tgmood)_[^"]*)"');
     return re.allMatches(swift).map((m) => m.group(1)!).toSet();
   }

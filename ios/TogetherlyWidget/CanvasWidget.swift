@@ -46,7 +46,7 @@ private struct CanvasWidgetView: View {
                     Image(systemName: "paintbrush.pointed.fill")
                         .font(.system(size: 26, weight: .semibold))
                         .foregroundColor(theme.primary)
-                    Text("Нарисуйте что-нибудь вдвоём")
+                    Text(WidgetText.get("canvas_empty", "Нарисуйте что-нибудь вдвоём"))
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(theme.onSurfaceVariant)
                         .multilineTextAlignment(.center)

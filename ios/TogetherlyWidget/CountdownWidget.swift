@@ -82,7 +82,7 @@ private struct CountdownView: View {
         let t = WidgetTheme()
 
         if data.isEmpty {
-            TgEmptyView(text: "Заведите событие — до него и будет счёт", theme: t)
+            TgEmptyView(text: WidgetText.get("countdown_empty", "Заведите событие — до него и будет счёт"), theme: t)
         } else {
             VStack(alignment: .leading, spacing: 10) {
                 Text(data.title)
@@ -103,8 +103,10 @@ private struct CountdownView: View {
                 HStack(spacing: 8) {
                     tile(value: data.days, label: daysWord(data.days), t: t)
                     if family != .systemSmall {
-                        tile(value: data.hours, label: "часов", t: t)
-                        tile(value: data.minutes, label: "минут", t: t)
+                        tile(value: data.hours,
+                             label: WidgetText.plural("hours", data.hours, "час", "часа", "часов"), t: t)
+                        tile(value: data.minutes,
+                             label: WidgetText.plural("minutes", data.minutes, "минута", "минуты", "минут"), t: t)
                     }
                 }
 

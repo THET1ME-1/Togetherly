@@ -365,11 +365,11 @@ private struct LoveEmptyState: View {
             )
             VStack(spacing: 6) {
                 Text("💞").font(.system(size: 34))
-                Text("Подключите партнёра")
+                Text(WidgetText.get("connect_partner", "Подключите партнёра"))
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(Color.black.opacity(0.65))
                     .multilineTextAlignment(.center)
-                Text("Откройте приложение")
+                Text(WidgetText.get("open_app", "Откройте приложение"))
                     .font(.system(size: 10))
                     .foregroundColor(Color.black.opacity(0.45))
             }

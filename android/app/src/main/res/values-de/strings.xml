@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Deutsche Texte für die Widget-Auswahl (Sprache des Telefons). Texte auf
+     den Widgets folgen der App-Sprache (WidgetText). -->
+<resources>
+    <string name="tg_desc_together_2x2">Tage zusammen und eure Avatare</string>
+    <string name="tg_desc_together_4x2">Tage zusammen und Fortschritt bis zum runden Datum</string>
+    <string name="tg_desc_together_4x4">Tage zusammen und eure nächsten Termine</string>
+    <string name="tg_desc_note_2x2">Gemeinsame Notiz: einer schreibt, der andere sieht es</string>
+    <string name="tg_desc_note_4x2">Gemeinsame Notiz für zwei, ein paar Zeilen</string>
+    <string name="tg_desc_note_4x4">Gemeinsame Notiz für zwei, eine ganze Liste</string>
+    <string name="tg_note_empty">Tippen zum Schreiben</string>
+    <string name="tg_note_editor_title">Notiz für zwei</string>
+    <string name="tg_note_hint">Was schreiben?</string>
+    <string name="tg_note_cancel">Abbrechen</string>
+    <string name="tg_note_save">Speichern</string>
+    <string name="tg_desc_miss_2x2">„Vermisse dich“ mit einem Tipp senden</string>
+    <string name="tg_desc_miss_4x2">„Vermisse dich“-Zähler von beiden und ein Knopf</string>
+    <string name="tg_desc_miss_4x1">Leiste: „Vermisse dich“ senden</string>
+    <string name="tg_desc_mood_2x2">Stimmung von beiden, eintragen mit einem Tipp</string>
+    <string name="tg_desc_mood_4x2">Eure Stimmungswoche</string>
+    <string name="tg_desc_countdown_2x2">Wie viele Tage bis zum Treffen</string>
+    <string name="tg_desc_countdown_4x2">Bis zum Treffen: Tage, Stunden und Minuten</string>
+    <string name="tg_desc_ring_2x2">Jahresring: Tage zusammen und der Weg zum Jahrestag</string>
+    <string name="tg_desc_ring_4x2">Jahresring, Zähler und Datum des Jahrestags</string>
+    <string name="tg_desc_grid_2x2">Jahreskalender: ein Punkt ist ein Monat, eine Reihe ein Jahr</string>
+    <string name="tg_desc_grid_4x2">Jahreskalender und Countdown bis zum Jahrestag</string>
+    <string name="tg_widget_no_start_date">Lege das Startdatum fest</string>
+    <string name="tg_map_label">Wo wir sind: Karte für zwei</string>
+    <string name="tg_desc_map_2x2">Ihr zwei und die Entfernung zwischen euch</string>
+    <string name="tg_desc_map_4x2">Karte für zwei: Bogen, Entfernung und wann dein Partner dort war</string>
+    <string name="tg_desc_map_4x4">Karte mit Umgebung und wer wo ist: Viertel und Zeit</string>
+    <string name="tg_desc_mascot_4x1">Euer Maskottchen als Leiste: Name, Stufe und Serie</string>
+    <string name="tg_desc_mascot_2x2">Euer Maskottchen und der Weg zur nächsten Stufe</string>
+    <string name="tg_desc_mascot_4x2">Euer Maskottchen, Serie und Wachstumsbalken</string>
+    <string name="tg_desc_mascot_4x4">Euer Maskottchen bildschirmfüllend: Serie, Wachstum und Rekord</string>
+    <string name="tg_mascot_empty">Wähle ein Maskottchen in der App</string>
+    <string name="tg_desc_canvas_2x2">Eure gemeinsame Zeichnung, quadratisch</string>
+    <string name="tg_desc_canvas_2x3">Eure gemeinsame Zeichnung, ganzes Blatt</string>
+    <string name="tg_desc_canvas_4x4">Eure gemeinsame Zeichnung über die ganze Reihe</string>
+    <string name="tg_canvas_empty">Malt etwas zusammen</string>
+    <string name="tg_canvas_pick_title">Welche Zeichnung zeigen</string>
+    <string name="tg_canvas_pick_subtitle">Tippe auf eine Leinwand, dann kommt sie auf den Startbildschirm</string>
+    <string name="tg_canvas_pick_empty">Noch keine Zeichnungen. Öffne Togetherly und male die erste.</string>
+    <string name="tg_canvas_unnamed">Ohne Titel</string>
+    <string name="love_hint_fail_title">Foto nicht geladen</string>
+    <string name="love_hint_fail_sub">Tippen zum Aktualisieren</string>
+    <string name="love_hint_own_title">Füge ein Foto und deine Stimmung hinzu</string>
+    <string name="love_hint_own_sub">Tippe auf das Widget</string>
+    <string name="love_hint_partner_title">Vom Partner noch nichts</string>
+    <string name="love_hint_partner_sub">Foto und Stimmung erscheinen hier</string>
+    <string name="widget_description">Gemeinsamer Status, Stimmung und Nachrichten für dich und deinen Partner</string>
+    <string name="petal_timer_widget_description">Lebendiger Blütentimer: Jahre, Monate, Tage, Stunden, Minuten, Sekunden</string>
+</resources>

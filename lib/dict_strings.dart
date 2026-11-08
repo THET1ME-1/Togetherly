@@ -63,6 +63,7 @@ import 'l10n/dict/timer_expandable_timer_card.dart';
 import 'l10n/dict/watch_voice.dart';
 import 'l10n/dict/welcome.dart';
 import 'l10n/dict/widget_screen.dart';
+import 'l10n/dict/home_widgets.dart';
 import 'l10n/uk/inline.dart';
 import 'l10n/uk/uk.dart';
 import 'l10n/zh/inline.dart';
@@ -148,6 +149,7 @@ const Map<String, Map<String, String>> _kSectionStrings = {
   ...welcomeStrings,
   ...watchVoiceStrings,
   ...widgetScreenStrings,
+  ...homeWidgetsStrings,
   ...stickersStrings,
 };
 

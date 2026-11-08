@@ -119,6 +119,10 @@ open class YearGridWidgetProvider : HomeWidgetProvider() {
             tint(R.id.bg, theme.surface)
             tint(R.id.bg_stroke, theme.trackOnSurface)
             setTextColor(R.id.empty_label, theme.onSurfaceVariant)
+            setTextViewText(
+                R.id.empty_label,
+                WidgetText.get(context, "grid_empty", context.getString(R.string.tg_widget_no_start_date)),
+            )
 
             if (!hasStart) {
                 setViewVisibility(R.id.empty_label, View.VISIBLE)
@@ -151,17 +155,17 @@ open class YearGridWidgetProvider : HomeWidgetProvider() {
                     setTextColor(R.id.left_value, theme.primary)
                     setTextColor(R.id.left_label, theme.onSurfaceVariant)
 
-                    setTextViewText(R.id.days_word, WidgetWords.cap(WidgetWords.days(days)))
+                    setTextViewText(R.id.days_word, WidgetWords.cap(WidgetWords.days(context, days)))
                     // «0 ЛЕТ 131 ДЕНЬ» читается поломкой — ровно на этом уже
                     // ловили счётчик «дней вместе». Пока года нет, говорим
                     // месяцами.
                     setTextViewText(
                         R.id.years_label,
                         if (years >= 1) {
-                            "$years ${WidgetWords.cap(WidgetWords.years(years))} · " +
-                                "$daysIntoYear ${WidgetWords.cap(WidgetWords.days(daysIntoYear))}"
+                            "$years ${WidgetWords.cap(WidgetWords.years(context, years))} · " +
+                                "$daysIntoYear ${WidgetWords.cap(WidgetWords.days(context, daysIntoYear))}"
                         } else {
-                            "$monthsDone ${WidgetWords.cap(WidgetWords.months(monthsDone))}"
+                            "$monthsDone ${WidgetWords.cap(WidgetWords.months(context, monthsDone))}"
                         },
                     )
                     if (startDate.isNotEmpty()) {
@@ -171,7 +175,10 @@ open class YearGridWidgetProvider : HomeWidgetProvider() {
                     val nextYears = years + 1
                     setTextViewText(
                         R.id.left_label,
-                        "До $nextYears ${WidgetWords.yearsGenitive(nextYears)}",
+                        WidgetText.fmt(
+                            context, "until_years", "До {n} {w}",
+                            "n" to nextYears, "w" to WidgetWords.yearsGenitive(context, nextYears),
+                        ),
                     )
 
                     setTextViewTextSize(
@@ -192,15 +199,26 @@ open class YearGridWidgetProvider : HomeWidgetProvider() {
                     setTextColor(R.id.days_word, theme.primary)
                     setTextColor(R.id.year_label, theme.onSurfaceVariant)
 
-                    setTextViewText(R.id.days_word, "${WidgetWords.cap(WidgetWords.days(days))} вместе")
+                    setTextViewText(
+                        R.id.days_word,
+                        WidgetText.cap(
+                            WidgetText.fmt(context, "together_word", "{w} вместе", "w" to WidgetWords.days(context, days)),
+                        ),
+                    )
                     val nextYears = years + 1
                     setTextViewText(
                         R.id.year_label,
                         if (years >= 1) {
-                            "$years ${WidgetWords.cap(WidgetWords.years(years))} · " +
-                                "${WidgetWords.cap(WidgetWords.days(daysLeft))} до $nextYears"
+                            "$years ${WidgetWords.cap(WidgetWords.years(context, years))} · " +
+                                WidgetText.fmt(
+                                    context, "days_until_years", "{w} до {n}",
+                                    "w" to WidgetWords.cap(WidgetWords.days(context, daysLeft)), "n" to nextYears,
+                                )
                         } else {
-                            "$monthsDone ${WidgetWords.cap(WidgetWords.months(monthsDone))} вместе"
+                            "$monthsDone " + WidgetText.fmt(
+                                context, "together_word", "{w} вместе",
+                                "w" to WidgetWords.cap(WidgetWords.months(context, monthsDone)),
+                            )
                         },
                     )
 

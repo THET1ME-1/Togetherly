@@ -63,14 +63,17 @@ data class YearMath(
             )
         }
 
-        /** День и месяц прописью: «30 сентября». */
-        fun dayMonth(day: Int, month: Int): String {
-            val months = listOf(
-                "января", "февраля", "марта", "апреля", "мая", "июня",
-                "июля", "августа", "сентября", "октября", "ноября", "декабря",
+        /** День и месяц прописью на языке приложения: «30 сентября», «September 30». */
+        fun dayMonth(context: android.content.Context, day: Int, month: Int): String {
+            val months = WidgetText.list(
+                context, "months_gen",
+                listOf(
+                    "января", "февраля", "марта", "апреля", "мая", "июня",
+                    "июля", "августа", "сентября", "октября", "ноября", "декабря",
+                ),
             )
             val name = months.getOrNull(month - 1) ?: return ""
-            return "$day $name"
+            return WidgetText.fmt(context, "date_day_month", "{d} {m}", "d" to day, "m" to name)
         }
 
         private fun midnight(ms: Long): Calendar = Calendar.getInstance().apply {

@@ -1,57 +1,61 @@
 package com.togetherly.love
 
+import android.content.Context
+
 /**
- * Русские склонения для подписей виджетов.
+ * Слова при числе для подписей виджетов на языке приложения ([WidgetText]).
  *
- * Нативная сторона живёт без Flutter, поэтому до `locale_service` ей не
- * дотянуться, а число в подписи меняется каждый день. Прежние виджеты держали
- * по своей копии `daysWord` внутри провайдера; «Кольцу года» и «Календарю
- * лет» нужны ещё месяцы и порядковый номер года, поэтому склонения собраны
- * здесь.
+ * Прежние виджеты держали по своей копии `daysWord` внутри провайдера;
+ * «Кольцу года» и «Календарю лет» нужны ещё месяцы и порядковый номер года,
+ * поэтому склонения собраны здесь. Русские формы — запасные, пока приложение
+ * не записало подписи.
  */
 object WidgetWords {
 
     /** день / дня / дней */
-    fun days(n: Int): String = plural(n, "день", "дня", "дней")
+    fun days(context: Context, n: Int): String =
+        WidgetText.plural(context, "days", n, "день", "дня", "дней")
 
     /** месяц / месяца / месяцев */
-    fun months(n: Int): String = plural(n, "месяц", "месяца", "месяцев")
+    fun months(context: Context, n: Int): String =
+        WidgetText.plural(context, "months", n, "месяц", "месяца", "месяцев")
 
     /** воспоминание / воспоминания / воспоминаний */
-    fun memories(n: Int): String =
-        plural(n, "воспоминание", "воспоминания", "воспоминаний")
+    fun memories(context: Context, n: Int): String =
+        WidgetText.plural(context, "memories", n, "воспоминание", "воспоминания", "воспоминаний")
 
-    /** год / года / лет — родительный падеж после числа: «до 6 лет» */
-    fun yearsGenitive(n: Int): String = plural(n, "года", "лет", "лет")
+    /** года / лет — после «до»: «до 6 лет» */
+    fun yearsGenitive(context: Context, n: Int): String =
+        WidgetText.plural(context, "yearsgen", n, "года", "лет", "лет")
 
-    /** год / года / лет — именительный: «6 лет вместе» */
-    fun years(n: Int): String = plural(n, "год", "года", "лет")
+    /** год / года / лет — «6 лет вместе» */
+    fun years(context: Context, n: Int): String =
+        WidgetText.plural(context, "years", n, "год", "года", "лет")
+
+    /** час / часа / часов */
+    fun hours(context: Context, n: Int): String =
+        WidgetText.plural(context, "hours", n, "час", "часа", "часов")
+
+    /** минута / минуты / минут */
+    fun minutes(context: Context, n: Int): String =
+        WidgetText.plural(context, "minutes", n, "минута", "минуты", "минут")
 
     /**
      * Порядковый номер года прописью: «ШЕСТОЙ ГОД ВМЕСТЕ» из хендофа.
      * Дальше десятого пара доходит редко, и там подпись становится числовой.
      */
-    fun yearOrdinal(n: Int): String {
-        val words = listOf(
-            "ПЕРВЫЙ", "ВТОРОЙ", "ТРЕТИЙ", "ЧЕТВЁРТЫЙ", "ПЯТЫЙ",
-            "ШЕСТОЙ", "СЕДЬМОЙ", "ВОСЬМОЙ", "ДЕВЯТЫЙ", "ДЕСЯТЫЙ",
+    fun yearOrdinal(context: Context, n: Int): String {
+        val words = WidgetText.list(
+            context, "year_ordinals",
+            listOf(
+                "ПЕРВЫЙ", "ВТОРОЙ", "ТРЕТИЙ", "ЧЕТВЁРТЫЙ", "ПЯТЫЙ",
+                "ШЕСТОЙ", "СЕДЬМОЙ", "ВОСЬМОЙ", "ДЕВЯТЫЙ", "ДЕСЯТЫЙ",
+            ),
         )
-        val word = words.getOrNull(n - 1) ?: "$n-Й"
-        return "$word ГОД ВМЕСТЕ"
+        val word = words.getOrNull(n - 1) ?: WidgetText.fmt(context, "year_nth", "{n}-Й", "n" to n)
+        return WidgetText.fmt(context, "year_together", "{w} ГОД ВМЕСТЕ", "w" to word)
     }
 
     /** Та же строка с заглавной: подпись начинается с неё, а не продолжает фразу. */
-    fun cap(s: String): String =
-        if (s.isEmpty()) s else s.substring(0, 1).uppercase() + s.substring(1)
-
-    private fun plural(n: Int, one: String, few: String, many: String): String {
-        val a = n % 100
-        val b = n % 10
-        return when {
-            a in 11..19 -> many
-            b == 1 -> one
-            b in 2..4 -> few
-            else -> many
-        }
-    }
+    fun cap(s: String): String = WidgetText.cap(s)
 }

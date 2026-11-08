@@ -37,19 +37,19 @@ enum PhotoWidgetKind {
 
     var emptyTitle: String {
         switch self {
-        case .mine: return "Моё фото"
-        case .partner: return "Фото партнёра"
-        case .day: return "Фото дня"
-        case .grid: return "Сетка фото"
+        case .mine: return WidgetText.get("my_photo", "Моё фото")
+        case .partner: return WidgetText.get("partner_photo", "Фото партнёра")
+        case .day: return WidgetText.get("photo_day", "Фото дня")
+        case .grid: return WidgetText.get("photo_grid", "Сетка фото")
         }
     }
 
     var emptyHint: String {
         switch self {
-        case .mine: return "Выберите фото в приложении"
-        case .partner: return "Партнёр ещё не поделился"
-        case .day: return "Нет воспоминаний"
-        case .grid: return "Соберите фото в приложении"
+        case .mine: return WidgetText.get("pick_photo", "Выберите фото в приложении")
+        case .partner: return WidgetText.get("partner_not_shared", "Партнёр ещё не поделился")
+        case .day: return WidgetText.get("no_memories", "Нет воспоминаний")
+        case .grid: return WidgetText.get("collect_photos", "Соберите фото в приложении")
         }
     }
 }

@@ -69,10 +69,11 @@ struct YearMath {
 /// «ПЕРВЫЙ ГОД ВМЕСТЕ». Дальше десятого пара доходит редко, там подпись
 /// становится числовой.
 func yearOrdinal(_ n: Int) -> String {
-    let words = ["ПЕРВЫЙ", "ВТОРОЙ", "ТРЕТИЙ", "ЧЕТВЁРТЫЙ", "ПЯТЫЙ",
-                 "ШЕСТОЙ", "СЕДЬМОЙ", "ВОСЬМОЙ", "ДЕВЯТЫЙ", "ДЕСЯТЫЙ"]
-    let word = (n >= 1 && n <= words.count) ? words[n - 1] : "\(n)-Й"
-    return "\(word) ГОД ВМЕСТЕ"
+    let words = WidgetText.list("year_ordinals", ["ПЕРВЫЙ", "ВТОРОЙ", "ТРЕТИЙ", "ЧЕТВЁРТЫЙ", "ПЯТЫЙ",
+                                                  "ШЕСТОЙ", "СЕДЬМОЙ", "ВОСЬМОЙ", "ДЕВЯТЫЙ", "ДЕСЯТЫЙ"])
+    let word = (n >= 1 && n <= words.count)
+        ? words[n - 1] : WidgetText.fmt("year_nth", "{n}-Й", ["n": n])
+    return WidgetText.fmt("year_together", "{w} ГОД ВМЕСТЕ", ["w": word])
 }
 
 /// Та же строка с заглавной: подпись начинается с неё, а не продолжает фразу.
@@ -82,12 +83,7 @@ func capitalizedFirst(_ s: String) -> String {
 }
 
 func monthsWord(_ n: Int) -> String {
-    let a = n % 100
-    let b = n % 10
-    if (11...19).contains(a) { return "месяцев" }
-    if b == 1 { return "месяц" }
-    if (2...4).contains(b) { return "месяца" }
-    return "месяцев"
+    WidgetText.plural("months", n, "месяц", "месяца", "месяцев")
 }
 
 private struct YearData {
@@ -149,21 +145,16 @@ enum YearRingFit {
 
 /// «12 мая» — день и месяц годовщины, то есть даты начала.
 func anniversaryDayMonth(startMs: Int) -> String {
-    let months = ["января", "февраля", "марта", "апреля", "мая", "июня",
-                  "июля", "августа", "сентября", "октября", "ноября", "декабря"]
+    let months = WidgetText.list("months_gen", ["января", "февраля", "марта", "апреля", "мая", "июня",
+                                                "июля", "августа", "сентября", "октября", "ноября", "декабря"])
     let date = Date(timeIntervalSince1970: Double(startMs) / 1000.0)
     let c = Calendar.current.dateComponents([.day, .month], from: date)
     guard let d = c.day, let m = c.month, (1...12).contains(m) else { return "" }
-    return "\(d) \(months[m - 1])"
+    return WidgetText.fmt("date_day_month", "{d} {m}", ["d": d, "m": months[m - 1]])
 }
 
 func memoriesWord(_ n: Int) -> String {
-    let a = n % 100
-    let b = n % 10
-    if (11...19).contains(a) { return "воспоминаний" }
-    if b == 1 { return "воспоминание" }
-    if (2...4).contains(b) { return "воспоминания" }
-    return "воспоминаний"
+    WidgetText.plural("memories", n, "воспоминание", "воспоминания", "воспоминаний")
 }
 
 private struct YearRingView: View {
@@ -174,7 +165,7 @@ private struct YearRingView: View {
         let t = WidgetTheme()
 
         if data.startMs <= 0 {
-            TgEmptyView(text: "Укажите дату начала — и кольцо оживёт", theme: t)
+            TgEmptyView(text: WidgetText.get("ring_empty", "Укажите дату начала — и кольцо оживёт"), theme: t)
         } else {
             let math = YearMath.from(startMs: data.startMs)
             if family == .systemSmall {
@@ -211,9 +202,10 @@ struct YearRingMedium: View {
                     / (CGFloat(leftNum.count) * YearRingFit.digitEm
                         + CGFloat(leftWord.count) * YearRingFit.letterEm * 0.375)
             )
-            let eyebrow = "До годовщины"
-            let date = anniversary.isEmpty ? "Годовщина" : "Годовщина \(anniversary)"
-            let monthsShort = "мес."
+            let eyebrow = WidgetText.get("until_anniv", "До годовщины")
+            let annivWord = WidgetText.get("anniv", "Годовщина")
+            let date = anniversary.isEmpty ? annivWord : "\(annivWord) \(anniversary)"
+            let monthsShort = WidgetText.get("months_short", "мес.")
             let memWord = memoriesWord(memories)
             let stats = "\(math.monthsCompleted) \(monthsShort)    \(memories) \(memWord)"
             let statsSize = YearRingFit.text(
@@ -225,7 +217,8 @@ struct YearRingMedium: View {
                     side: g.ring,
                     stroke: g.stroke,
                     maxNumber: 36 * g.k,
-                    caption: "\(capitalizedFirst(daysWord(math.daysTotal))) вместе",
+                    caption: capitalizedFirst(WidgetText.fmt(
+                        "together_word", "{w} вместе", ["w": daysWord(math.daysTotal)])),
                     captionSize: 11.5 * g.k,
                     t: t
                 )
@@ -322,7 +315,9 @@ struct YearRingSmall: View {
     var body: some View {
         GeometryReader { geo in
             let k = min(max(min(geo.size.width, geo.size.height) / 158, 0.7), 1.6)
-            let line = "Ещё \(math.daysToNextAnniversary) \(daysWord(math.daysToNextAnniversary))"
+            let line = WidgetText.fmt("more_days", "Ещё {n} {w}", [
+                "n": math.daysToNextAnniversary, "w": daysWord(math.daysToNextAnniversary),
+            ])
             let lineSize = YearRingFit.text(
                 base: max(11.5 * k, 9.5), chars: line.count, width: geo.size.width - 24 * k)
             VStack(spacing: 9 * k) {
@@ -501,7 +496,7 @@ private struct YearGridView: View {
         let t = WidgetTheme()
 
         if data.startMs <= 0 {
-            TgEmptyView(text: "Укажите дату начала — и календарь оживёт", theme: t)
+            TgEmptyView(text: WidgetText.get("grid_empty", "Укажите дату начала — и календарь оживёт"), theme: t)
         } else {
             let math = YearMath.from(startMs: data.startMs)
             HStack(alignment: .top, spacing: 14) {

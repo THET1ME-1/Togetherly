@@ -355,22 +355,77 @@ enum WidgetRenderLog {
 // «Обратный отсчёт» и «Кольцо года» по-прежнему считают дни в расширении и
 // без этих форм обойтись не могут.
 
-/// «день / дня / дней» — в русском без этого цифра выглядит машинной.
+/// «день / дня / дней» на языке приложения.
 func daysWord(_ n: Int) -> String {
-    let a = n % 100
-    let b = n % 10
-    if (11...19).contains(a) { return "дней" }
-    if b == 1 { return "день" }
-    if (2...4).contains(b) { return "дня" }
-    return "дней"
+    WidgetText.plural("days", n, "день", "дня", "дней")
 }
 
-/// «год / года / лет».
+/// «год / года / лет» на языке приложения.
 func yearsWord(_ n: Int) -> String {
-    let a = n % 100
-    let b = n % 10
-    if (11...19).contains(a) { return "лет" }
-    if b == 1 { return "год" }
-    if (2...4).contains(b) { return "года" }
-    return "лет"
+    WidgetText.plural("years", n, "год", "года", "лет")
+}
+
+// MARK: - Подписи на языке приложения
+
+/// Расширение живёт без Flutter и языка приложения не знает: подписи были
+/// зашиты по-русски и оставались русскими у человека с английским приложением
+/// (отзыв в App Store 19.08.2026). Приложение пишет строки ключами
+/// `wl_<ключ>` и код языка `wl_lang` (`lib/services/widget_labels.dart`).
+/// Пока не записало — прежний русский текст, он передаётся вторым аргументом.
+enum WidgetText {
+    /// Подпись [key] на языке приложения, без записи — [ru].
+    static func get(_ key: String, _ ru: String) -> String {
+        let value = Store().string("wl_\(key)")
+        return value.isEmpty ? ru : value
+    }
+
+    /// Подпись с подстановками `{имя}`.
+    static func fmt(_ key: String, _ ru: String, _ vars: [String: Any]) -> String {
+        var text = get(key, ru)
+        for (name, value) in vars {
+            text = text.replacingOccurrences(of: "{\(name)}", with: "\(value)")
+        }
+        return text
+    }
+
+    /// Список через запятую (месяцы, дни недели); без записи или не той длины — [ru].
+    static func list(_ key: String, _ ru: [String]) -> [String] {
+        let parts = get(key, "").split(separator: ",").map {
+            $0.trimmingCharacters(in: .whitespaces)
+        }
+        return parts.count == ru.count && parts.allSatisfy({ !$0.isEmpty }) ? parts : ru
+    }
+
+    /// Слово при числе [n]. Формы приложение пишет ключами `<key>_one/_few/_many`.
+    static func plural(_ key: String, _ n: Int, _ one: String, _ few: String, _ many: String) -> String {
+        let lang = Store().string("wl_lang")
+        let ru: String
+        switch pluralForm("ru", n) {
+        case "one": ru = one
+        case "few": ru = few
+        default: ru = many
+        }
+        let stored = Store().string("wl_\(key)_\(pluralForm(lang, n))")
+        return lang.isEmpty || stored.isEmpty ? ru : stored
+    }
+
+    /// Форма множественного числа: `one`, `few` или `many`.
+    static func pluralForm(_ lang: String, _ n: Int) -> String {
+        let value = abs(n)
+        switch lang {
+        case "", "ru", "uk":
+            let a = value % 100
+            let b = value % 10
+            if (11...19).contains(a) { return "many" }
+            if b == 1 { return "one" }
+            if (2...4).contains(b) { return "few" }
+            return "many"
+        case "fr":
+            return value <= 1 ? "one" : "many"
+        case "zh":
+            return "many"
+        default:
+            return value == 1 ? "one" : "many"
+        }
+    }
 }

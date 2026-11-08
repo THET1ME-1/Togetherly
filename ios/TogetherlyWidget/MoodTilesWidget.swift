@@ -53,17 +53,19 @@ private struct MoodTilesSmallView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("НАСТРОЕНИЕ")
+            Text(WidgetText.get("mood_caps", "НАСТРОЕНИЕ"))
                 .font(.system(size: 8, weight: .heavy))
                 .foregroundColor(t.onSurfaceVariant)
 
+            let me = WidgetText.get("me", "Я")
+            let notMarked = WidgetText.get("not_marked", "не отмечено")
             line(dot: data.myLabel.isEmpty ? t.outline : t.primary,
-                 text: data.myLabel.isEmpty ? "Я · не отмечено" : "Я · \(data.myLabel)")
+                 text: "\(me) · \(data.myLabel.isEmpty ? notMarked : data.myLabel)")
             line(dot: data.partnerLabel.isEmpty ? t.outline : t.avatarPartner,
                  text: {
-                     let name = data.partnerName.isEmpty ? "Партнёр" : data.partnerName
-                     return data.partnerLabel.isEmpty ? "\(name) · не отмечено"
-                                                      : "\(name) · \(data.partnerLabel)"
+                     let name = data.partnerName.isEmpty
+                         ? WidgetText.get("partner", "Партнёр") : data.partnerName
+                     return "\(name) · \(data.partnerLabel.isEmpty ? notMarked : data.partnerLabel)"
                  }())
 
             Spacer(minLength: 0)
@@ -111,17 +113,19 @@ private struct MoodTilesMediumView: View {
     let data: MoodTilesData
     let t: WidgetTheme
 
-    private let dayNames = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+    private var dayNames: [String] {
+        WidgetText.list("weekdays", ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"])
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("НАСТРОЕНИЕ ЗА НЕДЕЛЮ")
+                Text(WidgetText.get("mood_week_caps", "НАСТРОЕНИЕ ЗА НЕДЕЛЮ"))
                     .font(.system(size: 8, weight: .heavy))
                     .foregroundColor(t.onSurfaceVariant)
                 Spacer()
                 if data.matched > 0 {
-                    Text("совпало \(data.matched) из 7")
+                    Text(WidgetText.fmt("matched", "совпало {n} из 7", ["n": data.matched]))
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundColor(t.outline)
                 }
@@ -154,9 +158,9 @@ private struct MoodTilesMediumView: View {
             // `loveapp://mood?id=<id>`, и запись идёт там. Фонового исполнения
             // у виджетов iOS нет, обещать отправку «без открытия» нельзя.
             HStack(spacing: 8) {
-                pick(id: moodGood, symbol: "😊", label: "хорошо")
-                pick(id: moodOk, symbol: "😐", label: "нормально")
-                pick(id: moodBad, symbol: "😔", label: "тяжело")
+                pick(id: moodGood, symbol: "😊", label: WidgetText.get("mood_good", "хорошо"))
+                pick(id: moodOk, symbol: "😐", label: WidgetText.get("mood_ok", "нормально"))
+                pick(id: moodBad, symbol: "😔", label: WidgetText.get("mood_bad", "тяжело"))
             }
         }
         .padding(14)

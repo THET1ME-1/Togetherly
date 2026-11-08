@@ -85,7 +85,7 @@ private struct NoteCardView: View {
             data: data,
             textColor: t.onPrimaryContainer,
             captionColor: t.onContainerSoft,
-            placeholder: "Нажмите, чтобы написать друг другу"
+            placeholder: WidgetText.get("note_tap_long", "Нажмите, чтобы написать друг другу")
         )
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -122,7 +122,7 @@ private struct NotePaperView: View {
                 data: data,
                 textColor: ink,
                 captionColor: pencil,
-                placeholder: "Нажмите, чтобы написать друг другу"
+                placeholder: WidgetText.get("note_tap_long", "Нажмите, чтобы написать друг другу")
             )
             .padding(16)
 

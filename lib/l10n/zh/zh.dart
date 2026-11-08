@@ -31,6 +31,7 @@ import 'small_d.dart';
 import 'launch_splash.dart';
 import 'stickers.dart';
 import 'widget_screen.dart';
+import 'home_widgets.dart';
 import 'hour_ranks.dart';
 import 'login_methods.dart';
 import 'chat_pins.dart';
@@ -54,6 +55,7 @@ const Map<String, String> kZhStrings = {
   ...profileZh,
   ...memoryLaneZh,
   ...widgetScreenZh,
+  ...homeWidgetsZh,
   ...stickersZh,
   ...launchSplashZh,
   ...chatAZh,

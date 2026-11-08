@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Textos em português do seletor de widgets (idioma do telefone). Os textos
+     nos widgets seguem o idioma do app (WidgetText). -->
+<resources>
+    <string name="tg_desc_together_2x2">Dias juntos e os avatares de vocês</string>
+    <string name="tg_desc_together_4x2">Dias juntos e progresso até a data redonda</string>
+    <string name="tg_desc_together_4x4">Dias juntos e as próximas datas de vocês</string>
+    <string name="tg_desc_note_2x2">Nota compartilhada: um escreve, o outro vê</string>
+    <string name="tg_desc_note_4x2">Nota compartilhada para dois, algumas linhas</string>
+    <string name="tg_desc_note_4x4">Nota compartilhada para dois, uma lista inteira</string>
+    <string name="tg_note_empty">Toque para escrever</string>
+    <string name="tg_note_editor_title">Nota para dois</string>
+    <string name="tg_note_hint">O que escrever?</string>
+    <string name="tg_note_cancel">Cancelar</string>
+    <string name="tg_note_save">Salvar</string>
+    <string name="tg_desc_miss_2x2">Enviar “saudade” com um toque</string>
+    <string name="tg_desc_miss_4x2">Os contadores de “saudade” dos dois e um botão</string>
+    <string name="tg_desc_miss_4x1">Faixa: enviar “saudade”</string>
+    <string name="tg_desc_mood_2x2">O humor dos dois e marcar com um toque</string>
+    <string name="tg_desc_mood_4x2">A semana de humor de vocês</string>
+    <string name="tg_desc_countdown_2x2">Quantos dias até vocês se verem</string>
+    <string name="tg_desc_countdown_4x2">Até se verem: dias, horas e minutos</string>
+    <string name="tg_desc_ring_2x2">Anel do ano: dias juntos e o caminho até o aniversário</string>
+    <string name="tg_desc_ring_4x2">Anel do ano, contadores e data do aniversário</string>
+    <string name="tg_desc_grid_2x2">Calendário dos anos: um ponto é um mês, uma linha é um ano</string>
+    <string name="tg_desc_grid_4x2">Calendário dos anos e contagem até o aniversário</string>
+    <string name="tg_widget_no_start_date">Defina a data de início</string>
+    <string name="tg_map_label">Onde estamos: um mapa para dois</string>
+    <string name="tg_desc_map_2x2">Vocês dois e a distância entre vocês</string>
+    <string name="tg_desc_map_4x2">Mapa para dois: arco, distância e quando seu par esteve lá</string>
+    <string name="tg_desc_map_4x4">Mapa com a região e quem está onde: bairros e hora</string>
+    <string name="tg_desc_mascot_4x1">O mascote de vocês em faixa: nome, estágio e sequência</string>
+    <string name="tg_desc_mascot_2x2">O mascote de vocês e a barra até o próximo estágio</string>
+    <string name="tg_desc_mascot_4x2">O mascote de vocês, sequência e barra de crescimento</string>
+    <string name="tg_desc_mascot_4x4">O mascote de vocês em tela cheia: sequência, crescimento e recorde</string>
+    <string name="tg_mascot_empty">Escolha um mascote no app</string>
+    <string name="tg_desc_canvas_2x2">O desenho de vocês, quadrado</string>
+    <string name="tg_desc_canvas_2x3">O desenho de vocês, a folha inteira</string>
+    <string name="tg_desc_canvas_4x4">O desenho de vocês na linha toda</string>
+    <string name="tg_canvas_empty">Desenhem algo juntos</string>
+    <string name="tg_canvas_pick_title">Qual desenho mostrar</string>
+    <string name="tg_canvas_pick_subtitle">Toque em uma tela para colocá-la na tela inicial</string>
+    <string name="tg_canvas_pick_empty">Ainda não há desenhos. Abra o Togetherly e desenhe o primeiro.</string>
+    <string name="tg_canvas_unnamed">Sem título</string>
+    <string name="love_hint_fail_title">A foto não carregou</string>
+    <string name="love_hint_fail_sub">Toque para atualizar</string>
+    <string name="love_hint_own_title">Adicione uma foto e o seu humor</string>
+    <string name="love_hint_own_sub">Toque no widget</string>
+    <string name="love_hint_partner_title">Seu par ainda não colocou nada</string>
+    <string name="love_hint_partner_sub">A foto e o humor dele aparecerão aqui</string>
+    <string name="widget_description">Status, humor e mensagens compartilhados para você e seu par</string>
+    <string name="petal_timer_widget_description">Timer de pétalas: anos, meses, dias, horas, minutos, segundos</string>
+</resources>

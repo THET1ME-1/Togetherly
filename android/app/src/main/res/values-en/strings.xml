@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- English widget picker texts. The picker shows them in the phone's
+     language; texts on the widgets themselves follow the app language
+     (WidgetText, lib/services/widget_labels.dart). -->
+<resources>
+    <string name="tg_desc_together_2x2">Days together and your avatars</string>
+    <string name="tg_desc_together_4x2">Days together and progress to the next milestone</string>
+    <string name="tg_desc_together_4x4">Days together and your upcoming dates</string>
+    <string name="tg_desc_note_2x2">Shared note: one writes, the other sees</string>
+    <string name="tg_desc_note_4x2">Shared note for two, a couple of lines</string>
+    <string name="tg_desc_note_4x4">Shared note for two, a whole list</string>
+    <string name="tg_note_empty">Tap to write</string>
+    <string name="tg_note_editor_title">Note for two</string>
+    <string name="tg_note_hint">What to write?</string>
+    <string name="tg_note_cancel">Cancel</string>
+    <string name="tg_note_save">Save</string>
+    <string name="tg_desc_miss_2x2">Send “miss you” with one tap</string>
+    <string name="tg_desc_miss_4x2">Both “miss you” counters and a button</string>
+    <string name="tg_desc_miss_4x1">Strip: send “miss you”</string>
+    <string name="tg_desc_mood_2x2">Both moods and logging with one tap</string>
+    <string name="tg_desc_mood_4x2">Your week of moods</string>
+    <string name="tg_desc_countdown_2x2">How many days until you meet</string>
+    <string name="tg_desc_countdown_4x2">Until you meet: days, hours and minutes</string>
+    <string name="tg_desc_ring_2x2">Year ring: days together and the way to your anniversary</string>
+    <string name="tg_desc_ring_4x2">Year ring, counters and anniversary date</string>
+    <string name="tg_desc_grid_2x2">Years calendar: a dot is a month, a row is a year</string>
+    <string name="tg_desc_grid_4x2">Years calendar and countdown to your anniversary</string>
+    <string name="tg_widget_no_start_date">Set your start date</string>
+    <string name="tg_map_label">Where we are: a map for two</string>
+    <string name="tg_desc_map_2x2">You two and the distance between you</string>
+    <string name="tg_desc_map_4x2">Map for two: arc, distance and when your partner was there</string>
+    <string name="tg_desc_map_4x4">Map with the area and who is where: districts and time</string>
+    <string name="tg_desc_mascot_4x1">Your mascot as a strip: name, stage and streak</string>
+    <string name="tg_desc_mascot_2x2">Your mascot and progress to the next stage</string>
+    <string name="tg_desc_mascot_4x2">Your mascot, streak and growth bar</string>
+    <string name="tg_desc_mascot_4x4">Your mascot full screen: streak, growth and record</string>
+    <string name="tg_mascot_empty">Pick a mascot in the app</string>
+    <string name="tg_desc_canvas_2x2">Your shared drawing, square</string>
+    <string name="tg_desc_canvas_2x3">Your shared drawing, whole sheet</string>
+    <string name="tg_desc_canvas_4x4">Your shared drawing across the row</string>
+    <string name="tg_canvas_empty">Draw something together</string>
+    <string name="tg_canvas_pick_title">Which drawing to show</string>
+    <string name="tg_canvas_pick_subtitle">Tap a canvas to put it on your home screen</string>
+    <string name="tg_canvas_pick_empty">No drawings yet. Open Togetherly and draw the first one.</string>
+    <string name="tg_canvas_unnamed">Untitled</string>
+    <string name="love_hint_fail_title">Photo didn’t load</string>
+    <string name="love_hint_fail_sub">Tap to refresh</string>
+    <string name="love_hint_own_title">Add a photo and mood</string>
+    <string name="love_hint_own_sub">Tap the widget</string>
+    <string name="love_hint_partner_title">Nothing from your partner yet</string>
+    <string name="love_hint_partner_sub">Their photo and mood will appear here</string>
+    <string name="widget_description">Shared status, mood and messages for you and your partner</string>
+    <string name="petal_timer_widget_description">Live petal timer: years, months, days, hours, minutes, seconds</string>
+</resources>

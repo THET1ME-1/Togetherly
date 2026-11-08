@@ -114,12 +114,13 @@ open class NoteWidgetProvider : HomeWidgetProvider() {
                 tint(R.id.head_chip, theme.primaryContainer)
                 tint(R.id.head_icon, theme.onPrimaryContainer)
                 setTextColor(R.id.head_title, faded)
+                setTextViewText(R.id.head_title, WidgetText.get(context, "note_caps", "ЗАМЕТКА"))
             }
 
             val empty = text.isBlank()
             setTextViewText(
                 R.id.note_text,
-                if (empty) context.getString(R.string.tg_note_empty) else text,
+                if (empty) WidgetText.get(context, "note_tap", context.getString(R.string.tg_note_empty)) else text,
             )
             setTextColor(R.id.note_text, if (empty) faded else ink)
             setTextViewTextSize(

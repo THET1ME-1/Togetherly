@@ -408,7 +408,7 @@ struct TogetherWidgetView: View {
         let t = WidgetTheme()
 
         if data.isEmpty {
-            TgEmptyView(text: "Откройте Togetherly, чтобы виджет ожил", theme: t)
+            TgEmptyView(text: WidgetText.get("together_empty", "Откройте Togetherly, чтобы виджет ожил"), theme: t)
         } else {
             switch family {
             case .systemSmall: TogetherSmallView(data: data, t: t)

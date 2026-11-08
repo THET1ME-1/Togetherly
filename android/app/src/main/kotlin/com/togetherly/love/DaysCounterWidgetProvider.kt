@@ -115,7 +115,7 @@ class DaysCounterWidgetProvider : HomeWidgetProvider() {
                 // отсутствие ключа — виджет, добавленный до обновления.
                 val caption = if (g.isEmpty()) null
                               else widgetData.getString("days_${g}_caption", null)
-                val yearsText = caption ?: legacyYearsText(totalDays)
+                val yearsText = caption ?: legacyYearsText(context, totalDays)
                 setTextViewText(R.id.years_label, yearsText)
                 setViewVisibility(
                     R.id.years_label,
@@ -124,7 +124,7 @@ class DaysCounterWidgetProvider : HomeWidgetProvider() {
 
                 // ── Дни и дата ──
                 setTextViewText(R.id.days_number, totalDays.toString())
-                setTextViewText(R.id.days_label_text, "дней") // Или "Days" как в фото
+                setTextViewText(R.id.days_label_text, WidgetWords.days(context, totalDays))
                 setTextViewText(R.id.start_date, startDate)
 
                 // ── Совместимость (скрытые поля) ──
@@ -147,14 +147,13 @@ class DaysCounterWidgetProvider : HomeWidgetProvider() {
      * готовую строку от приложения. Прежние слова, но без «0 лет уже» — у пары
      * младше года строка просто молчит.
      */
-    private fun legacyYearsText(totalDays: Int): String {
+    private fun legacyYearsText(context: Context, totalDays: Int): String {
         val years = totalDays / 365
         if (years < 1) return ""
-        return when {
-            years % 10 == 1 && years % 100 != 11 -> "$years год уже ❤️"
-            years % 10 in 2..4 && (years % 100 < 10 || years % 100 >= 20) -> "$years года уже ❤️"
-            else -> "$years лет уже ❤️"
-        }
+        return WidgetText.fmt(
+            context, "years_already", "{n} {w} уже ❤️",
+            "n" to years, "w" to WidgetWords.years(context, years),
+        )
     }
 
     /**

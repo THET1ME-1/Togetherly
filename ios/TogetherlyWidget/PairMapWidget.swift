@@ -92,7 +92,7 @@ private struct PairMapWidgetView: View {
                     Image(systemName: "heart.circle.fill")
                         .font(.system(size: 28, weight: .semibold))
                         .foregroundColor(theme.primary)
-                    Text("Откройте Togetherly — карта нарисуется")
+                    Text(WidgetText.get("map_empty", "Откройте Togetherly — карта нарисуется"))
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(theme.onSurfaceVariant)
                         .multilineTextAlignment(.center)

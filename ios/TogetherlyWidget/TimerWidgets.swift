@@ -71,7 +71,7 @@ struct TimerWidgetView: View {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 5) {
                     TimerThemeIcon(romantic: t.isRomantic).frame(width: 14, height: 14)
-                    Text(t.title.isEmpty ? "Таймер" : t.title)
+                    Text(t.title.isEmpty ? WidgetText.get("timer", "Таймер") : t.title)
                         .font(.system(size: 10))
                         .foregroundColor(theme.title)
                         .lineLimit(1)
@@ -83,7 +83,9 @@ struct TimerWidgetView: View {
                     .minimumScaleFactor(18.0 / 46.0)
                     .lineLimit(1)
                     .padding(.top, 2)
-                Text(t.isCountdown ? "дней осталось" : "дней вместе")
+                Text(t.isCountdown
+                     ? WidgetText.get("days_left", "дней осталось")
+                     : WidgetText.get("days_together", "дней вместе"))
                     .font(.system(size: 11))
                     .foregroundColor(theme.label)
                     .lineLimit(1)

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Українські тексти каталогу віджетів. Каталог показує їх мовою телефона;
+     написи на самих віджетах ідуть мовою застосунку (WidgetText,
+     lib/services/widget_labels.dart). -->
+<resources>
+    <string name="tg_desc_together_2x2">Дні разом і аватари пари</string>
+    <string name="tg_desc_together_4x2">Дні разом і прогрес до круглої дати</string>
+    <string name="tg_desc_together_4x4">Дні разом і найближчі дати пари</string>
+    <string name="tg_desc_note_2x2">Спільна нотатка: пише один — бачить другий</string>
+    <string name="tg_desc_note_4x2">Спільна нотатка на двох, кілька рядків</string>
+    <string name="tg_desc_note_4x4">Спільна нотатка на двох, цілий список</string>
+    <string name="tg_note_empty">Натисніть, щоб написати</string>
+    <string name="tg_note_editor_title">Нотатка на двох</string>
+    <string name="tg_note_hint">Що написати?</string>
+    <string name="tg_note_cancel">Скасувати</string>
+    <string name="tg_note_save">Зберегти</string>
+    <string name="tg_desc_miss_2x2">Надіслати «сумую» одним дотиком</string>
+    <string name="tg_desc_miss_4x2">Лічильники «сумую» обох і кнопка</string>
+    <string name="tg_desc_miss_4x1">Смужка: надіслати «сумую»</string>
+    <string name="tg_desc_mood_2x2">Настрій обох і відмітка одним дотиком</string>
+    <string name="tg_desc_mood_4x2">Тиждень настроїв пари</string>
+    <string name="tg_desc_countdown_2x2">Скільки днів до зустрічі</string>
+    <string name="tg_desc_countdown_4x2">До зустрічі: дні, години й хвилини</string>
+    <string name="tg_desc_ring_2x2">Кільце року: дні разом і шлях до річниці</string>
+    <string name="tg_desc_ring_4x2">Кільце року, лічильники й дата річниці</string>
+    <string name="tg_desc_grid_2x2">Календар років: крапка — місяць, ряд — рік</string>
+    <string name="tg_desc_grid_4x2">Календар років і зворотний відлік до річниці</string>
+    <string name="tg_widget_no_start_date">Вкажіть дату початку</string>
+    <string name="tg_map_label">Де ми — карта на двох</string>
+    <string name="tg_desc_map_2x2">Ви двоє і відстань між вами</string>
+    <string name="tg_desc_map_4x2">Карта на двох: дуга, відстань і коли партнер був на місці</string>
+    <string name="tg_desc_map_4x4">Карта з околицею і хто де: райони й час</string>
+    <string name="tg_desc_mascot_4x1">Персонаж пари смужкою: ім’я, ступінь і серія</string>
+    <string name="tg_desc_mascot_2x2">Персонаж пари і смуга до наступного ступеня</string>
+    <string name="tg_desc_mascot_4x2">Персонаж пари, серія і смуга росту</string>
+    <string name="tg_desc_mascot_4x4">Персонаж пари на весь екран: серія, ріст і рекорд</string>
+    <string name="tg_mascot_empty">Виберіть маскота в застосунку</string>
+    <string name="tg_desc_canvas_2x2">Спільний малюнок пари, квадратом</string>
+    <string name="tg_desc_canvas_2x3">Спільний малюнок пари, аркуш цілком</string>
+    <string name="tg_desc_canvas_4x4">Спільний малюнок пари на весь ряд</string>
+    <string name="tg_canvas_empty">Намалюйте щось удвох</string>
+    <string name="tg_canvas_pick_title">Який малюнок показувати</string>
+    <string name="tg_canvas_pick_subtitle">Натисніть на полотно, і воно стане на стіл</string>
+    <string name="tg_canvas_pick_empty">Малюнків поки немає. Відкрийте Togetherly і намалюйте перший.</string>
+    <string name="tg_canvas_unnamed">Без назви</string>
+    <string name="love_hint_fail_title">Фото не завантажилося</string>
+    <string name="love_hint_fail_sub">Натисніть, щоб оновити</string>
+    <string name="love_hint_own_title">Додайте фото й настрій</string>
+    <string name="love_hint_own_sub">Натисніть на віджет</string>
+    <string name="love_hint_partner_title">У партнера поки порожньо</string>
+    <string name="love_hint_partner_sub">Фото й настрій з’являться тут</string>
+    <string name="widget_description">Спільний статус, настрій і повідомлення для вас і партнера</string>
+    <string name="petal_timer_widget_description">Живий пелюстковий таймер — роки, місяці, дні, години, хвилини, секунди</string>
+</resources>

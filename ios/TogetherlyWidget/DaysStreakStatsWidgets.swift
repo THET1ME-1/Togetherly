@@ -11,12 +11,7 @@ import UIKit
 private func legacyYearsText(_ totalDays: Int) -> String {
     let years = totalDays / 365
     if years < 1 { return "" }
-    let n100 = years % 100, n10 = years % 10
-    let word: String
-    if n10 == 1 && n100 != 11 { word = "год" }
-    else if (2...4).contains(n10) && (n100 < 10 || n100 >= 20) { word = "года" }
-    else { word = "лет" }
-    return "\(years) \(word) уже ❤️"
+    return WidgetText.fmt("years_already", "{n} {w} уже ❤️", ["n": years, "w": yearsWord(years)])
 }
 
 struct DaysCounterWidgetView: View {
@@ -98,7 +93,7 @@ struct DaysCounterWidgetView: View {
                     .font(.system(size: 36 * k, weight: .bold))
                     .widgetAccentable()
                     .foregroundColor(brown)
-                Text("дней")
+                Text(daysWord(count))
                     .font(.system(size: 14 * k, weight: .bold))
                     .foregroundColor(brown)
                     .padding(.top, -2)
@@ -137,12 +132,7 @@ struct DaysCounterWidget: Widget {
 
 // MARK: - Огонёк пары / серия (дизайн 1:1 с Android streak_widget.xml)
 
-private func pluralDays(_ n: Int) -> String {
-    let n100 = n % 100, n10 = n % 10
-    if n10 == 1 && n100 != 11 { return "день" }
-    if (2...4).contains(n10) && (n100 < 10 || n100 >= 20) { return "дня" }
-    return "дней"
-}
+private func pluralDays(_ n: Int) -> String { daysWord(n) }
 
 private func streakAlive(lastDate: String) -> Bool {
     guard !lastDate.isEmpty else { return false }
@@ -166,10 +156,12 @@ struct StreakWidgetView: View {
         let warm = alive && days > 0
 
         let sub: String = {
-            if !warm { return "Зайдите вдвоём сегодня" }
-            if record > days { return "Рекорд: \(record) \(pluralDays(record))" }
-            if days >= 7 { return "Так держать! 🔥" }
-            return "Заходите каждый день"
+            if !warm { return WidgetText.get("streak_come", "Зайдите вдвоём сегодня") }
+            if record > days {
+                return WidgetText.fmt("streak_record", "Рекорд: {n} {w}", ["n": record, "w": pluralDays(record)])
+            }
+            if days >= 7 { return WidgetText.get("streak_keep", "Так держать! 🔥") }
+            return WidgetText.get("streak_daily", "Заходите каждый день")
         }()
 
         let gradient = warm
@@ -191,7 +183,7 @@ struct StreakWidgetView: View {
             HStack(spacing: 12) {
                 StreakFlame(warm: warm).frame(width: 64, height: 64)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("СЕРИЯ ВМЕСТЕ")
+                    Text(WidgetText.get("streak_caps", "СЕРИЯ ВМЕСТЕ"))
                         .font(.system(size: 10, weight: .bold))
                         .foregroundColor(Color.white.opacity(0.9))
                         .lineLimit(1)
@@ -201,7 +193,7 @@ struct StreakWidgetView: View {
                         .foregroundColor(.white)
                         .minimumScaleFactor(20.0 / 46.0)
                         .lineLimit(1)
-                    Text("\(pluralDays(days)) подряд")
+                    Text(WidgetText.fmt("in_a_row", "{w} подряд", ["w": pluralDays(days)]))
                         .font(.system(size: 12, weight: .bold))
                         .foregroundColor(Color.white.opacity(0.95))
                         .lineLimit(1)

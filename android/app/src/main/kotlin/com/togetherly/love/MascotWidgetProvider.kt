@@ -201,7 +201,10 @@ open class MascotWidgetProvider : HomeWidgetProvider() {
         // пустой плиткой — иначе человек решит, что он не добавился.
         views.setViewVisibility(R.id.empty_label, if (hasMascot) View.GONE else View.VISIBLE)
         if (!hasMascot) {
-            views.setTextViewText(R.id.empty_label, context.getString(R.string.tg_mascot_empty))
+            views.setTextViewText(
+                R.id.empty_label,
+                WidgetText.get(context, "mascot_empty", context.getString(R.string.tg_mascot_empty)),
+            )
             views.setTextColor(R.id.empty_label, theme.onSurfaceVariant)
             views.setOnClickPendingIntent(R.id.widget_root, openApp(context))
             return views

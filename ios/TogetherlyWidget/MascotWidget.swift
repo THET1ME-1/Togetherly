@@ -181,7 +181,7 @@ private struct MascotEmptyView: View {
             Image(systemName: "pawprint.circle.fill")
                 .font(.system(size: 26, weight: .semibold))
                 .foregroundColor(theme.primary)
-            Text("Выберите маскота в приложении")
+            Text(WidgetText.get("mascot_empty", "Выберите маскота в приложении"))
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(theme.onSurfaceVariant)
                 .multilineTextAlignment(.center)

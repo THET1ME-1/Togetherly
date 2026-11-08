@@ -83,7 +83,7 @@ open class YearRingWidgetProvider : HomeWidgetProvider() {
         val daysLeft = m?.daysToNextAnniversary ?: 0
         val months = m?.monthsCompleted ?: 0
         val anniversary = m?.let {
-            YearMath.dayMonth(it.nextAnniversaryDay, it.nextAnniversaryMonth)
+            YearMath.dayMonth(context, it.nextAnniversaryDay, it.nextAnniversaryMonth)
         }.orEmpty()
 
         val options = manager.getAppWidgetOptions(widgetId)
@@ -118,12 +118,16 @@ open class YearRingWidgetProvider : HomeWidgetProvider() {
                 ),
             )
             setTextColor(R.id.empty_label, soft)
+            setTextViewText(
+                R.id.empty_label,
+                WidgetText.get(context, "ring_empty", context.getString(R.string.tg_widget_no_start_date)),
+            )
 
             if (small) {
-                renderSmall(this, w, h, px, theme, soft, progress, days, daysLeft)
+                renderSmall(context, this, w, h, px, theme, soft, progress, days, daysLeft)
             } else {
                 renderMedium(
-                    this, w, h, px, theme, soft, progress,
+                    context, this, w, h, px, theme, soft, progress,
                     days, daysLeft, months, memories, anniversary,
                 )
             }
@@ -147,6 +151,7 @@ open class YearRingWidgetProvider : HomeWidgetProvider() {
      * в точках ячейки 338×158, умноженные на [k] под фактическую ячейку.
      */
     private fun renderMedium(
+        context: Context,
         v: RemoteViews,
         w: Float,
         h: Float,
@@ -191,19 +196,21 @@ open class YearRingWidgetProvider : HomeWidgetProvider() {
         setTextViewText(R.id.ring_days, number)
         setTextColor(R.id.ring_days, on)
         size(R.id.ring_days, numberSize(inner, number.length, 36f * k))
-        val caption = "${WidgetWords.cap(WidgetWords.days(days))} вместе"
+        val caption = WidgetText.cap(
+            WidgetText.fmt(context, "together_word", "{w} вместе", "w" to WidgetWords.days(context, days)),
+        )
         setTextViewText(R.id.ring_days_word, caption)
         setTextColor(R.id.ring_days_word, soft)
         size(R.id.ring_days_word, fitText(11.5f * k, caption.length, inner * 0.86f))
         setViewPadding(R.id.ring_days_word, 0, dp(3f * k, px), 0, 0)
 
-        val eyebrow = "До годовщины"
+        val eyebrow = WidgetText.get(context, "until_anniv", "До годовщины")
         setTextViewText(R.id.year_label, eyebrow)
         setTextColor(R.id.year_label, soft)
         size(R.id.year_label, fitText(maxOf(11f * k, 9f), eyebrow.length, right))
 
         val leftNum = daysLeft.toString()
-        val leftWord = WidgetWords.days(daysLeft)
+        val leftWord = WidgetWords.days(context, daysLeft)
         // Число и слово в 0.375 его кегля делят строку, между ними 6 точек.
         val countSize = minOf(
             40f * k,
@@ -217,7 +224,8 @@ open class YearRingWidgetProvider : HomeWidgetProvider() {
         size(R.id.left_word, countSize * 0.375f)
         setViewPadding(R.id.left_word, dp(6f * k, px), 0, 0, 0)
 
-        val date = listOf("Годовщина", anniversary).filter { it.isNotEmpty() }.joinToString(" ")
+        val date = listOf(WidgetText.get(context, "anniv", "Годовщина"), anniversary)
+            .filter { it.isNotEmpty() }.joinToString(" ")
         setTextViewText(R.id.next_date, date)
         setTextColor(R.id.next_date, soft)
         size(R.id.next_date, fitText(maxOf(12f * k, 9.5f), date.length, right))
@@ -226,8 +234,8 @@ open class YearRingWidgetProvider : HomeWidgetProvider() {
         tint(R.id.divider, WidgetImages.alpha(on, HAIRLINE_ALPHA))
         setViewPadding(R.id.divider_box, 0, dp(10f * k, px), 0, dp(8f * k, px))
 
-        val monthsWord = "мес."
-        val memoriesWord = WidgetWords.memories(memories)
+        val monthsWord = WidgetText.get(context, "months_short", "мес.")
+        val memoriesWord = WidgetWords.memories(context, memories)
         val stats = "$months $monthsWord    $memories $memoriesWord"
         val statsSize = fitText(maxOf(12.5f * k, 9.5f), stats.length, right)
         setTextViewText(R.id.stat_months_value, months.toString())
@@ -248,6 +256,7 @@ open class YearRingWidgetProvider : HomeWidgetProvider() {
 
     /** 2×2: кольцо сверху, под ним сколько осталось до годовщины. */
     private fun renderSmall(
+        context: Context,
         v: RemoteViews,
         w: Float,
         h: Float,
@@ -262,7 +271,10 @@ open class YearRingWidgetProvider : HomeWidgetProvider() {
         val ring = ringDp(112f * k, px)
         val stroke = 10f * k
         val on = theme.onPrimary
-        val line = "Ещё $daysLeft ${WidgetWords.days(daysLeft)}"
+        val line = WidgetText.fmt(
+            context, "more_days", "Ещё {n} {w}",
+            "n" to daysLeft, "w" to WidgetWords.days(context, daysLeft),
+        )
         val lineSize = fitText(maxOf(11.5f * k, 9.5f), line.length, w - 24f * k)
         val lineGap = 9f * k
 
@@ -285,7 +297,7 @@ open class YearRingWidgetProvider : HomeWidgetProvider() {
         setTextViewText(R.id.ring_days, number)
         setTextColor(R.id.ring_days, on)
         size(R.id.ring_days, numberSize(inner, number.length, 34f * k))
-        val caption = WidgetWords.cap(WidgetWords.days(days))
+        val caption = WidgetWords.cap(WidgetWords.days(context, days))
         setTextViewText(R.id.ring_days_word, caption)
         setTextColor(R.id.ring_days_word, soft)
         size(R.id.ring_days_word, fitText(11f * k, caption.length, inner * 0.86f))
