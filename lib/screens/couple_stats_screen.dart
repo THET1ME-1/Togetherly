@@ -1048,6 +1048,8 @@ class _CoupleStatsScreenState extends State<CoupleStatsScreen> {
                   spots: spots(src),
                   isCurved: true,
                   curveSmoothness: 0.2,
+                  // Кривая не выезжает за 5 и под 1 между точками.
+                  preventCurveOverShooting: true,
                   color: color,
                   barWidth: 2.5,
                   dotData: const FlDotData(show: false),

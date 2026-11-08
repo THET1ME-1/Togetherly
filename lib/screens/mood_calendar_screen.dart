@@ -4,11 +4,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../theme/fonts.dart';
 import 'package:flutter/services.dart';
-import 'package:fl_chart/fl_chart.dart';
 import '../widgets/mood/mood_year_sheet.dart';
 import '../models/cycle_entry.dart';
 import '../models/memory.dart';
 import '../models/mood_entry.dart';
+import '../models/mood_trend.dart';
 import '../services/custom_mood_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/ui_prefs.dart';
@@ -33,6 +33,7 @@ import '../utils/cycle_math.dart';
 import '../widgets/cycle/cycle_tips_strip.dart';
 import '../widgets/cycle_analytics.dart';
 import '../widgets/mood/mood_ring_stats.dart';
+import '../widgets/mood/mood_trend_chart.dart';
 import '../widgets/mood_image.dart';
 import 'home/widgets/day_log_sheet.dart';
 
@@ -852,7 +853,11 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
         ),
         const SizedBox(height: 16),
         if (stats.isNotEmpty)
-          MoodRingStats(counts: stats, scheme: Theme.of(context).colorScheme),
+          MoodRingStats(
+            counts: stats,
+            images: moodImagesOf(entries),
+            scheme: Theme.of(context).colorScheme,
+          ),
         const SizedBox(height: 16),
         // Аналитика считает день одним настроением — последним за день.
         if (entries.isNotEmpty)
@@ -1455,18 +1460,16 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
       }
     });
     final topMood = topMoodId != null ? MoodOption.byId(topMoodId!) : null;
+    // Картинка — из самих отметок: в паках названия общие, и по названию
+    // нашёлся бы смайл стандартного пака вместо выбранного котика.
+    final topMoodImage = topMoodId != null ? moodImagesOf(entries)[topMoodId!] : null;
 
-    final spots = <FlSpot>[];
-    for (int i = 0; i < sortedDays.length; i++) {
-      final day = sortedDays[i];
-      final dayEntries = byDay[day]!;
-      final dayAvg =
-          dayEntries.map((e) => e.score).reduce((a, b) => a + b) /
-              dayEntries.length;
-      spots.add(FlSpot(i.toDouble(), dayAvg));
-    }
-
-    final labelInterval = (sortedDays.length / 6).ceil().toDouble();
+    // За долгий период дни складываются в недели и месяцы: 63 точки за
+    // полгода налезали друг на друга.
+    final points = moodTrendPoints({
+      for (final day in sortedDays)
+        day: byDay[day]!.map((e) => e.score).reduce((a, b) => a + b) / byDay[day]!.length,
+    });
 
     String avgText;
     final numAvg = totalScore / entries.length;
@@ -1541,136 +1544,18 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
               const SizedBox(width: 8),
               Expanded(
                   child: _moodStatTile(
-                      scheme, topMood, ruEn('Чаще всего', 'Most often'))),
+                      scheme, topMood, ruEn('Чаще всего', 'Most often'),
+                      image: topMoodImage)),
             ],
           ),
           const SizedBox(height: 16),
           SizedBox(
             height: 128,
-            child: sortedDays.length > 1
-                ? LineChart(
-                    duration: const Duration(milliseconds: 600),
-                    curve: Curves.easeInOutExpo,
-                    LineChartData(
-                      gridData: FlGridData(
-                        show: true,
-                        drawVerticalLine: false,
-                        horizontalInterval: 1,
-                        getDrawingHorizontalLine: (value) => FlLine(
-                          color: scheme.outlineVariant,
-                          strokeWidth: 1,
-                          dashArray: [5, 6],
-                        ),
-                      ),
-                      titlesData: FlTitlesData(
-                        show: true,
-                        topTitles: const AxisTitles(
-                          sideTitles: SideTitles(showTitles: false),
-                        ),
-                        rightTitles: const AxisTitles(
-                          sideTitles: SideTitles(showTitles: false),
-                        ),
-                        leftTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                            showTitles: true,
-                            reservedSize: 22,
-                            interval: 1,
-                            getTitlesWidget: (value, meta) {
-                              if (value == 1 || value == 3 || value == 5) {
-                                return Text(
-                                  value.toInt().toString(),
-                                  style: TextStyle(
-                                    fontFamily: 'Onest',
-                                    color: scheme.onSurfaceVariant,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-        fontVariations: const [FontVariation('wght', 600)],
-                                  ),
-                                );
-                              }
-                              return const SizedBox.shrink();
-                            },
-                          ),
-                        ),
-                        bottomTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                            showTitles: true,
-                            reservedSize: 22,
-                            interval: labelInterval,
-                            getTitlesWidget: (value, meta) {
-                              final idx = value.round();
-                              if (idx >= 0 &&
-                                  idx < sortedDays.length &&
-                                  (value - idx).abs() < 0.01 &&
-                                  idx % labelInterval.toInt() == 0) {
-                                final date = sortedDays[idx];
-                                return Padding(
-                                  padding: const EdgeInsets.only(top: 8.0),
-                                  child: Text(
-                                    '${date.day}/${date.month}',
-                                    style: TextStyle(
-                                      fontFamily: 'Onest',
-                                      color: scheme.onSurfaceVariant,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600,
-        fontVariations: const [FontVariation('wght', 600)],
-                                    ),
-                                  ),
-                                );
-                              }
-                              return const SizedBox.shrink();
-                            },
-                          ),
-                        ),
-                      ),
-                      borderData: FlBorderData(show: false),
-                      minX: 0,
-                      maxX: (sortedDays.length - 1).toDouble(),
-                      minY: 1,
-                      maxY: 5,
-                      lineBarsData: [
-                        LineChartBarData(
-                          spots: spots,
-                          isCurved: true,
-                          color: scheme.primary,
-                          barWidth: 3.5,
-                          isStrokeCapRound: true,
-                          dotData: FlDotData(
-                            show: true,
-                            getDotPainter: (spot, percent, barData, index) =>
-                                FlDotCirclePainter(
-                              radius: 4,
-                              color: scheme.surface,
-                              strokeWidth: 2.5,
-                              strokeColor: scheme.primary,
-                            ),
-                          ),
-                          belowBarData: BarAreaData(
-                            show: true,
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                scheme.primary.withValues(alpha: 0.22),
-                                scheme.primary.withValues(alpha: 0.02),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : Center(
-                    child: Text(
-                      LocaleService.current.notEnoughData,
-                      style: TextStyle(
-                        fontFamily: 'Onest',
-        fontVariations: const [FontVariation('wght', 400)],
-                        fontSize: 12,
-                        color: scheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
+            child: MoodTrendChart(
+              points: points,
+              scheme: scheme,
+              emptyText: LocaleService.current.notEnoughData,
+            ),
           ),
         ],
       ),
@@ -1718,7 +1603,8 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
   }
 
   /// Плитка «частое настроение»: круглая эмодзи вместо числа.
-  Widget _moodStatTile(ColorScheme scheme, MoodOption? mood, String label) {
+  Widget _moodStatTile(ColorScheme scheme, MoodOption? mood, String label, {String? image}) {
+    final path = image ?? mood?.imagePath ?? '';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
@@ -1731,9 +1617,9 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
           SizedBox(
             height: 26,
             width: 26,
-            child: mood != null && mood.imagePath.isNotEmpty
+            child: path.isNotEmpty
                 ? ClipOval(
-                    child: MoodImage(mood.imagePath, fit: BoxFit.cover),
+                    child: MoodImage(path, fit: BoxFit.cover),
                   )
                 : Icon(Icons.mood_rounded, size: 22, color: scheme.primary),
           ),

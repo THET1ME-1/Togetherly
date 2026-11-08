@@ -22,10 +22,16 @@ class MoodRingStats extends StatefulWidget {
     super.key,
     required this.counts,
     required this.scheme,
+    this.images = const {},
   });
 
   final Map<String, int> counts;
   final ColorScheme scheme;
+
+  /// Картинка настроения из самих отметок (`moodImagesOf`): в паках
+  /// настроения называются одинаково, и по названию нашлась бы картинка
+  /// стандартного пака, а не та, что выбрана в дне.
+  final Map<String, String> images;
 
   @override
   State<MoodRingStats> createState() => _MoodRingStatsState();
@@ -90,7 +96,7 @@ class _MoodRingStatsState extends State<MoodRingStats> {
                   for (final slice in summary.top)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: _MoodChip(slice: slice, scheme: cs),
+                      child: _MoodChip(slice: slice, scheme: cs, image: widget.images[slice.id]),
                     ),
                 ],
               ),
@@ -104,7 +110,7 @@ class _MoodRingStatsState extends State<MoodRingStats> {
             runSpacing: 8,
             children: [
               for (final slice in shown.skip(3))
-                _MoodChip(slice: slice, scheme: cs, compact: true),
+                _MoodChip(slice: slice, scheme: cs, compact: true, image: widget.images[slice.id]),
             ],
           ),
         ],
@@ -141,11 +147,15 @@ class _MoodChip extends StatelessWidget {
     required this.slice,
     required this.scheme,
     this.compact = false,
+    this.image,
   });
 
   final MoodSlice slice;
   final ColorScheme scheme;
   final bool compact;
+
+  /// Картинка из отметок; без неё — картинка настроения по названию.
+  final String? image;
 
   @override
   Widget build(BuildContext context) {
@@ -171,9 +181,9 @@ class _MoodChip extends StatelessWidget {
             alignment: Alignment.center,
             // Картинки настроений квадратные, и углы торчали из круглой
             // подложки. Клипаем по кругу, а не подгоняем каждую вручную.
-            child: mood != null && mood.imagePath.isNotEmpty
+            child: (image ?? mood?.imagePath ?? '').isNotEmpty
                 ? ClipOval(
-                    child: MoodImage(mood.imagePath, width: 24, height: 24))
+                    child: MoodImage(image ?? mood!.imagePath, width: 24, height: 24))
                 : null,
           ),
           const SizedBox(width: 8),
