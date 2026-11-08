@@ -10,12 +10,12 @@ void main() {
   const now = 1786000000000;
 
   group('shouldShowPlusPromo', () {
-    test('некупившему через семь часов после прошлого раза — показываем', () {
+    test('некупившему через три дня после прошлого раза — показываем', () {
       expect(
         shouldShowPlusPromo(
           gate: PlusGate.locked,
           nowMs: now,
-          lastShownMs: now - 8 * hour,
+          lastShownMs: now - 3 * day,
           plusKnown: true,
           installedMs: now - 30 * day,
         ),
@@ -49,12 +49,15 @@ void main() {
       );
     });
 
-    test('чаще семи часов не повторяем', () {
+    // Раз в 7 часов при нескольких заходах в день выходило «окно покупки при
+    // каждом заходе» (отзыв в App Store 29.09.2026), владелец 08.11.2026:
+    // «пусть раз в 2-3 дня показывается».
+    test('через два дня ещё молчим', () {
       expect(
         shouldShowPlusPromo(
           gate: PlusGate.locked,
           nowMs: now,
-          lastShownMs: now - 3 * hour,
+          lastShownMs: now - 2 * day,
           plusKnown: true,
           installedMs: now - 30 * day,
         ),

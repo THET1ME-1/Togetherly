@@ -1,4 +1,4 @@
-// Плашка Togetherly+ на главной: раз в семь часов тем, кто не купил.
+// Плашка Togetherly+ на главной: раз в два с половиной дня тем, кто не купил.
 
 const Map<String, Map<String, String>> plusPromoStrings = {
   'plusPromoTitle': {
