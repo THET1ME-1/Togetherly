@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show Color;
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/avatar_frame.dart';
@@ -201,8 +203,7 @@ class CatalogService extends ChangeNotifier {
 
     // 1) Мгновенный кэш с диска — каталог доступен сразу и офлайн.
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final cached = prefs.getString(_cacheKey);
+      final cached = await _readCache();
       if (cached != null) {
         _apply(jsonDecode(cached) as List, await _appVersion());
       }
@@ -224,8 +225,7 @@ class CatalogService extends ChangeNotifier {
       ];
       _apply(list, await _appVersion());
       try {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(_cacheKey, jsonEncode(list));
+        await _writeCache(jsonEncode(list));
       } catch (_) {}
     } catch (e) {
       debugPrint('CatalogService.refresh failed (using cache/bundled): $e');
@@ -255,10 +255,57 @@ class CatalogService extends ChangeNotifier {
     ];
     _apply(rows, _rowsVersion ?? await _appVersion());
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_cacheKey, jsonEncode(rows));
+      await _writeCache(jsonEncode(rows));
     } catch (_) {}
   }
+
+  /// Каталог кэшируется файлом, а не в SharedPreferences.
+  ///
+  /// Обращение 605 (08.11.2026, iPhone 17): «каждый раз, когда закрываю
+  /// приложение, вылетает аккаунт и сбрасываются настройки оформления». Кэш
+  /// весил 4,5 МБ, а iOS не хранит в UserDefaults больше 4 МБ и отказывался
+  /// записывать настройки целиком: вход, тему и метку «уже установлено». На
+  /// следующем запуске приложение не находило метку, считало себя новым и
+  /// стирало всё (`main.dart`, `app_installed_v1`). На iPhone с 1.41 так за
+  /// двое суток 271 человек. Тест подменяет каталог файла.
+  @visibleForTesting
+  static Future<Directory> Function() cacheDir = getApplicationSupportDirectory;
+
+  static const String _cacheFile = 'content_catalog_cache_v1.json';
+
+  Future<File> _cachePath() async => File('${(await cacheDir()).path}/$_cacheFile');
+
+  /// Кэш из файла. Старый кэш из настроек переносится в файл и из настроек
+  /// убирается: только так настройки на iPhone снова влезают в 4 МБ.
+  Future<String?> _readCache() async {
+    final file = await _cachePath();
+    String? raw = await file.exists() ? await file.readAsString() : null;
+    final prefs = await SharedPreferences.getInstance();
+    final legacy = prefs.getString(_cacheKey);
+    if (legacy != null) {
+      if (raw == null) {
+        raw = legacy;
+        await _writeCache(legacy);
+      }
+      await prefs.remove(_cacheKey);
+    }
+    return raw;
+  }
+
+  /// Пишет через временный файл: оборванная запись не оставит битый кэш.
+  Future<void> _writeCache(String json) async {
+    final file = await _cachePath();
+    await file.parent.create(recursive: true);
+    final tmp = File('${file.path}.tmp');
+    await tmp.writeAsString(json, flush: true);
+    await tmp.rename(file.path);
+  }
+
+  @visibleForTesting
+  Future<String?> debugReadCache() => _readCache();
+
+  @visibleForTesting
+  Future<void> debugWriteCache(String json) => _writeCache(json);
 
   /// Ссылка на оплату элемента каталога, который продаётся за деньги.
   ///
