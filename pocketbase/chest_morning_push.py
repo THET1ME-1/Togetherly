@@ -44,8 +44,26 @@ APNS = "http://127.0.0.1:8096/push"
 FCM = "http://127.0.0.1:8100/push"
 DEAD = "/opt/pocketbase/pb_data/.dead_tokens.jsonl"
 
-TITLE = "Сундук снова полный"
-BODY = "Откройте и получите награду"
+# На языке приложения человека (`users.lang`), пусто — по-русски: так пишутся
+# пуши людям на сборках старше поля (отзыв в App Store 19.08.2026 об
+# уведомлениях по-русски при английском приложении).
+TITLE = {
+    "ru": "Сундук снова полный", "en": "Your chest is full again",
+    "de": "Deine Truhe ist wieder voll", "fr": "Votre coffre est de nouveau plein",
+    "es": "Tu cofre vuelve a estar lleno", "it": "Il tuo forziere è di nuovo pieno",
+    "pt": "Seu baú está cheio de novo", "zh": "宝箱又满了", "uk": "Скриня знову повна",
+}
+BODY = {
+    "ru": "Откройте и получите награду", "en": "Open it and get your reward",
+    "de": "Öffne sie und hol dir die Belohnung", "fr": "Ouvrez-le et récupérez votre récompense",
+    "es": "Ábrelo y consigue tu premio", "it": "Aprilo e ottieni il premio",
+    "pt": "Abra e ganhe sua recompensa", "zh": "打开领取奖励", "uk": "Відкрийте й отримайте нагороду",
+}
+
+
+def text_for(texts, lang):
+    """Текст на языке из профиля; пусто или незнакомо — русский."""
+    return texts.get(str(lang or "").strip().lower()[:2]) or texts["ru"]
 
 ACTIVE_DAYS = 14
 DEFAULT_TZ_MIN = 180
@@ -129,7 +147,7 @@ def candidates(utc_now):
 
 def load_users(con, uids):
     cols = ["id", "fcm_token", "apns_token", "apns_sandbox", "notif_chest_off",
-            "notif_synced_at", *NOTIF_FIELDS]
+            "notif_synced_at", "lang", *NOTIF_FIELDS]
     have = {r[1] for r in con.execute("PRAGMA table_info(users)")}
     picked = [c for c in cols if c in have]
     users = {}
@@ -175,10 +193,12 @@ def send(user):
     утро Москвы больше: залей пачку туда, и пуши чата пошли бы в отказ
     QueueFull. Прямой путь ещё и отвечает, дошло ли."""
     data = {"kind": "chest"}
+    title = text_for(TITLE, user.get("lang"))
+    body = text_for(BODY, user.get("lang"))
     ok = False
     if user.get("apns_token"):
         try:
-            ans = post(APNS, {"token": user["apns_token"], "title": TITLE, "body": BODY,
+            ans = post(APNS, {"token": user["apns_token"], "title": title, "body": body,
                               "thread": "chest", "sandbox": bool(user.get("apns_sandbox")),
                               "data": data, "sync": True})
             ok = ok or bool(ans.get("ok"))
@@ -188,7 +208,7 @@ def send(user):
             pass
     if user.get("fcm_token"):
         try:
-            ans = post(FCM, {"token": user["fcm_token"], "title": TITLE, "body": BODY,
+            ans = post(FCM, {"token": user["fcm_token"], "title": title, "body": body,
                              "tag": "chest", "data": data, "sync": True})
             ok = ok or bool(ans.get("ok"))
             if ans.get("gone"):

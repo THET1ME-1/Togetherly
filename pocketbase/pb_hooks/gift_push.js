@@ -48,16 +48,13 @@ function windowFrom(lastRunMs, nowMs) {
 }
 
 /// Заголовок — имя дарителя, текст — по его роду. Рамку отдают, а не дарят.
-function message(name, gender, giftKey) {
-  const who = String(name || "").trim() || "Партнёр";
-  const female = gender === "female";
-  const male = gender === "male";
-  if (String(giftKey || "").startsWith("frame_")) {
-    const verb = female ? "Отдала" : male ? "Отдал" : "Отдал(а)";
-    return { title: who, body: verb + " тебе свою рамку для аватарки" };
-  }
-  const verb = female ? "Прислала" : male ? "Прислал" : "Прислал(а)";
-  return { title: who, body: verb + " тебе подарок 🎁" };
+/// [lang] — язык приложения получателя (`users.lang`); пусто — русский.
+function message(name, gender, giftKey, lang) {
+  const T = require((typeof __hooks === "string" ? __hooks : __dirname) + "/push_texts.js");
+  const who = String(name || "").trim() || T.t("partner", lang);
+  const g = gender === "female" ? "f" : gender === "male" ? "m" : "x";
+  const kind = String(giftKey || "").startsWith("frame_") ? "frame_" : "gift_";
+  return { title: who, body: T.t(kind + g, lang) };
 }
 
 /// Подарок из записи `gifts` в том виде, что понимают правила выше.
@@ -89,9 +86,11 @@ function notify(rec) {
     name = sender.getString("display_name") || sender.getString("name");
     gender = sender.getString("gender");
   } catch (_) { /* имя не нашлось — будет «Партнёр» */ }
-  const msg = message(name, gender, rec.getString("gift_key"));
+  const key = rec.getString("gift_key");
   const push = require(`${__hooks}/apns_push.js`);
-  push.sendTo(uid, msg.title, msg.body, "gift", {
+  push.sendTo(uid,
+    (lang) => message(name, gender, key, lang).title,
+    (lang) => message(name, gender, key, lang).body, "gift", {
     force: true,
     data: { group: rec.getString("group_id"), gift: rec.id },
   });

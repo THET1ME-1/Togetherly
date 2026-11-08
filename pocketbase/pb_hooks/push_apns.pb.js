@@ -171,15 +171,17 @@ onRecordAfterCreateSuccess((e) => {
     const push = require(`${__hooks}/apns_push.js`);
     const rec = e.record;
     if (rec.get("deleted")) return;
-    const who = String(rec.getString("author_name") || "Партнёр");
+    const T = require(`${__hooks}/push_texts.js`);
+    const name = String(rec.getString("author_name") || "");
     const text = String(rec.getString("text") || "").trim();
-    const body = text
-      ? (text.length > 120 ? text.slice(0, 117) + "…" : text)
-      : "Комментарий к воспоминанию";
     push.notifyGroup(
       String(rec.getString("group_id") || ""),
       String(rec.getString("author_uid") || ""),
-      who, body, "comment");
+      (lang) => name || T.t("partner", lang),
+      (lang) => text
+        ? (text.length > 120 ? text.slice(0, 117) + "…" : text)
+        : T.t("comment", lang),
+      "comment");
   } catch (err) {
     $app.logger().warn("apns: комментарий", "err", String(err));
   }

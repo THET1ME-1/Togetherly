@@ -65,12 +65,13 @@ routerAdd("POST", "/api/reels/invite", (e) => {
   if (!rule.mayInvite(Number($app.store().get(lastKey) || 0), now)) {
     return e.json(200, { ok: true, sent: false, why: "too soon" });
   }
-  const msg = rule.message(name, feed);
   const push = require(`${__hooks}/apns_push.js`);
   // Ключ `from` в данных пуша Firebase держит за собой: с ним FCM отвечает
   // INVALID_ARGUMENT, а релей считает такой отказ мёртвым токеном и вычищает
   // его из профиля (поймано на тестовой паре 05.10.2026). Поэтому `by`.
-  push.notifyGroup(groupId, me, msg.title, msg.body, "reels",
+  push.notifyGroup(groupId, me,
+    (lang) => rule.message(name, feed, lang).title,
+    (lang) => rule.message(name, feed, lang).body, "reels",
     { force: true, data: { feed: feed, group: groupId, by: me, name: name } });
   $app.store().set(lastKey, now);
   $app.logger().warn("зов в ленту отправлен", "uid", me, "group", groupId, "feed", feed);

@@ -59,6 +59,7 @@ import orjson
 import uvicorn
 from fastapi import FastAPI, Request
 import movies
+from push_texts import пуш
 from fastapi.responses import (ORJSONResponse, JSONResponse, Response,
                                FileResponse)
 from sqlite_read import ReadyCache, build_list, load_fields, serialize
@@ -819,7 +820,7 @@ def _push_candidates(group_id: str, author_uid: str,
         u = lite.execute(
             "SELECT apns_token, apns_sandbox, fcm_token, apns_bg_ms, "
             "notif_chat, notif_mood, notif_new_memory, notif_miss_you, "
-            "notif_synced_at "
+            "notif_synced_at, lang "
             "FROM users WHERE id = ?",
             (uid,),
         ).fetchone()
@@ -833,7 +834,9 @@ def _push_candidates(group_id: str, author_uid: str,
                     # и тогда нули не считаются выбором человека.
                     "notif_chat": u[4], "notif_mood": u[5],
                     "notif_new_memory": u[6], "notif_miss_you": u[7],
-                    "notif_synced_at": u[8]})
+                    "notif_synced_at": u[8],
+                    # Язык приложения: на нём пишется текст уведомления.
+                    "lang": u[9] or ""})
     return out
 
 
@@ -907,9 +910,13 @@ def _forget_token(uid: str, field: str) -> None:
         pass  # попробуем в следующий раз
 
 
-async def _notify_group(group_id: str, author_uid: str, title: str, body: str,
+async def _notify_group(group_id: str, author_uid: str, title, body,
                         thread: str) -> int:
     """Пуш всем в группе, кроме автора — как notifyGroup в apns_push.js.
+
+    [title] и [body] — строка или функция от кода языка получателя
+    (`users.lang`): так каждый получает уведомление на языке своего
+    приложения, а не по-русски.
 
     Возвращает, сколько пушей реально ушло. Это нужно гейту частоты: отметку
     «уже отправляли» нельзя ставить, когда адресатов не осталось (например, все
@@ -928,10 +935,12 @@ async def _notify_group(group_id: str, author_uid: str, title: str, body: str,
         # по-прежнему (жалоба 16.08.2026).
         if not _уведомление_разрешено(thread, t):
             continue
+        заголовок = title(t["lang"]) if callable(title) else title
+        текст = body(t["lang"]) if callable(body) else body
         if t["apns"]:
             try:
                 r = await push_client.post(APNS_RELAY, json={
-                    "token": t["apns"], "title": title, "body": body,
+                    "token": t["apns"], "title": заголовок, "body": текст,
                     "thread": thread, "sandbox": t["sandbox"], "data": {"kind": thread},
                 })
                 if (r.json() or {}).get("gone"):
@@ -943,7 +952,7 @@ async def _notify_group(group_id: str, author_uid: str, title: str, body: str,
         if t["fcm"]:
             try:
                 r = await push_client.post(FCM_RELAY, json={
-                    "token": t["fcm"], "title": title, "body": body,
+                    "token": t["fcm"], "title": заголовок, "body": текст,
                     # Одна строка на вид события — как в apns_push.js.
                     "tag": thread, "data": {"kind": thread},
                 })
@@ -1396,26 +1405,26 @@ def момент_свежего_настроения(отметка: dict, се�
     return мс
 
 
-def _miss_you_push_text(вайб_текст: str | None) -> str:
+def _miss_you_push_text(вайб_текст: str | None, язык: str = "") -> str:
     """Тело уведомления об импульсе «Скучаю».
 
     Повторяет прежний хук `push_apns.pb.js` слово в слово: своё пожелание
-    человека, а если его нет — «Обними в ответ». Длинное режем, как в чате:
-    в шторке всё равно видно только начало.
+    человека, а если его нет — «Обними в ответ» на языке получателя. Длинное
+    режем, как в чате: в шторке всё равно видно только начало.
     """
     текст = (вайб_текст or "").strip()
     if not текст:
-        return "Обними в ответ"
+        return пуш("miss_hug", язык)
     return текст[:117] + "…" if len(текст) > 120 else текст
 
 
-def _chat_push_text(rec: dict) -> str:
+def _chat_push_text(rec: dict, язык: str = "") -> str:
     text = (rec.get("text") or "").strip()
     if text:
         return text[:117] + "…" if len(text) > 120 else text
     if rec.get("note_url"):
-        return "Фигурка"
-    return "Голосовое сообщение" if rec.get("voice_url") else "Сообщение"
+        return пуш("figure", язык)
+    return пуш("voice", язык) if rec.get("voice_url") else пуш("message", язык)
 
 
 async def _настроение_в_виджет(rec: dict) -> None:
@@ -1448,20 +1457,32 @@ async def _настроение_в_виджет(rec: dict) -> None:
         await _publish("widget_data", "update", _record_json("widget_data", row))
 
 
+def _mood_push_body(label: str):
+    """Текст пуша о настроении на языке получателя. Сама отметка — как её
+    подписал автор."""
+    if label:
+        return lambda язык: пуш("mood_today", язык, label=label)
+    return lambda язык: пуш("mood_marked", язык)
+
+
 async def _after_create(col: str, rec: dict) -> None:
     kind = COLLECTIONS[col]["after_create"]
     if kind == "chat":
         if not rec.get("deleted"):
             _count(rec.get("group_id") or "", +1)
+            имя = rec.get("user_name") or ""
             await _notify_group(
                 rec.get("group_id") or "", rec.get("user_uid") or "",
-                (rec.get("user_name") or "Партнёр"), _chat_push_text(rec), "chat")
+                lambda язык: имя or пуш("partner", язык),
+                lambda язык: _chat_push_text(rec, язык), "chat")
     elif kind == "memory":
         if not rec.get("deleted"):
             _count(rec.get("group_id") or "", +1, field="memories_count")
+            имя = rec.get("author_name") or ""
             await _notify_group(
                 rec.get("group_id") or "", rec.get("author_uid") or "",
-                (rec.get("author_name") or "Партнёр"), "Добавил воспоминание", "memory")
+                lambda язык: имя or пуш("partner", язык),
+                lambda язык: пуш("memory_added", язык), "memory")
     elif kind == "widget":
         # Тихий пуш «обнови виджеты» — как wakeGroup в apns_push.js.
         await _wake_group(rec.get("group_id") or "", rec.get("user_uid") or "")
@@ -1474,8 +1495,7 @@ async def _after_create(col: str, rec: dict) -> None:
         label = (rec.get("label") or "").strip()
         await _notify_group(
             rec.get("group_id") or "", rec.get("user_uid") or "",
-            "Настроение партнёра",
-            f"Сегодня: {label}" if label else "Партнёр отметил настроение", "mood")
+            lambda язык: пуш("mood_title", язык), _mood_push_body(label), "mood")
         # И тихий пуш «обнови виджеты»: на iPhone у виджетов своего фонового
         # обновления нет, и настроение партнёра на рабочем столе застывало до
         # следующего открытия приложения — «виджеты не обновляются под
@@ -1523,8 +1543,8 @@ async def _after_update(col: str, rec: dict) -> None:
         return
     label = (rec.get("label") or "").strip()
     ушло = await _notify_group(
-        group_id, rec.get("user_uid") or "", "Настроение партнёра",
-        f"Сегодня: {label}" if label else "Партнёр отметил настроение", "mood")
+        group_id, rec.get("user_uid") or "",
+        lambda язык: пуш("mood_title", язык), _mood_push_body(label), "mood")
     if ушло:
         _отметить_miss("mood:" + group_id, теперь_мс)
     # Виджет обновляем даже когда баннер придержал антидребезг: человек
@@ -1817,20 +1837,21 @@ async def healthz():
 # ── История импульсов «Скучаю» (miss_you_events) ─────────────────────────────
 
 _ИМПУЛЬС_ПОДПИСЬ = {
-    "miss_you": "Я скучаю",
-    "thinking_of_you": "Думаю о тебе",
-    "want_hug": "Хочу обнять",
+    "miss_you": "vibe_miss_you",
+    "thinking_of_you": "vibe_thinking_of_you",
+    "want_hug": "vibe_want_hug",
 }
 
 
-def _miss_reply_push_text(вайб: str, текст: str | None) -> str:
-    """Тело пуша об ответе: на что именно ответили. Свой текст — как есть."""
+def _miss_reply_push_text(вайб: str, текст: str | None, язык: str = "") -> str:
+    """Тело пуша об ответе: на что именно ответили. Свой текст — как есть,
+    готовая подпись — на языке получателя."""
     подпись = (текст or "").strip() if вайб == "custom" else ""
     if not подпись:
-        подпись = _ИМПУЛЬС_ПОДПИСЬ.get(вайб, "Я скучаю")
+        подпись = пуш(_ИМПУЛЬС_ПОДПИСЬ.get(вайб, "vibe_miss_you"), язык)
     if len(подпись) > 60:
         подпись = подпись[:57] + "…"
-    return f"В ответ на «{подпись}»"
+    return пуш("miss_reply", язык, text=подпись)
 
 
 def _miss_event_json(row) -> dict:
@@ -2016,8 +2037,9 @@ async def miss_you(request: Request):
     теперь_мс = int(time.time() * 1000)
     if _можно_слать_miss(group_id, теперь_мс):
         ушло = await _notify_group(
-            group_id, uid, "Скучает по тебе",
-            _miss_reply_push_text(vibe, text) if reply_to else _miss_you_push_text(text),
+            group_id, uid, lambda язык: пуш("miss_title", язык),
+            (lambda язык: _miss_reply_push_text(vibe, text, язык)) if reply_to
+            else (lambda язык: _miss_you_push_text(text, язык)),
             "miss")
         if ушло:
             _отметить_miss(group_id, теперь_мс)

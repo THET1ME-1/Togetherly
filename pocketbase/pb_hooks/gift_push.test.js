@@ -45,5 +45,9 @@ assert.strictEqual(r.message('Саша', '', 'rose').body, 'Прислал(а) �
 assert.strictEqual(r.message('  ', 'female', 'rose').title, 'Партнёр');
 assert.strictEqual(r.message('Аня', 'female', 'frame_cat').body, 'Отдала тебе свою рамку для аватарки');
 assert.strictEqual(r.message('Боря', 'male', 'frame_cat').body, 'Отдал тебе свою рамку для аватарки');
+// На языке получателя (отзыв в App Store 19.08.2026: уведомления по-русски).
+assert.strictEqual(r.message('Anna', 'female', 'rose', 'en').body, 'Sent you a gift 🎁');
+assert.strictEqual(r.message('', 'male', 'rose', 'uk').title, 'Партнер');
+assert.strictEqual(r.message('Ана', 'female', 'rose', 'uk').body, 'Надіслала тобі подарунок 🎁');
 
 console.log('gift_push: всё прошло');

@@ -115,12 +115,13 @@ routerAdd("POST", "/api/auth/partner-reset/request", (e) => {
   store.set("preset_req_" + user.id, { code: code, at: now, tries: 0, partner: pick.partner, groupId: pick.groupId });
   store.set("preset_for_" + pick.partner, user.id);
 
-  const name = String(user.getString("display_name") || user.getString("name") || "").trim() || "Партнёр";
+  const T = require(`${__hooks}/push_texts.js`);
+  const own = String(user.getString("display_name") || user.getString("name") || "").trim();
   const she = user.getString("gender") === "female";
   push.sendTo(
     pick.partner,
-    name + " восстанавливает доступ",
-    "Откройте Togetherly, там код. Передайте его, только если " + name + (she ? " сама попросила" : " сам попросил"),
+    (lang) => T.t("reset_title", lang, { name: own || T.t("partner", lang) }),
+    (lang) => T.t(she ? "reset_body_f" : "reset_body_m", lang, { name: own || T.t("partner", lang) }),
     "pair_reset",
     { force: true },
   );
@@ -166,12 +167,13 @@ routerAdd("POST", "/api/auth/partner-reset/deny", (e) => {
   store.remove("preset_for_" + me);
   if (req && req.partner === me) store.remove("preset_req_" + uid);
 
-  const name = String(e.auth.getString("display_name") || e.auth.getString("name") || "").trim() || "Партнёр";
+  const T = require(`${__hooks}/push_texts.js`);
+  const own = String(e.auth.getString("display_name") || e.auth.getString("name") || "").trim();
   const she = e.auth.getString("gender") === "female";
   push.sendTo(
     uid,
-    "Кто-то пытался войти в ваш аккаунт",
-    name + (she ? " не подтвердила" : " не подтвердил") + " запрос кода. Если это были вы, попросите код ещё раз",
+    (lang) => T.t("security_title", lang),
+    (lang) => T.t(she ? "security_body_f" : "security_body_m", lang, { name: own || T.t("partner", lang) }),
     "security",
     { force: true },
   );

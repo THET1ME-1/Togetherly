@@ -653,10 +653,11 @@ cronAdd("lavaInvoicePoll", "*/6 * * * *", () => {
                 .getString("display_name") || "");
             } catch (_) {}
             const push = require(`${__hooks}/apns_push.js`);
+            const T = require(`${__hooks}/push_texts.js`);
             push.sendTo(
               user.id,
-              "Togetherly+ — подарок 💜",
-              from ? from + " подарил(а) вам полный доступ" : "Вам подарили полный доступ",
+              (lang) => T.t("plusgift_title", lang),
+              (lang) => from ? T.t("plusgift_from", lang, { name: from }) : T.t("plusgift_anon", lang),
               "plusgift");
           } catch (err) {
             $app.logger().warn("lava/poll: уведомление о подарке не ушло",

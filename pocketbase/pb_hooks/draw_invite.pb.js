@@ -64,9 +64,11 @@ routerAdd("POST", "/api/draw/invite", (e) => {
     return e.json(200, { ok: true, sent: false, why: "too soon" });
   }
 
-  const name = String(e.auth.getString("display_name") || "").trim() || "Партнёр";
-  push.notifyGroup(groupId, me, name + " зовёт порисовать",
-    "Открыл раскраску — заходите рисовать вместе", "draw");
+  const T = require(`${__hooks}/push_texts.js`);
+  const own = String(e.auth.getString("display_name") || "").trim();
+  push.notifyGroup(groupId, me,
+    (lang) => T.t("draw_title", lang, { name: own || T.t("partner", lang) }),
+    (lang) => T.t("draw_body", lang), "draw");
 
   // Пишем ОДНУ колонку прямым запросом, а не всю запись `e.auth`. Запись входа —
   // снимок аккаунта на момент запроса, и `$app.save(e.auth)` возвращал в базу

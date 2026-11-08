@@ -5,12 +5,16 @@
 """
 import datetime
 import importlib.util
+import sys
 import unittest
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent))
+from push_texts import пуш  # noqa: E402
+
 spec = importlib.util.spec_from_file_location("hotpath_src", Path(__file__).parent / "hotpath.py")
 источник = spec.loader.get_source("hotpath_src")
-пространство: dict = {}
+пространство: dict = {"пуш": пуш}
 начало = источник.index("_ИМПУЛЬС_ПОДПИСЬ = {")
 конец = источник.index("\nasync def _miss_history(", начало)
 exec(compile(источник[начало:конец], "hotpath.py", "exec"), пространство)

@@ -77,10 +77,17 @@ const NOTIF_FIELD = {
 /// [opts] — необязательно: `force` шлёт и тому, кто сейчас в приложении
 /// (зов в совместную ленту: внутри приложения его никто иначе не покажет),
 /// `data` — дополнительные поля пуша рядом с `kind` (площадка, пара).
+///
+/// [title] и [body] — строка или функция от кода языка получателя
+/// (`users.lang`, см. `push_texts.js`): уведомление приходит на языке его
+/// приложения, а не по-русски.
 function sendTo(uid, title, body, thread, opts) {
   let user;
   try { user = $app.findRecordById("users", uid); } catch (_) { return; }
   if (!(opts && opts.force) && isOnline(uid)) return;
+  const lang = String(user.getString("lang") || "");
+  if (typeof title === "function") title = title(lang);
+  if (typeof body === "function") body = body(lang);
   // Значения — только строки (FCM иначе отказывает), а служебные ключи
   // Firebase (`from`, `notification`, `message_type`, `google.*`, `gcm.*`)
   // отбрасываем: с ними FCM отвечает INVALID_ARGUMENT, и релей вычищает

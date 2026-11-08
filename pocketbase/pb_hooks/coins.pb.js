@@ -920,10 +920,11 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
             .getString("display_name") || "");
         } catch (_) {}
         const push = require(`${__hooks}/apns_push.js`);
+        const T = require(`${__hooks}/push_texts.js`);
         push.sendTo(
           partnerUid,
-          "Togetherly+ — подарок 💜",
-          from ? from + " подарил(а) вам полный доступ" : "Вам подарили полный доступ",
+          (lang) => T.t("plusgift_title", lang),
+          (lang) => from ? T.t("plusgift_from", lang, { name: from }) : T.t("plusgift_anon", lang),
           "plusgift");
         $app.logger().warn("iap: подарок вручён", "from", e.auth.id, "to", partnerUid);
       } catch (err) {

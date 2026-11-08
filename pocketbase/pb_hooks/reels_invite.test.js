@@ -15,6 +15,9 @@ assert.ok(r.mayInvite(now + 60_000, now), 'отметка из будущего 
 assert.strictEqual(r.message('Аня', 'tiktok').title, 'Аня зовёт смотреть TikTok');
 assert.strictEqual(r.message('', 'vk').title, 'Партнёр зовёт смотреть ВК Клипы');
 assert.strictEqual(r.message('Боря', '').title, 'Боря зовёт смотреть ленту');
+// На языке получателя (отзыв в App Store 19.08.2026: уведомления по-русски).
+assert.strictEqual(r.message('Anna', 'tiktok', 'en').title, 'Anna invites you to watch TikTok');
+assert.strictEqual(r.message('', '', 'uk').title, 'Партнер кличе дивитися стрічку');
 
 assert.ok(r.isActive({ at: now - 60_000 }, now));
 assert.ok(!r.isActive({ at: now - r.ACTIVE_MS - 1 }, now), 'старый зов истёк');

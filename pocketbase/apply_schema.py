@@ -73,6 +73,9 @@ USERS_CUSTOM = [
     number("secrets_until"),
     text("display_name"), text("avatar_url"), text("banner_url"),
     text("gender"), date("birth_date"), number("coins"),
+    # Язык приложения (`ru`, `en`, …): на нём сервер пишет пуши. Пишет
+    # приложение (`LangTag`), см. apply_lang_field.py.
+    text("lang"),
     jsonf("owned_themes"), jsonf("owned_icons"), jsonf("owned_features"),
     # Вещи Ту из гардероба (ключи вещей). Пишет только сервер: сундук.
     jsonf("owned_wear"),

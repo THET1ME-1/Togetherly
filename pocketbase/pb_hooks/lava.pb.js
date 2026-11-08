@@ -336,10 +336,11 @@ routerAdd("POST", "/api/lava/webhook", (e) => {
               .getString("display_name") || "");
           } catch (_) {}
           const push = require(`${__hooks}/apns_push.js`);
+          const T = require(`${__hooks}/push_texts.js`);
           push.sendTo(
             plusGrantedTo,
-            "Togetherly+ — подарок 💜",
-            from ? from + " подарил(а) вам полный доступ" : "Вам подарили полный доступ",
+            (lang) => T.t("plusgift_title", lang),
+            (lang) => from ? T.t("plusgift_from", lang, { name: from }) : T.t("plusgift_anon", lang),
             "plusgift");
           try { inv.set("granted", true); $app.save(inv); } catch (_) {}
           $app.logger().warn("lava/webhook: подарок вручён",

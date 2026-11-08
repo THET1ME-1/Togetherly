@@ -36,11 +36,14 @@ function mayInvite(lastMs, nowMs) {
 }
 
 /// Заголовок и текст пуша. Имя не склоняем: «Аня зовёт смотреть TikTok».
-function message(name, feed) {
-  const who = String(name || "").trim() || "Партнёр";
+///
+/// [lang] — язык приложения получателя (`users.lang`); пусто — русский.
+function message(name, feed, lang) {
+  const T = require((typeof __hooks === "string" ? __hooks : __dirname) + "/push_texts.js");
+  const who = String(name || "").trim() || T.t("partner", lang);
   return {
-    title: who + " зовёт смотреть " + (FEEDS[feed] || "ленту"),
-    body: "Совместная лента: ролики из ваших лент по очереди, чат и звонок",
+    title: T.t("reels_title", lang, { name: who, feed: FEEDS[feed] || T.t("reels_feed", lang) }),
+    body: T.t("reels_body", lang),
   };
 }
 

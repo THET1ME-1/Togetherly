@@ -14,14 +14,18 @@
 Запуск: python3 pocketbase/hotpath/test_miss_you_push.py
 """
 import importlib.util
+import sys
 import unittest
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+from push_texts import пуш  # noqa: E402
 
 spec = importlib.util.spec_from_file_location(
     "hotpath_src", Path(__file__).parent / "hotpath.py")
 источник = spec.loader.get_source("hotpath_src")
 
-пространство: dict = {}
+пространство: dict = {"пуш": пуш}
 начало = источник.index("def _miss_you_push_text(")
 конец = источник.index("\ndef ", начало + 10)
 exec(compile(источник[начало:конец], "hotpath.py", "exec"), пространство)
@@ -35,6 +39,10 @@ class ТекстПуша(unittest.TestCase):
     def test_без_пожелания_прежняя_строка(self):
         self.assertEqual(_miss_you_push_text(""), "Обними в ответ")
         self.assertEqual(_miss_you_push_text(None), "Обними в ответ")
+
+    def test_без_пожелания_на_языке_получателя(self):
+        self.assertEqual(_miss_you_push_text("", "en"), "Hug back")
+        self.assertEqual(_miss_you_push_text(None, "uk"), "Обійми у відповідь")
 
     def test_пробелы_не_считаются_текстом(self):
         self.assertEqual(_miss_you_push_text("   "), "Обними в ответ")
