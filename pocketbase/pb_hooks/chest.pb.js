@@ -170,6 +170,8 @@ routerAdd("GET", "/api/chest/state", (e) => {
       // Подарки из каталога разыгрываются только сезонные: обычные подарки
       // сундука перечислены в GIFTS выше. Вещи Ту — тоже только из набора,
       // кроме одежды с `data.chest` (пиджаки, 06.11.2026): она в обычном.
+      // Одежду из набора (осенняя, 08.11.2026) тоже получают только сборки с
+      // `outfits=1`: в гардеробе 1.41 раздела «Одежда» нет.
       const outfit = kind === "wear" && !set && d.chest === true;
       if ((kind === "gift" || kind === "wear") && !set && !outfit) continue;
       if (kind === "badge" && d.chest !== true) continue;
@@ -181,7 +183,7 @@ routerAdd("GET", "/api/chest/state", (e) => {
         ? ownedF.indexOf("frame:" + recs[i].id) !== -1
         : kind === "badge" ? (ownedI.indexOf(d.key) !== -1 || grantedI.indexOf(d.key) !== -1)
         : kind === "wear" ? ownedW.indexOf(d.key) !== -1 : false;
-      items.push([id, kind, t, (kind === "wear" ? (outfit ? withOutfits : withWear) : withFrames) && !owned, String(d.key)]);
+      items.push([id, kind, t, (kind === "wear" ? (outfit || d.cat === "outfit" ? withOutfits : withWear) : withFrames) && !owned, String(d.key)]);
     }
   } catch (_) {}
   const tierCount = { common: 0, rare: 0, legendary: 0 };
@@ -509,7 +511,7 @@ routerAdd("POST", "/api/chest/open", (e) => {
             ? ownedF.indexOf("frame:" + recs[i].id) !== -1
             : kind === "badge" ? (ownedI.indexOf(d.key) !== -1 || grantedI.indexOf(d.key) !== -1)
             : kind === "wear" ? ownedW.indexOf(d.key) !== -1 : false;
-          items.push([id, kind, t, (kind === "wear" ? (outfit ? withOutfits : withWear) : withFrames) && !owned, String(d.key)]);
+          items.push([id, kind, t, (kind === "wear" ? (outfit || d.cat === "outfit" ? withOutfits : withWear) : withFrames) && !owned, String(d.key)]);
         }
       } catch (_) {}
       const tierCount = { common: 0, rare: 0, legendary: 0 };
