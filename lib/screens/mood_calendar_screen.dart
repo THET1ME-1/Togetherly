@@ -1,5 +1,6 @@
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import '../theme/fonts.dart';
@@ -29,10 +30,12 @@ import '../theme/profile_theme.dart';
 import '../widgets/app_sheet.dart';
 import '../widgets/mood/day_mood_lanes.dart';
 import '../theme/cycle_colors.dart';
+import '../utils/calendar_swipe.dart';
 import '../utils/cycle_math.dart';
 import '../widgets/cycle/cycle_tips_strip.dart';
 import '../widgets/cycle_analytics.dart';
 import '../widgets/mood/mood_ring_stats.dart';
+import '../widgets/mood/month_year_wheel.dart';
 import '../widgets/mood/mood_trend_chart.dart';
 import '../widgets/mood_image.dart';
 import 'home/widgets/day_log_sheet.dart';
@@ -77,6 +80,13 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
   /// это привычка, а не разовое любопытство.
   bool _vesselView = false;
   late DateTime _calAnchor;
+
+  /// Открыт барабан месяца и года под заголовком периода.
+  bool _wheelOpen = false;
+
+  /// Куда уехал период последним листанием (`1` вперёд, `-1` назад, `0` —
+  /// не листали): сетка въезжает с той стороны, куда ушёл палец.
+  int _slideDir = 0;
 
   /// Сколько воспоминаний легло в каждый день — для сосуда.
   ///
@@ -205,6 +215,10 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
   void _shiftAnchor(int dir) {
     HapticFeedback.selectionClick();
     setState(() {
+      _slideDir = dir;
+      // Барабан помнит выбор на момент открытия: после листания он показывал
+      // бы прежний месяц.
+      _wheelOpen = false;
       switch (_calMode) {
         case _CalMode.week:
           _calAnchor = _calAnchor.add(Duration(days: 7 * dir));
@@ -617,7 +631,10 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
               for (final m in labels) ...[
                 _calModeChip(m.$2, m.$1 == _calMode, () {
                   HapticFeedback.selectionClick();
-                  setState(() => _calMode = m.$1);
+                  setState(() {
+                    _calMode = m.$1;
+                    _slideDir = 0;
+                  });
                 }, scheme),
                 if (m.$1 != _CalMode.year) const SizedBox(width: 8),
               ],
@@ -653,16 +670,42 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                 icon: Icon(Icons.chevron_left_rounded, color: scheme.onSurface),
               ),
               Expanded(
-                child: Text(
-                  _calTitle(),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'Unbounded',
-                    fontWeight: FontWeight.w700,
-        fontVariations: const [FontVariation('wght', 700)],
-                    letterSpacing: -0.3,
-                    fontSize: 16,
-                    color: scheme.onSurface,
+                // Нажатие на «Ноябрь 2026» открывает барабан месяца и года
+                // (просьба владельца 08.11.2026).
+                child: InkWell(
+                  key: const ValueKey('cal_title'),
+                  borderRadius: BorderRadius.circular(999),
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    setState(() => _wheelOpen = !_wheelOpen);
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            _calTitle(),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontFamily: 'Unbounded',
+                              fontWeight: FontWeight.w700,
+                              fontVariations: const [FontVariation('wght', 700)],
+                              letterSpacing: -0.3,
+                              fontSize: 16,
+                              color: scheme.onSurface,
+                            ),
+                          ),
+                        ),
+                        AnimatedRotation(
+                          turns: _wheelOpen ? 0.5 : 0,
+                          duration: const Duration(milliseconds: 200),
+                          child: Icon(Icons.expand_more_rounded,
+                              size: 20, color: scheme.onSurfaceVariant),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -673,6 +716,28 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                     Icon(Icons.chevron_right_rounded, color: scheme.onSurface),
               ),
             ],
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            child: _wheelOpen
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: MonthYearWheel(
+                      key: ValueKey('wheel-${_calMode.name}'),
+                      year: _calAnchor.year,
+                      month: _calAnchor.month,
+                      firstYear: math.min(2024, _calAnchor.year),
+                      lastYear: math.max(DateTime.now().year, _calAnchor.year),
+                      yearOnly: _calMode == _CalMode.year,
+                      scheme: scheme,
+                      onChanged: (year, month) => setState(() {
+                        _slideDir = 0;
+                        _calAnchor = DateTime(year, month, 1);
+                      }),
+                    ),
+                  )
+                : const SizedBox(width: double.infinity),
           ),
         ],
       ),
@@ -805,8 +870,16 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Карточка-сетка в духе ScoreMaster
-        Container(
+        // Карточка-сетка в духе ScoreMaster. Свайп влево-вправо листает
+        // период, как стрелки (просьба владельца 08.11.2026).
+        GestureDetector(
+          key: ValueKey('cal_swipe-$isPartner'),
+          behavior: HitTestBehavior.translucent,
+          onHorizontalDragEnd: (d) {
+            final shift = calendarSwipeShift(d.primaryVelocity ?? 0);
+            if (shift != 0) _shiftAnchor(shift);
+          },
+          child: Container(
           width: double.infinity,
           padding: const EdgeInsets.fromLTRB(14, 16, 14, 16),
           decoration: BoxDecoration(
@@ -835,8 +908,12 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                 transitionBuilder: (child, anim) => FadeTransition(
                   opacity: anim,
                   child: SlideTransition(
+                    // Листали — сетка въезжает со стороны, куда ушёл палец;
+                    // иначе — снизу, как раньше.
                     position: Tween<Offset>(
-                      begin: const Offset(0, 0.04),
+                      begin: _slideDir == 0
+                          ? const Offset(0, 0.04)
+                          : Offset(0.12 * _slideDir, 0),
                       end: Offset.zero,
                     ).animate(anim),
                     child: child,
@@ -849,6 +926,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                 ),
               ),
             ],
+          ),
           ),
         ),
         const SizedBox(height: 16),
