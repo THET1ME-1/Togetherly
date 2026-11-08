@@ -104,10 +104,15 @@ class TuWearService extends ChangeNotifier {
   }
 
   /// Слои одежды для сцены облачка [art] (или эмоции пака [emotion]).
-  ({List<String> back, List<String> front}) layersFor({required String art, String? emotion}) {
+  ///
+  /// [tryOn] — примерка: наряд, который показываем вместо надетого, и без
+  /// проверки владения. Так экран приза сундука показывает Ту в вещи, которую
+  /// ещё не выиграли.
+  ({List<String> back, List<String> front}) layersFor({required String art, String? emotion, Map<String, String>? tryOn}) {
     final scene = wearSceneOf(art: art, emotion: emotion);
-    if (scene == null || _outfit.isEmpty) return (back: const [], front: const []);
-    return wearSceneLayers(_outfit, CatalogService.instance.wearItems, owned: owned, scene: scene);
+    final outfit = tryOn ?? _outfit;
+    if (scene == null || outfit.isEmpty) return (back: const [], front: const []);
+    return wearSceneLayers(outfit, CatalogService.instance.wearItems, owned: tryOn == null ? owned : tryOn.values.toSet(), scene: scene);
   }
 
   @visibleForTesting

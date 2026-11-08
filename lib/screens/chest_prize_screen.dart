@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../dict_strings.dart' show trKey;
 import '../models/chest.dart';
+import '../services/catalog_service.dart';
+import '../widgets/mascot/cloud_mascot_view.dart';
 import '../theme/app_theme.dart';
 import '../theme/profile_theme.dart';
 import '../widgets/chest/chest_prize_image.dart';
@@ -63,6 +65,19 @@ class ChestPrizeScreen extends StatelessWidget {
                       // в 1,3 ширины экрана венок вылезал за края и казался
                       // огромным и толстым (жалоба с 1.35.0+245). Рамка — с
                       // фото в натуральную пропорцию, в ширину экрана.
+                      // Вещь Ту — на самом Ту, живом, как в гардеробе. Значок
+                      // вещи нарисован для плитки и обрезан по ней: во весь
+                      // экран плед и зонт вылезали за края и стояли неподвижно
+                      // (08.11.2026).
+                      final wear = prize.kind == ChestPrizeKind.wear ? CatalogService.instance.wearItem(prize.key) : null;
+                      if (wear != null) {
+                        return Center(
+                          child: CloudMascotView(
+                            size: math.min(math.min(c.maxWidth * 0.62, c.maxHeight * 0.55), 320.0),
+                            tryOn: {wear.cat: wear.key},
+                          ),
+                        );
+                      }
                       final side = prize.kind == ChestPrizeKind.frame
                           ? math.min(math.min(c.maxWidth * 0.86, c.maxHeight * 0.8), 420.0)
                           : math.min(math.min(c.maxWidth * 1.3, c.maxHeight * 1.1), 640.0);

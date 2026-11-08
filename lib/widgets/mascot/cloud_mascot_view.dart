@@ -161,7 +161,11 @@ class CloudMascotView extends StatefulWidget {
     this.mood,
     this.listenEvents = false,
     this.onOneShotDone,
+    this.tryOn,
   });
+
+  /// Примерка: наряд вместо надетого (экран приза сундука).
+  final Map<String, String>? tryOn;
 
   /// Сторона места под маскота. Холст анимации с запасом под полёт и
   /// предметы вокруг, поэтому он рисуется крупнее и выходит за края.
@@ -341,7 +345,7 @@ class _CloudMascotViewState extends State<CloudMascotView> {
     );
     // Одежда Ту: слои той же сцены под и над ним, кадр в кадр. Сцены, для
     // которой вещь не запечена, просто нет в карте — Ту в ней без вещи.
-    final wear = TuWearService.instance.layersFor(art: art, emotion: emotion != null ? widget.mood : null);
+    final wear = TuWearService.instance.layersFor(art: art, emotion: emotion != null ? widget.mood : null, tryOn: widget.tryOn);
     final layered = url != null && (wear.back.isNotEmpty || wear.front.isNotEmpty);
     _layeredArt = layered ? art : null;
     if (!layered) return bare;
