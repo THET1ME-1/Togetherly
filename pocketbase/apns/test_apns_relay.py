@@ -52,6 +52,60 @@ notbadge = apns_relay.build_payload({"title": "т", "badge": "3"})
 check("строка вместо числа в счётчик не попадает",
       "badge" not in notbadge["aps"])
 
+# ── Нативный вход через Google (09.11.2026) ──────────────────────────────────
+# Ключи Google подменяем своим: подпись, аудитория, издатель и срок проверяются
+# по-настоящему, без сети.
+import time  # noqa: E402
+
+import jwt  # noqa: E402
+from cryptography.hazmat.primitives.asymmetric import rsa  # noqa: E402
+
+_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+
+
+class _FakeJwk:
+    def get_signing_key_from_jwt(self, token):
+        return type("K", (), {"key": _key.public_key()})()
+
+
+apns_relay._google_jwk_client = _FakeJwk()
+
+
+def google_token(**over):
+    claims = {
+        "iss": "https://accounts.google.com",
+        "aud": apns_relay.GOOGLE_AUDIENCES[0],
+        "sub": "1234567890",
+        "email": "Anya@Gmail.com",
+        "email_verified": True,
+        "name": "Аня",
+        "picture": "https://lh3.googleusercontent.com/a/x",
+        "exp": int(time.time()) + 600,
+        "iat": int(time.time()),
+    }
+    claims.update(over)
+    return jwt.encode(claims, _key, algorithm="RS256")
+
+
+ok = apns_relay.verify_google_identity(google_token())
+check("Google: свой токен принят", ok.get("sub") == "1234567890")
+
+
+def refused(token):
+    try:
+        apns_relay.verify_google_identity(token)
+        return False
+    except Exception:
+        return True
+
+
+check("Google: чужой клиент отвергнут", refused(google_token(aud="чужой.apps.googleusercontent.com")))
+check("Google: чужой издатель отвергнут", refused(google_token(iss="https://evil.example")))
+check("Google: просроченный отвергнут", refused(google_token(exp=int(time.time()) - 10)))
+check("Google: неподтверждённая почта отвергнута", refused(google_token(email_verified=False)))
+check("Google: издатель без https тоже свой",
+      apns_relay.verify_google_identity(google_token(iss="accounts.google.com")).get("sub") == "1234567890")
+
 print()
 if failures:
     print("ЕСТЬ ПРОВАЛЫ:", ", ".join(failures))

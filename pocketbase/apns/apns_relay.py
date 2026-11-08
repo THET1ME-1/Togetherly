@@ -27,7 +27,9 @@ BadDeviceToken. Флаг приходит от вызывающего.
 
 import json
 import os
+import queue
 import subprocess
+import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -79,6 +81,54 @@ def verify_apple_identity(token: str, nonce: str = "") -> dict:
         raise ValueError("в токене нет sub")
     return claims
 
+
+# ── Нативный вход через Google (09.11.2026) ────────────────────────────────────
+#
+# Вход через страницу Google рвался: Google просит подтвердить личность ключом
+# доступа, человек уходит в другое приложение, Android закрывает соединение, по
+# которому PocketBase ждёт ответа, и страница отвечает «Auth failed». На Android
+# вход теперь берёт системное окно выбора аккаунта, а приложение присылает
+# idToken. Аудитория — веб-клиент Google, тот же, что у входа через страницу в
+# PocketBase: так `sub` у человека тот же, и прежние аккаунты находятся.
+GOOGLE_JWKS = "https://www.googleapis.com/oauth2/v3/certs"
+GOOGLE_ISSUERS = ["https://accounts.google.com", "accounts.google.com"]
+GOOGLE_AUDIENCES = [
+    a.strip()
+    for a in os.environ.get(
+        "GOOGLE_AUDIENCES",
+        # Веб-клиент (Android присылает токен на него) и клиент iPhone.
+        "941141989934-tsglnvua139egis1oajaovb2sfgd81cf.apps.googleusercontent.com,"
+        "941141989934-213e5lei669lppqe72lo1bnc7o6tsaqg.apps.googleusercontent.com",
+    ).split(",")
+    if a.strip()
+]
+
+_google_jwk_client = None
+
+
+def verify_google_identity(token: str) -> dict:
+    """Утверждения idToken Google или исключение: подпись, аудитория, издатель,
+    срок и подтверждённая почта."""
+    global _google_jwk_client
+    if _google_jwk_client is None:
+        _google_jwk_client = jwt.PyJWKClient(GOOGLE_JWKS, cache_keys=True)
+    signing_key = _google_jwk_client.get_signing_key_from_jwt(token)
+    claims = jwt.decode(
+        token,
+        signing_key.key,
+        algorithms=["RS256"],
+        audience=GOOGLE_AUDIENCES,
+        options={"verify_iss": False},
+    )
+    if claims.get("iss") not in GOOGLE_ISSUERS:
+        raise ValueError("чужой издатель")
+    if not claims.get("sub"):
+        raise ValueError("в токене нет sub")
+    # По почте находим прежний аккаунт, поэтому неподтверждённую не берём.
+    if str(claims.get("email_verified", "")).lower() != "true":
+        raise ValueError("почта не подтверждена")
+    return claims
+
 KEY_ID = os.environ.get("APNS_KEY_ID", "LQ52U2LRSR")
 TEAM_ID = os.environ.get("APNS_TEAM_ID", "Y2Z9V86248")
 TOPIC = os.environ.get("APNS_TOPIC", "com.togetherly.love")
@@ -113,7 +163,8 @@ def provider_token() -> str:
     return token
 
 
-def send(device_token: str, payload: dict, *, sandbox: bool, push_type: str = "alert"):
+def send(device_token: str, payload: dict, *, sandbox: bool, push_type: str = "alert",
+         topic: str = ""):
     """Отдаёт (код ответа Apple, причина отказа).
 
     Тихий пуш (`background`) Apple принимает ТОЛЬКО с приоритетом 5: с 10 он
@@ -126,7 +177,10 @@ def send(device_token: str, payload: dict, *, sandbox: bool, push_type: str = "a
         [
             "curl", "-s", "--http2", "--max-time", "15",
             "-o", "-", "-w", "\n%{http_code}",
-            "-H", "apns-topic: " + TOPIC,
+            # Тема — это bundle id приложения. Ключ APNs выдан НА КОМАНДУ, а
+            # не на приложение, поэтому одним релеем обслуживаются оба:
+            # Togetherly и Wallet (com.togetherly.money). Пусто — прежняя тема.
+            "-H", "apns-topic: " + (topic or TOPIC),
             "-H", "apns-push-type: " + push_type,
             "-H", "apns-priority: " + priority,
             "-H", "authorization: bearer " + provider_token(),
@@ -178,6 +232,81 @@ def build_payload(req: dict) -> dict:
     return payload
 
 
+
+# ── Отправка в фоне ────────────────────────────────────────────────────────────
+#
+# Раньше хук PocketBase ждал, пока Apple ответит: полсекунды в хороший день и до
+# десяти по таймауту. Ждал не сервер — ждал человек, потому что пуш отправляется
+# внутри его же запроса на сохранение. Вечером 13 августа 2026 запись в базу
+# висела по тридцать секунд именно из-за этого, а сама вставка занимает пять
+# сотых миллисекунды.
+#
+# Теперь запрос кладётся в очередь и подтверждается сразу, а отправкой заняты
+# отдельные потоки. Проверочные пуши (`thread: "test"` из /api/apns/test) идут
+# по-старому, синхронно: там ответ Apple и есть весь смысл вызова.
+QUEUE_MAX = int(os.environ.get("APNS_QUEUE_MAX", "20000"))
+WORKERS = int(os.environ.get("APNS_WORKERS", "12"))
+DEAD_TOKENS_FILE = os.environ.get(
+    "APNS_DEAD_TOKENS", "/opt/pocketbase/pb_data/.dead_tokens.jsonl")
+
+_outbox: "queue.Queue[dict]" = queue.Queue(maxsize=QUEUE_MAX)
+_dead_lock = threading.Lock()
+_stats = {"queued": 0, "sent": 0, "failed": 0, "dropped": 0, "gone": 0}
+
+
+def remember_dead_token(token: str, reason: str, kind: str = "apns") -> None:
+    """Мёртвый токен: вычистит его из профилей отдельный крон.
+
+    Синхронный ответ раньше сообщал хуку `gone`, и тот стирал токен сам. В
+    фоновой отправке отвечать уже некому, поэтому складываем находку в файл —
+    `tools/clean_dead_tokens.py` разберёт.
+    """
+    try:
+        with _dead_lock:
+            with open(DEAD_TOKENS_FILE, "a", encoding="utf-8") as f:
+                f.write(json.dumps(
+                    {"token": token, "reason": reason, "kind": kind,
+                     "at": int(time.time())}, ensure_ascii=False) + "\n")
+    except Exception:
+        pass  # не смогли записать — токен вычистится в следующий раз
+
+
+def _deliver(job: dict) -> None:
+    token = job["token"]
+    try:
+        code, reason = send(
+            token, job["payload"],
+            sandbox=job["sandbox"],
+            push_type=job["push_type"],
+            topic=job.get("topic") or "",
+        )
+    except Exception as e:
+        _stats["failed"] += 1
+        print("apns: не отправлено:", str(e)[:160], flush=True)
+        return
+    if code == 200:
+        _stats["sent"] += 1
+        return
+    _stats["failed"] += 1
+    if reason in ("BadDeviceToken", "Unregistered", "DeviceTokenNotForTopic"):
+        _stats["gone"] += 1
+        remember_dead_token(token, reason)
+
+
+def _worker() -> None:
+    while True:
+        job = _outbox.get()
+        try:
+            _deliver(job)
+        finally:
+            _outbox.task_done()
+
+
+def start_workers() -> None:
+    for _ in range(WORKERS):
+        threading.Thread(target=_worker, daemon=True).start()
+
+
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
@@ -191,11 +320,14 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/health":
-            return self._reply(200, {"ok": True, "topic": TOPIC})
+            return self._reply(200, {
+                "ok": True, "topic": TOPIC,
+                "queue": _outbox.qsize(), "workers": WORKERS, "stats": dict(_stats),
+            })
         self._reply(404, {"ok": False, "reason": "NotFound"})
 
     def do_POST(self):
-        if self.path not in ("/push", "/apple/verify"):
+        if self.path not in ("/push", "/apple/verify", "/google/verify"):
             return self._reply(404, {"ok": False, "reason": "NotFound"})
         try:
             length = int(self.headers.get("Content-Length") or 0)
@@ -221,16 +353,54 @@ class Handler(BaseHTTPRequestHandler):
                 "is_private_email": str(claims.get("is_private_email", "")).lower() == "true",
             })
 
+        if self.path == "/google/verify":
+            token = str(req.get("token") or "").strip()
+            if not token:
+                return self._reply(400, {"ok": False, "reason": "NoToken"})
+            try:
+                claims = verify_google_identity(token)
+            except Exception as e:
+                return self._reply(
+                    200, {"ok": False, "reason": type(e).__name__ + ": " + str(e)[:120]}
+                )
+            return self._reply(200, {
+                "ok": True,
+                "sub": claims.get("sub"),
+                "email": str(claims.get("email") or "").lower(),
+                "name": claims.get("name") or "",
+                "picture": claims.get("picture") or "",
+            })
+
         token = str(req.get("token") or "").strip()
         if not token:
             return self._reply(400, {"ok": False, "reason": "NoDeviceToken"})
 
+        job = {
+            "token": token,
+            "payload": build_payload(req),
+            "sandbox": bool(req.get("sandbox")),
+            "push_type": "background" if req.get("silent") else "alert",
+            "topic": str(req.get("topic") or "")[:80],
+        }
+
+        # Проверка доставки должна видеть ответ Apple — её пропускаем как есть.
+        wants_answer = bool(req.get("sync")) or str(req.get("thread") or "") == "test"
+        if not wants_answer:
+            try:
+                _outbox.put_nowait(job)
+            except queue.Full:
+                _stats["dropped"] += 1
+                return self._reply(200, {"ok": False, "reason": "QueueFull"})
+            _stats["queued"] += 1
+            return self._reply(202, {"ok": True, "queued": True})
+
         try:
             code, reason = send(
                 token,
-                build_payload(req),
-                sandbox=bool(req.get("sandbox")),
-                push_type="background" if req.get("silent") else "alert",
+                job["payload"],
+                sandbox=job["sandbox"],
+                push_type=job["push_type"],
+                topic=job.get("topic") or "",
             )
         except Exception as e:  # сеть, curl, ключ — наружу отдаём причину
             return self._reply(502, {"ok": False, "reason": str(e)[:120]})
@@ -251,4 +421,5 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    start_workers()
     ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()

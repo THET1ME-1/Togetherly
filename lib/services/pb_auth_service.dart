@@ -3,6 +3,8 @@ import 'dart:io' show Platform;
 import 'dart:math' show Random;
 
 import 'package:crypto/crypto.dart' show sha256;
+import 'package:flutter/services.dart' show PlatformException;
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../utils/safe_launch.dart';
 
@@ -207,7 +209,15 @@ class PbAuthService {
   /// realtime. [provider] — ключ провайдера в панели PB: `google` / `apple` /
   /// `yandex` / `vk` / `facebook`. Требует настроенного провайдера (Client
   /// ID/Secret + redirect `<host>/api/oauth2-redirect`).
+  ///
+  /// До входа Google (Android и iPhone) и Apple (iPhone) сперва идут
+  /// системным окном, без страницы — см. [_trySystemSignIn]. Вошедший
+  /// человек привязывает провайдера к своему аккаунту, это только страницей.
   Future<RecordModel?> signInWithOAuth2(String provider) async {
+    if (!_pb.authStore.isValid) {
+      final system = await _trySystemSignIn(provider);
+      if (system.done) return system.user;
+    }
     try {
       final auth = await _runOAuth2(provider);
       // Профиль из OAuth-меты (имя/аватар), если в записи ещё пусто.
@@ -393,24 +403,90 @@ class PbAuthService {
   /// разных телефонах, причём в журнале сервера за те же сутки одна ошибка.
   /// Если системный диалог не сложился (отмена не в счёт — она просто выходит),
   /// остаётся прежний путь через браузер: он хотя бы у части людей работает.
-  Future<RecordModel?> signInWithApple() async {
-    if (Platform.isIOS) {
-      try {
-        final user = await _signInWithAppleNative();
-        if (user != null) return user;
-      } on SignInWithAppleAuthorizationException catch (e) {
-        // Человек закрыл диалог сам — второй раз ему то же самое не показываем.
-        if (e.code == AuthorizationErrorCode.canceled) return null;
-        debugPrint('PbAuth: системный вход Apple не вышел (${e.code}) — $e');
-      } catch (e, st) {
-        debugPrint('PbAuth: системный вход Apple не вышел — $e');
-        unawaited(Sentry.captureException(e, stackTrace: st, withScope: (s) {
-          s.setExtra('reason', 'нативный вход Apple сорвался, уходим в браузер');
-          s.level = SentryLevel.warning;
-        }));
-      }
+  Future<RecordModel?> signInWithApple() => signInWithOAuth2('apple');
+
+  /// Веб-клиент Google: на него Android выписывает idToken, им же входит
+  /// страница PocketBase, поэтому `sub` у человека один и тот же.
+  static const String _googleWebClientId =
+      '941141989934-tsglnvua139egis1oajaovb2sfgd81cf.apps.googleusercontent.com';
+
+  /// Клиент Google для iPhone (схема возврата прописана в Info.plist).
+  static const String _googleIosClientId =
+      '941141989934-213e5lei669lppqe72lo1bnc7o6tsaqg.apps.googleusercontent.com';
+
+  /// Вход системным окном, без страницы: Google на Android и iPhone, Apple на
+  /// iPhone. [done] — вход завершён (вошёл или сам закрыл окно) и страница не
+  /// нужна. Окно не сложилось по другой причине (нет сервисов Google, сервер
+  /// не принял) — `done: false`, и вход идёт прежней страницей.
+  Future<({bool done, RecordModel? user})> _trySystemSignIn(String provider) async {
+    final google = provider == 'google' && (Platform.isAndroid || Platform.isIOS);
+    final apple = provider == 'apple' && Platform.isIOS;
+    if (!google && !apple) return (done: false, user: null);
+    try {
+      final user = google ? await _signInWithGoogleNative() : await _signInWithAppleNative();
+      // null — человек сам закрыл окно Google: второй раз то же не показываем.
+      return (done: true, user: user);
+    } on SignInWithAppleAuthorizationException catch (e) {
+      if (e.code == AuthorizationErrorCode.canceled) return (done: true, user: null);
+      debugPrint('PbAuth: системный вход Apple не вышел (${e.code}) — $e');
+    } on PlatformException catch (e) {
+      if (e.code == GoogleSignIn.kSignInCanceledError) return (done: true, user: null);
+      debugPrint('PbAuth: системный вход $provider не вышел (${e.code}) — $e');
+      _reportSystemSignIn(provider, e, StackTrace.current);
+    } catch (e, st) {
+      debugPrint('PbAuth: системный вход $provider не вышел — $e');
+      _reportSystemSignIn(provider, e, st);
     }
-    return signInWithOAuth2('apple');
+    return (done: false, user: null);
+  }
+
+  void _reportSystemSignIn(String provider, Object e, StackTrace st) {
+    unawaited(Sentry.captureException(e, stackTrace: st, withScope: (s) {
+      s.setExtra('reason', 'системный вход $provider сорвался, уходим на страницу');
+      s.level = SentryLevel.warning;
+    }));
+  }
+
+  /// Вход окном Google: idToken меняем на сессию PocketBase
+  /// (`pb_hooks/google_native.pb.js`, подпись проверяет `apns_relay.py`).
+  /// null — человек закрыл окно.
+  Future<RecordModel?> _signInWithGoogleNative() async {
+    final google = GoogleSignIn(
+      scopes: const ['email', 'profile'],
+      clientId: Platform.isIOS ? _googleIosClientId : null,
+      serverClientId: _googleWebClientId,
+    );
+    // Прошлый выбор не запоминаем: у человека бывает несколько аккаунтов, и
+    // без этого окно молча входило бы в прежний.
+    try {
+      await google.signOut();
+    } catch (_) {}
+    final account = await google.signIn();
+    if (account == null) return null;
+    final idToken = (await account.authentication).idToken;
+    if (idToken == null || idToken.isEmpty) {
+      throw StateError('Google не отдал idToken');
+    }
+
+    final res = await _pb.send(
+      '/api/google/native',
+      method: 'POST',
+      body: {'idToken': idToken},
+    ).timeout(const Duration(seconds: 25));
+    if (res is! Map || res['token'] == null || res['record'] == null) {
+      throw StateError('сервер не отдал сессию: $res');
+    }
+
+    _pb.authStore.save(
+      res['token'] as String,
+      RecordModel.fromJson(Map<String, dynamic>.from(res['record'] as Map)),
+    );
+    final meta = res['meta'] is Map ? Map<String, dynamic>.from(res['meta'] as Map) : const <String, dynamic>{};
+    await _ensureProfile(
+      displayName: (meta['name'] as String?) ?? account.displayName,
+      avatarUrl: (meta['avatarURL'] as String?) ?? account.photoUrl,
+    );
+    return _svc.currentUser;
   }
 
   /// Системный вход Apple: токен от Apple меняем на сессию PocketBase.
