@@ -50,13 +50,14 @@
 routerAdd("GET", "/api/chest/state", (e) => {
   // Зеркало таблицы в /api/chest/open. Вес — в десятых долях процента.
   const ODDS = [
-    ["coins5", "coins", 5, 301, "common"],
+    ["coins5", "coins", 5, 301.7, "common"],
     ["coins10", "coins", 10, 180, "common"],
     ["coins25", "coins", 25, 75, "rare"],
     // Плюс навсегда — редчайший приз: выпавший Плюс навсегда снимает человека
     // с рекламы и с покупки. Неделя Плюса — чаще: попробовал и захотел
     // навсегда. Сумма «amount» у недели — число дней.
-    ["plus", "plus", 0, 1, "legendary"],
+    // 0,03% с 08.11.2026 (было 0,1%): 0,7 ушло в «5 монет».
+    ["plus", "plus", 0, 0.3, "legendary"],
     ["plus7", "plus_trial", 7, 3, "legendary"],
   ];
   // Гарантия: если PITY - 1 открытий подряд не принесли редкого или
@@ -282,13 +283,14 @@ routerAdd("GET", "/api/chest/state", (e) => {
 
 routerAdd("POST", "/api/chest/open", (e) => {
   const ODDS = [
-    ["coins5", "coins", 5, 301, "common"],
+    ["coins5", "coins", 5, 301.7, "common"],
     ["coins10", "coins", 10, 180, "common"],
     ["coins25", "coins", 25, 75, "rare"],
     // Плюс навсегда — редчайший приз: выпавший Плюс навсегда снимает человека
     // с рекламы и с покупки. Неделя Плюса — чаще: попробовал и захотел
     // навсегда. Сумма «amount» у недели — число дней.
-    ["plus", "plus", 0, 1, "legendary"],
+    // 0,03% с 08.11.2026 (было 0,1%): 0,7 ушло в «5 монет».
+    ["plus", "plus", 0, 0.3, "legendary"],
     ["plus7", "plus_trial", 7, 3, "legendary"],
   ];
   // Гарантия: если PITY - 1 открытий подряд не принесли редкого или
@@ -576,7 +578,9 @@ routerAdd("POST", "/api/chest/open", (e) => {
       // Случайное число из криптостойкой строки, а не Math.random: пул JSVM
       // переиспользует рантаймы, и качеству его генератора верить незачем.
       const hex = $security.randomStringWithAlphabet(8, "0123456789abcdef");
-      let roll = parseInt(hex, 16) % total;
+      // Веса дробные (Плюс навсегда 0,3 = 0,03%), поэтому число берётся долей
+      // от всей таблицы, а не остатком от деления.
+      let roll = parseInt(hex, 16) / 4294967296 * total;
       let prize = pool[0];
       for (let i = 0; i < pool.length; i++) {
         if (roll < pool[i][3]) { prize = pool[i]; break; }
