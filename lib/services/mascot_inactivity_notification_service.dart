@@ -1,8 +1,5 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import '../utils/notification_permission.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -52,19 +49,10 @@ class MascotInactivityNotificationService {
       ),
     );
 
-    if (Platform.isIOS || Platform.isMacOS) {
-      await _plugin
-          .resolvePlatformSpecificImplementation<
-            IOSFlutterLocalNotificationsPlugin
-          >()
-          ?.requestPermissions(alert: true, badge: true, sound: true);
-      await _plugin
-          .resolvePlatformSpecificImplementation<
-            MacOSFlutterLocalNotificationsPlugin
-          >()
-          ?.requestPermissions(alert: true, badge: true, sound: true);
-    }
-
+    // Разрешение здесь не спрашиваем (09.11.2026): этот сервис поднимается на
+    // старте до входа и ставит напоминание при уходе в фон, в том числе когда
+    // вход открывает страницу Google, и окно вылезало посреди входа.
+    // Спрашивает главный экран, уже после входа.
     _initialized = true;
   }
 
@@ -93,12 +81,8 @@ class MascotInactivityNotificationService {
     }
 
     try {
-      final androidPlugin = _plugin
-          .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin
-          >();
-      await requestNotificationPermissionSafely(androidPlugin);
-
+      // Без разрешения напоминание просто не покажется; просить его на уходе
+      // в фон нельзя (см. init).
       final scheduledAt = tz.TZDateTime.now(tz.local).add(delay);
 
       await _plugin.zonedSchedule(
