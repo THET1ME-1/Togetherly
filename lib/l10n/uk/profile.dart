@@ -112,6 +112,7 @@ const Map<String, String> profileUk = {
   'themeNameGarnet': 'Гранат',
   'themeNameDarkHoney': 'Темний мед',
   'themeNameHalloween': 'Гелловін 2026',
+  'themeNameAutumn': 'Затишна осінь 2026',
   'themeDarkOnly': 'Ця тема буває тільки темною',
   'coinBalance': 'Монети',
   'coinShopTitle': 'Магазин монет',

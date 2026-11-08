@@ -174,6 +174,7 @@ import 'wallet_wait_screen.dart';
 import '../widgets/common/gift_image.dart';
 import '../widgets/common/coin_image.dart';
 import '../widgets/season/season_backdrop_layer.dart';
+import '../widgets/theme/theme_leaves_layer.dart';
 import '../widgets/theme/theme_pattern_layer.dart';
 import '../widgets/theme/theme_preview_countdown.dart';
 import '../widgets/unfold/unfold_route.dart';
@@ -1565,6 +1566,9 @@ class _HomeScreenState extends State<HomeScreen> {
           // -- Узор темы («Хэллоуин»): контуры предметов по всему фону, под
           // всеми вкладками, как обои в чате. У темы без узора слот пустой.
           Positioned.fill(child: ThemePatternLayer(theme: _t)),
+          // -- Листопад темы («Уютная осень»): листья падают за интерфейсом,
+          // под всеми вкладками. У темы без листопада слот пустой.
+          Positioned.fill(child: ThemeLeavesLayer(theme: _t)),
           // -- Сезонный фон под содержимым (только главная вкладка) --
           // Слот стоит всегда: появлялся бы он только в сезон — Flutter
           // пересобрал бы соседей. Сам фон, даты и картинки приходят каталогом.

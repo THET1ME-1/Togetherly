@@ -104,6 +104,7 @@ const Map<String, String> profileZh = {
   'themeNameGarnet': '石榴红',
   'themeNameDarkHoney': '深色蜂蜜',
   'themeNameHalloween': '万圣节 2026',
+  'themeNameAutumn': '温暖秋日 2026',
   'themeDarkOnly': '此主题只有深色版本',
   'coinBalance': '金币',
   'coinShopTitle': '金币商店',

@@ -1143,6 +1143,7 @@ abstract class DictStrings extends AppStrings {
   @override
   String get themeNameDarkHoney => _t('themeNameDarkHoney');
   String get themeNameHalloween => _t('themeNameHalloween');
+  String get themeNameAutumn => _t('themeNameAutumn');
   String get themeDarkOnly => _t('themeDarkOnly');
   @override
   String get coinBalance => _t('coinBalance');

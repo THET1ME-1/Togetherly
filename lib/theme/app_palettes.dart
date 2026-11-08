@@ -248,6 +248,16 @@ const List<Palette> kPalettes = [
       badge: PaletteBadge(
           'assets/images/themes/halloween_pumpkin.webp', Color(0xFF1E1729)),
       target: PaletteTarget('тыква', 54, 69, 0.77)),
+  // Макет «Б. Листопад» (31.10.2026): терракота и мох на сливочном, тёмная —
+  // печёная глина на тёплом угле, листья падают за интерфейсом. Решение
+  // владельца 08.11.2026: бесплатна всем в ноябре, сундук «Уютная осень» идёт
+  // до 30 ноября; после остаётся у тех, кто её застал.
+  Palette(26, 'Уютная осень', Color(0xFFC9603F),
+      season: PaletteSeason(
+          fromMonth: 11, fromDay: 1, untilMonth: 12, untilDay: 1, firstYear: 2026),
+      badge: PaletteBadge(
+          'assets/images/themes/autumn_badge.webp', Color(0xFFFBF1E5)),
+      target: PaletteTarget('терракота', 35, 53, 0.61)),
 ];
 
 /// Вариант схемы для палитры при выбранной насыщенности.
@@ -342,6 +352,7 @@ AppTheme _juiced(AppTheme t, SchemeFlavor f, Palette p) {
     bgGradient: t.bgGradient,
     bgImageUrl: t.bgImageUrl,
     bgPattern: t.bgPattern,
+    bgLeaves: t.bgLeaves,
     heroGradient: t.heroGradient.map(j).toList(),
     heroGlassOpacity: t.heroGlassOpacity,
     heroToggleBorder: t.heroToggleBorder,
@@ -399,6 +410,12 @@ AppTheme buildAppTheme(
   final legacy = own ? null : AppThemes.byIndex(p.index);
   if (legacy != null && legacy.brightness == brightness && !amoled) {
     return _juiced(legacy, flavor, p);
+  }
+  // Тёмная версия, тоже нарисованная руками («Уютная осень»): в списке тем на
+  // номер помещается одна, вторая лежит парой.
+  final pair = own ? null : AppThemes.darkPairs[p.index];
+  if (pair != null && brightness == Brightness.dark && !amoled) {
+    return _juiced(pair, flavor, p);
   }
 
   // Сид считаем от акцента ручной темы, а не от цели палитры: так тёмная

@@ -978,6 +978,15 @@ const Map<String, Map<String, String>> profileStrings = {
     'fr': 'Halloween 2026',
     'de': 'Halloween 2026',
   },
+  'themeNameAutumn': {
+    'ru': 'Уютная осень 2026',
+    'en': 'Cozy Autumn 2026',
+    'pt': 'Outono aconchegante 2026',
+    'it': 'Autunno accogliente 2026',
+    'es': 'Otoño acogedor 2026',
+    'fr': 'Automne douillet 2026',
+    'de': 'Gemütlicher Herbst 2026',
+  },
   'themeDarkOnly': {
     'ru': 'Эта тема бывает только тёмной',
     'en': 'This theme comes in dark only',

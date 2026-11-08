@@ -23,6 +23,21 @@ class ThemePattern {
   });
 }
 
+/// Листопад за интерфейсом: листья медленно падают по всему фону, каждый со
+/// своей скоростью, и поворачиваются на лету (макет «Б. Листопад» темы
+/// «Уютная осень», 31.10.2026).
+@immutable
+class ThemeLeaves {
+  /// Картинки листьев; листья перебирают их по кругу.
+  final List<String> assets;
+
+  /// Насколько листья видны: на тёмном фоне их приглушают, иначе слишком
+  /// яркие.
+  final double opacity;
+
+  const ThemeLeaves({required this.assets, this.opacity = 0.85});
+}
+
 /// Описание одной темы приложения.
 ///
 /// Чтобы добавить новую тему — создай [AppTheme] и добавь в [AppThemes.all].
@@ -61,6 +76,10 @@ class AppTheme {
   /// Узор поверх фона главной, под всеми вкладками. Есть только у тем с
   /// рисунком («Хэллоуин»), у прочих пусто.
   final ThemePattern? bgPattern;
+
+  /// Листопад за интерфейсом, под всеми вкладками. Есть только у «Уютной
+  /// осени», у прочих пусто.
+  final ThemeLeaves? bgLeaves;
 
   // ── Hero-карточка (ExpandableTimerCard) ──────────────────────────────────
 
@@ -152,6 +171,7 @@ class AppTheme {
     required this.bgGradient,
     this.bgImageUrl,
     this.bgPattern,
+    this.bgLeaves,
     required this.heroGradient,
     required this.heroGlassOpacity,
     required this.heroToggleBorder,
@@ -985,6 +1005,164 @@ abstract final class AppThemes {
     surfaceTint: Color(0xFFC3A3EE),
   );
 
+  // ── 26: Уютная осень (терракота, мох, сливочный фон, листопад) ───────────
+  // Цвета — с одобренного макета темы (31.10.2026, вариант «Б. Листопад»):
+  // светлая — сливочный фон #FBF1E5, плашки #FFF8F0, терракота #C9603F, мох
+  // #7E9461, текст #3B2A21; тёмная — печёная глина на тёплом угле: фон
+  // #211915, плашки #2E231D, терракота #E58A63, мох #A3B884. Мох живёт во
+  // вторичных ролях схемы. За интерфейсом медленно падают листья.
+  // Не продаётся: открыта всем в ноябре и остаётся у тех, кто её застал
+  // (`PaletteSeason`, решение владельца 08.11.2026).
+  static const _autumnLeaves = [
+    'assets/images/themes/autumn_leaf_red.webp',
+    'assets/images/themes/autumn_leaf_yellow.webp',
+    'assets/images/themes/autumn_leaf_orange.webp',
+    'assets/images/themes/autumn_leaf_brown.webp',
+  ];
+
+  static const autumn = AppTheme(
+    index: 26,
+    name: 'Уютная осень',
+    primary: Color(0xFFC9603F),
+    primaryLight: Color(0xFFF7DDCC),
+    bgGradient: [Color(0xFFFBF1E5), Color(0xFFFBF1E5)],
+    bgLeaves: ThemeLeaves(assets: _autumnLeaves, opacity: 0.85),
+    heroGradient: [Color(0xFFD9775A), Color(0xFFC9603F)],
+    heroGlassOpacity: 0.20,
+    heroToggleBorder: true,
+    heroToggleSelectedColor: Color(0xFFC9603F),
+    cardSurface: Color(0xFFFFF8F0),
+    cardBorder: Color(0xFFE8D3BF),
+    iconDraw: Color(0xFFC9603F),
+    iconMood: Color(0xFFC9603F),
+    iconCalendar: Color(0xFFC9603F),
+    iconPost: Color(0xFFC9603F),
+    navActiveBg: Color(0xFFF2E1CD),
+    navActiveIcon: Color(0xFFC9603F),
+    promptButtonColor: Color(0xFFC9603F),
+    // На ступень темнее плашек: #F2E1CD на сливочном фоне сливался (1.145).
+    timerDialBackground: Color(0xFFEBD6BF),
+    scheme: _autumnScheme,
+    textPrimary: Color(0xFF3B2A21),
+    textSecondary: Color(0xFF8A6D5C),
+    textMuted: Color(0xFF8A6D5C),
+    surfaceMuted: Color(0xFFF2E1CD),
+    divider: Color(0xFFD9BFA7),
+  );
+
+  static const autumnDark = AppTheme(
+    index: 26,
+    name: 'Уютная осень',
+    primary: Color(0xFFE58A63),
+    primaryLight: Color(0xFF4A3125),
+    bgGradient: [Color(0xFF211915), Color(0xFF211915)],
+    bgLeaves: ThemeLeaves(assets: _autumnLeaves, opacity: 0.7),
+    heroGradient: [Color(0xFF3A2C24), Color(0xFF2E231D)],
+    heroGlassOpacity: 0.10,
+    heroToggleBorder: true,
+    heroToggleSelectedColor: Color(0xFFE58A63),
+    cardSurface: Color(0xFF2E231D),
+    cardBorder: Color(0xFF45362D),
+    iconDraw: Color(0xFFE58A63),
+    iconMood: Color(0xFFE58A63),
+    iconCalendar: Color(0xFFE58A63),
+    iconPost: Color(0xFFE58A63),
+    navActiveBg: Color(0xFF3A2C24),
+    navActiveIcon: Color(0xFFF2A784),
+    promptButtonColor: Color(0xFFE58A63),
+    timerDialBackground: Color(0xFF3A2C24),
+    brightness: Brightness.dark,
+    scheme: _autumnDarkScheme,
+    textPrimary: Color(0xFFF6E9DE),
+    textSecondary: Color(0xFFC4AE9E),
+    textMuted: Color(0xFFAD9686), // AA (≈5 на карточке)
+    surfaceMuted: Color(0xFF1A130F),
+    divider: Color(0xFF45362D),
+  );
+
+  /// Схемы «Уютной осени» руками: поверхности — сливочные (или тёплый уголь),
+  /// вторичные роли — мох, третичные — жёлудь. Из терракотового сида
+  /// поверхности вышли бы розоватыми, а мох потерялся бы совсем.
+  static const _autumnScheme = ColorScheme(
+    brightness: Brightness.light,
+    primary: Color(0xFFC9603F),
+    onPrimary: Color(0xFFFFF6EE),
+    primaryContainer: Color(0xFFF7DDCC),
+    onPrimaryContainer: Color(0xFF6B2A15),
+    secondary: Color(0xFF7E9461),
+    onSecondary: Color(0xFFFFFFFF),
+    secondaryContainer: Color(0xFFE2EAD3),
+    onSecondaryContainer: Color(0xFF2E3B1F),
+    tertiary: Color(0xFF9C6533),
+    onTertiary: Color(0xFFFFFFFF),
+    tertiaryContainer: Color(0xFFF3DFC8),
+    onTertiaryContainer: Color(0xFF3E2410),
+    error: Color(0xFFBA1A1A),
+    onError: Color(0xFFFFFFFF),
+    errorContainer: Color(0xFFFFDAD6),
+    onErrorContainer: Color(0xFF410002),
+    surface: Color(0xFFFBF1E5),
+    onSurface: Color(0xFF3B2A21),
+    onSurfaceVariant: Color(0xFF8A6D5C),
+    surfaceDim: Color(0xFFE9DCCD),
+    surfaceBright: Color(0xFFFFF8F0),
+    surfaceContainerLowest: Color(0xFFFFFFFF),
+    surfaceContainerLow: Color(0xFFFFF8F0),
+    surfaceContainer: Color(0xFFF8EADB),
+    surfaceContainerHigh: Color(0xFFF2E1CD),
+    surfaceContainerHighest: Color(0xFFEBD6BF),
+    outline: Color(0xFFA88B77),
+    outlineVariant: Color(0xFFD9BFA7),
+    shadow: Color(0xFF000000),
+    scrim: Color(0xFF000000),
+    inverseSurface: Color(0xFF3B2A21),
+    onInverseSurface: Color(0xFFFBF1E5),
+    inversePrimary: Color(0xFFF2A784),
+    surfaceTint: Color(0xFFC9603F),
+  );
+
+  static const _autumnDarkScheme = ColorScheme(
+    brightness: Brightness.dark,
+    primary: Color(0xFFE58A63),
+    onPrimary: Color(0xFF2A140A),
+    primaryContainer: Color(0xFF4A3125),
+    onPrimaryContainer: Color(0xFFE58A63),
+    secondary: Color(0xFFA3B884),
+    onSecondary: Color(0xFF1E2A12),
+    secondaryContainer: Color(0xFF384529),
+    onSecondaryContainer: Color(0xFFDDE9C9),
+    tertiary: Color(0xFFD9A06B),
+    onTertiary: Color(0xFF2E1A08),
+    tertiaryContainer: Color(0xFF4A3420),
+    onTertiaryContainer: Color(0xFFF6DDC0),
+    error: Color(0xFFFFB4AB),
+    onError: Color(0xFF690005),
+    errorContainer: Color(0xFF93000A),
+    onErrorContainer: Color(0xFFFFDAD6),
+    surface: Color(0xFF211915),
+    onSurface: Color(0xFFF6E9DE),
+    onSurfaceVariant: Color(0xFFC4AE9E),
+    surfaceDim: Color(0xFF211915),
+    surfaceBright: Color(0xFF45362D),
+    surfaceContainerLowest: Color(0xFF1A130F),
+    surfaceContainerLow: Color(0xFF281F1A),
+    surfaceContainer: Color(0xFF2E231D),
+    surfaceContainerHigh: Color(0xFF3A2C24),
+    surfaceContainerHighest: Color(0xFF45362D),
+    outline: Color(0xFF9C8474),
+    outlineVariant: Color(0xFF5C4638),
+    shadow: Color(0xFF000000),
+    scrim: Color(0xFF000000),
+    inverseSurface: Color(0xFFF6E9DE),
+    onInverseSurface: Color(0xFF2E231D),
+    inversePrimary: Color(0xFFA8492C),
+    surfaceTint: Color(0xFFE58A63),
+  );
+
+  /// Тёмная пара ручной темы с тем же номером. У «Уютной осени» обе версии
+  /// нарисованы руками, а в [all] на номер помещается одна.
+  static const Map<int, AppTheme> darkPairs = {26: autumnDark};
+
   // ── Список всех тем (порядок = индекс) ───────────────────────────────────
   static const List<AppTheme> all = [
     pink,
@@ -1013,6 +1191,7 @@ abstract final class AppThemes {
     garnetDark, // 23 — тёмная тема (винный уголь + мягкий красный)
     honeyDark, // 24 — тёмная тема (янтарный уголь + глубокое золото)
     halloween, // 25 — ночь хэллоуинского сундука с узором, только тёмная
+    autumn, // 26 — «Уютная осень», листопад; тёмная пара в [darkPairs]
   ];
 
   /// Найти тему по индексу; при выходе за границы — возвращает [pink]
