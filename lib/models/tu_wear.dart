@@ -114,6 +114,48 @@ int wearAdProgress(Object? raw, String key) {
 List<TuWear> wardrobeItems(List<TuWear> items, {required Set<String> owned}) =>
     [for (final w in items) if (!w.retired || owned.contains(w.key)) w];
 
+/// Чипы над сеткой гардероба (макет «Б. Примерка», 09.11.2026).
+enum WearFilter { all, mine, coins, ads }
+
+/// Вещи под выбранный чип, порядок входа сохраняется. «За ролики» — вещи за
+/// ролик и вещи за монеты, которые берутся роликами; с Плюсом роликов нет,
+/// и остаются только вещи «за ролик» (они ему бесплатны).
+List<TuWear> wardrobeFilter(List<TuWear> items, WearFilter filter, {required Set<String> owned, required bool plus}) => [
+      for (final w in items)
+        if (switch (filter) {
+          WearFilter.all => true,
+          WearFilter.mine => owned.contains(w.key),
+          WearFilter.coins => w.src == 'coins' && !owned.contains(w.key),
+          WearFilter.ads => !owned.contains(w.key) && (w.src == 'ad' || (!plus && w.adsNeeded > 0)),
+        })
+          w,
+    ];
+
+/// Порядок гардероба: сначала то, что можно надеть или взять сейчас. Своё,
+/// потом за ролик, потом за монеты, на которые хватает, дешёвое вперёд,
+/// потом дорогое, и в конце запертое в сундуке. Раньше первыми стояли
+/// закрытые пиджаки, а кофты за монеты уезжали вниз.
+List<TuWear> wardrobeOrder(List<TuWear> items, {required Set<String> owned, required int coins}) {
+  int rank(TuWear w) {
+    if (owned.contains(w.key)) return 0;
+    if (w.src == 'ad') return 1;
+    if (w.src == 'coins') return w.price <= coins ? 2 : 3;
+    return 4;
+  }
+
+  final out = [...items];
+  out.sort((a, b) {
+    final byRank = rank(a).compareTo(rank(b));
+    if (byRank != 0) return byRank;
+    final byPrice = a.price.compareTo(b.price);
+    return byPrice != 0 ? byPrice : a.sort.compareTo(b.sort);
+  });
+  return out;
+}
+
+/// Наряд для примерки: вещь встаёт в свой раздел, остальное надетое остаётся.
+Map<String, String> wearTryOn(Map<String, String> outfit, TuWear item) => {...outfit, item.cat: item.key};
+
 /// Разделы гардероба по порядку вкладок. Тот же порядок задаёт, какой слой
 /// «спереди» лежит выше: очки ниже шарфа, шарф ниже того, что над головой.
 /// Одежда (пиджаки, 06.11.2026) — первой: она на самом теле, под очками и

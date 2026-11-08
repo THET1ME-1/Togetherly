@@ -10,7 +10,6 @@ import '../services/plus_service.dart';
 import '../services/pocketbase_service.dart';
 import '../services/rewarded_ad_service.dart';
 import '../services/tu_wear_service.dart';
-import '../widgets/app_sheet.dart';
 import '../widgets/common/ad_result.dart';
 import '../widgets/common/coin_image.dart';
 import '../widgets/common/guide_mascot.dart';
@@ -18,11 +17,16 @@ import '../widgets/mascot/cloud_mascot_view.dart';
 
 /// Гардероб Ту (макет https://claude.ai/artifact/STQLhwignRaZiemWzbYYBF,
 /// вариант Б): Ту крупно сверху в своём наряде, ниже разделы вкладками —
-/// очки, лицо, шарфы, макушка, над головой. В разделе надета одна вещь,
-/// разделы носятся вместе. Вещи из сундука до выпадения стоят под замком,
-/// вещи магазина покупаются прямо с плитки: за монеты или за ролик. Вещь за
-/// монеты можно забрать и роликами (09.11.2026, [wearAdsNeeded]): сервер
-/// засчитывает их по одному и выдаёт вещь на последнем.
+/// одежда, очки, лицо, шарфы, макушка, над головой. В разделе надета одна
+/// вещь, разделы носятся вместе.
+///
+/// С 09.11.2026 — примерка (макет https://claude.ai/artifact/VAPbaGHZRu2nxWKP7PWUu8,
+/// вариант «Б. Примерка»): нажатие на чужую вещь надевает её на Ту на сцене,
+/// а купить её или забрать роликами можно из панели снизу. Над сеткой чипы
+/// «Все / Мои / За монеты / За ролики», порядок — [wardrobeOrder]: что можно
+/// взять сейчас, стоит первым. Вещь за монеты можно забрать и роликами
+/// ([wearAdsNeeded]): сервер засчитывает их по одному и выдаёт вещь на
+/// последнем.
 ///
 /// Входы: меню Ту на главной («Гардероб») и карточка Ту в галерее маскотов.
 class TuWardrobeScreen extends StatefulWidget {
@@ -41,10 +45,16 @@ class _TuWardrobeScreenState extends State<TuWardrobeScreen> {
   final RewardedAdService _ad = RewardedAdService(wardrobe: true);
   bool _busy = false;
 
+  /// Вещь, которую Ту примеряет на сцене; null — Ту в своём наряде.
+  TuWear? _trying;
+  WearFilter _filter = WearFilter.all;
+
+  bool get _plus => PlusService.instance.active;
+
   @override
   void initState() {
     super.initState();
-    if (!PlusService.instance.active) unawaited(_ad.load());
+    if (!_plus) unawaited(_ad.load());
   }
 
   @override
@@ -59,8 +69,16 @@ class _TuWardrobeScreenState extends State<TuWardrobeScreen> {
     return ListenableBuilder(
       listenable: Listenable.merge([CatalogService.instance, TuWearService.instance]),
       builder: (context, _) {
-        final items = wardrobeItems(CatalogService.instance.wearItems, owned: TuWearService.instance.owned);
-        final cats = [for (final c in kTuWearCats) if (items.any((w) => w.cat == c)) c];
+        final service = TuWearService.instance;
+        final owned = service.owned;
+        final items = wardrobeOrder(
+          wardrobeFilter(wardrobeItems(CatalogService.instance.wearItems, owned: owned), _filter, owned: owned, plus: _plus),
+          owned: owned,
+          coins: service.coins,
+        );
+        final all = wardrobeItems(CatalogService.instance.wearItems, owned: owned);
+        final cats = [for (final c in kTuWearCats) if (all.any((w) => w.cat == c)) c];
+        final trying = _trying;
         return DefaultTabController(
           length: cats.isEmpty ? 1 : cats.length,
           child: Scaffold(
@@ -71,7 +89,7 @@ class _TuWardrobeScreenState extends State<TuWardrobeScreen> {
                   padding: const EdgeInsets.only(right: 16),
                   child: Chip(
                     avatar: const CoinImage(side: 22),
-                    label: Text('${TuWearService.instance.coins}'),
+                    label: Text('${service.coins}'),
                     backgroundColor: cs.secondaryContainer,
                     labelStyle: TextStyle(color: cs.onSecondaryContainer, fontWeight: FontWeight.w600),
                     side: BorderSide.none,
@@ -88,46 +106,119 @@ class _TuWardrobeScreenState extends State<TuWardrobeScreen> {
             ),
             body: Column(
               children: [
-                _stage(cs),
+                _stage(cs, trying),
+                _chips(cs),
                 Expanded(
                   child: cats.isEmpty
-                      ? _empty(cs)
+                      ? _empty(cs, ruEn('Вещи для Ту появятся здесь, как только загрузится каталог.', 'Tu’s items will appear here once the catalog loads.'))
                       : TabBarView(children: [for (final c in cats) _grid(cs, [for (final w in items) if (w.cat == c) w])]),
                 ),
               ],
             ),
+            bottomNavigationBar: trying == null ? null : _bar(cs, trying),
           ),
         );
       },
     );
   }
 
-  /// Ту крупно в том, что надето прямо сейчас.
-  Widget _stage(ColorScheme cs) {
+  /// Ту крупно: в своём наряде или в примеряемой вещи.
+  Widget _stage(ColorScheme cs, TuWear? trying) {
     return Container(
       width: double.infinity,
       height: 200,
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       decoration: BoxDecoration(color: cs.surfaceContainerHigh, borderRadius: BorderRadius.circular(28)),
-      alignment: Alignment.center,
-      child: const CloudMascotView(size: 120),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          CloudMascotView(
+            key: ValueKey(trying?.key),
+            size: 120,
+            tryOn: trying == null ? null : wearTryOn(TuWearService.instance.outfit, trying),
+          ),
+          if (trying != null) ...[
+            Positioned(
+              top: 12,
+              left: 12,
+              right: 64,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(color: cs.surfaceContainerLow, borderRadius: BorderRadius.circular(10)),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.visibility_outlined, size: 16, color: cs.onPrimaryContainer),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          ruEn('Примерка: ', 'Trying on: ') + (_ru ? trying.nameRu : trying.nameEn),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: cs.onPrimaryContainer),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 6,
+              right: 6,
+              child: IconButton.filledTonal(
+                tooltip: ruEn('Снять примерку', 'Stop trying on'),
+                onPressed: () => setState(() => _trying = null),
+                icon: const Icon(Icons.close_rounded),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
-  Widget _empty(ColorScheme cs) => Center(
+  /// Чипы над сеткой. «За ролики» у Плюса нет: рекламы у него нет.
+  Widget _chips(ColorScheme cs) {
+    final chips = <(WearFilter, String)>[
+      (WearFilter.all, ruEn('Все', 'All')),
+      (WearFilter.mine, ruEn('Мои', 'Mine')),
+      (WearFilter.coins, ruEn('За монеты', 'For coins')),
+      if (!_plus) (WearFilter.ads, ruEn('За ролики', 'For ads')),
+    ];
+    return SizedBox(
+      height: 56,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+        itemCount: chips.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, i) {
+          final (filter, label) = chips[i];
+          return FilterChip(
+            label: Text(label),
+            selected: _filter == filter,
+            showCheckmark: true,
+            onSelected: (_) => setState(() => _filter = filter),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _empty(ColorScheme cs, String text) => Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
-          child: Text(
-            ruEn('Вещи для Ту появятся здесь, как только загрузится каталог.', 'Tu’s items will appear here once the catalog loads.'),
-            textAlign: TextAlign.center,
-            style: TextStyle(color: cs.onSurfaceVariant),
-          ),
+          child: Text(text, textAlign: TextAlign.center, style: TextStyle(color: cs.onSurfaceVariant)),
         ),
       );
 
   Widget _grid(ColorScheme cs, List<TuWear> items) {
+    if (items.isEmpty) return _empty(cs, ruEn('Здесь пока пусто', 'Nothing here yet'));
     return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent: 130, mainAxisSpacing: 10, crossAxisSpacing: 10, childAspectRatio: 0.78),
       itemCount: items.length,
       itemBuilder: (context, i) => _tile(cs, items[i]),
@@ -138,13 +229,18 @@ class _TuWardrobeScreenState extends State<TuWardrobeScreen> {
     final service = TuWearService.instance;
     final owned = service.owns(item.key);
     final worn = service.outfit[item.cat] == item.key && owned;
+    final trying = _trying?.key == item.key;
     final dpr = MediaQuery.devicePixelRatioOf(context);
     final iconUrl = item.iconKey.isEmpty ? null : catalogArtUrl(item.iconKey, artDecodeBucket(64 * dpr));
-    final bg = worn ? cs.primaryContainer : cs.surfaceContainerHigh;
-    final fg = worn ? cs.onPrimaryContainer : cs.onSurface;
+    final lit = worn || trying;
+    final bg = lit ? cs.primaryContainer : cs.surfaceContainerHigh;
+    final fg = lit ? cs.onPrimaryContainer : cs.onSurface;
     return Material(
       color: bg,
-      borderRadius: BorderRadius.circular(22),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(22),
+        side: trying ? BorderSide(color: cs.primary, width: 2) : BorderSide.none,
+      ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () => _tap(item, owned),
@@ -154,7 +250,7 @@ class _TuWardrobeScreenState extends State<TuWardrobeScreen> {
             children: [
               Expanded(
                 child: Opacity(
-                  opacity: owned || !item.fromChest ? 1 : 0.45,
+                  opacity: owned || trying || !item.fromChest ? 1 : 0.45,
                   child: iconUrl == null ? Icon(Icons.checkroom, color: fg) : catalogArtImage(iconUrl, side: 64, decode: artDecodeBucket(64 * dpr)),
                 ),
               ),
@@ -170,16 +266,22 @@ class _TuWardrobeScreenState extends State<TuWardrobeScreen> {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (!owned && item.src == 'coins' && !_adsStarted(item)) const CoinImage(side: 16, animated: false),
-                  if (!owned && (item.src != 'coins' || _adsStarted(item)))
+                  if (!owned && !trying && item.src == 'coins' && !_adsStarted(item)) const CoinImage(side: 16, animated: false),
+                  if (!owned && !trying && (item.src != 'coins' || _adsStarted(item)))
                     Icon(_sourceIcon(item), size: 14, color: cs.onSurfaceVariant),
-                  if (!owned) const SizedBox(width: 3),
+                  if (!owned && !trying) const SizedBox(width: 3),
                   Flexible(
                     child: Text(
-                      worn ? ruEn('Надето', 'Wearing') : owned ? ruEn('Надеть', 'Wear') : _sourceLabel(item),
+                      worn
+                          ? ruEn('Надето', 'Wearing')
+                          : trying
+                              ? ruEn('Примеряете', 'Trying on')
+                              : owned
+                                  ? ruEn('Надеть', 'Wear')
+                                  : _sourceLabel(item),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 12, color: worn ? cs.onPrimaryContainer : cs.onSurfaceVariant),
+                      style: TextStyle(fontSize: 12, color: lit ? cs.onPrimaryContainer : cs.onSurfaceVariant),
                     ),
                   ),
                 ],
@@ -192,8 +294,7 @@ class _TuWardrobeScreenState extends State<TuWardrobeScreen> {
   }
 
   /// Вещь за монеты, за которую уже начали смотреть ролики.
-  bool _adsStarted(TuWear item) =>
-      item.src == 'coins' && !PlusService.instance.active && TuWearService.instance.adProgress(item.key) > 0;
+  bool _adsStarted(TuWear item) => item.src == 'coins' && !_plus && TuWearService.instance.adProgress(item.key) > 0;
 
   /// «3 ролика», «5 роликов».
   String _adsWord(int n) {
@@ -216,120 +317,83 @@ class _TuWardrobeScreenState extends State<TuWardrobeScreen> {
           ruEn('Ролики ${TuWearService.instance.adProgress(item.key)} из ${item.adsNeeded}',
               'Ads ${TuWearService.instance.adProgress(item.key)} of ${item.adsNeeded}'),
         'coins' => ruEn('${item.price} монет', '${item.price} coins'),
-        'ad' => PlusService.instance.active ? ruEn('Забрать', 'Get') : ruEn('За ролик', 'Watch ad'),
+        'ad' => _plus ? ruEn('Забрать', 'Get') : ruEn('За ролик', 'Watch ad'),
         _ => ruEn('Из сундука', 'From chest'),
       };
 
-  /// Лист покупки, как у тем: вещь крупно, цена монетой TY и баланс, кнопка
-  /// покупки. Без монет кнопка неактивна, а под ценой сказано почему. У вещи
-  /// за монеты под покупкой вторая кнопка — забрать роликами. Ответ —
-  /// `coins` или `ad`.
-  Future<String?> _confirmBuy(TuWear item, String name) {
-    final cs = Theme.of(context).colorScheme;
-    final s = LocaleService.current;
+  /// Панель под примеряемой вещью: купить, забрать роликами или откуда она
+  /// выпадает.
+  Widget _bar(ColorScheme cs, TuWear item) {
     final coins = TuWearService.instance.coins;
-    final byCoins = item.src == 'coins';
-    final canAfford = !byCoins || coins >= item.price;
-    final adsToo = byCoins && !PlusService.instance.active && item.adsNeeded > 0;
     final progress = TuWearService.instance.adProgress(item.key);
-    final adsButton = progress > 0
-        ? ruEn('Ещё ролик · $progress из ${item.adsNeeded}', 'Next ad · $progress of ${item.adsNeeded}')
-        : ruEn('Забрать за ${_adsWord(item.adsNeeded)}', 'Get for ${_adsWord(item.adsNeeded)}');
-    final dpr = MediaQuery.devicePixelRatioOf(context);
-    final iconUrl = item.iconKey.isEmpty ? null : catalogArtUrl(item.iconKey, artDecodeBucket(120 * dpr));
-    final button = byCoins
-        ? ruEn('Купить', 'Buy')
-        : PlusService.instance.active
-            ? ruEn('Забрать', 'Get')
-            : ruEn('Смотреть ролик', 'Watch ad');
-    return showAppSheet<String>(
-      context,
-      background: cs.surfaceContainer,
-      builder: (ctx) => SheetScaffold(
-        title: name,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                height: 140,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(color: cs.surfaceContainerHigh, borderRadius: BorderRadius.circular(24)),
-                child: iconUrl == null
-                    ? Icon(Icons.checkroom, size: 56, color: cs.onSurfaceVariant)
-                    : catalogArtImage(iconUrl, side: 120, decode: artDecodeBucket(120 * dpr)),
-              ),
-              if (byCoins) ...[
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                  decoration: BoxDecoration(color: cs.surfaceContainerHigh, borderRadius: BorderRadius.circular(20)),
-                  child: Row(
-                    children: [
-                      const CoinImage(side: 28),
-                      const SizedBox(width: 10),
-                      Text(
-                        '${item.price}',
-                        style: TextStyle(fontFamily: 'Unbounded', fontSize: 22, fontWeight: FontWeight.w700, color: cs.onSurface),
-                      ),
-                      const Spacer(),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(s.coinBalance, style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
-                          Text(
-                            '$coins',
-                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: canAfford ? cs.onSurface : cs.error),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-              if (!canAfford && !adsToo) ...[
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Icon(Icons.info_outline_rounded, size: 18, color: cs.error),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(s.notEnoughCoins, style: TextStyle(fontSize: 13, color: cs.error))),
-                  ],
-                ),
-              ],
-              const SizedBox(height: 18),
-              SizedBox(
-                height: 56,
-                child: FilledButton.icon(
-                  onPressed: canAfford ? () => Navigator.pop(ctx, byCoins ? 'coins' : 'ad') : null,
-                  icon: byCoins ? const CoinImage(side: 22, animated: false) : const Icon(Icons.play_circle_outline_rounded, size: 20),
-                  label: Text(button),
-                  style: FilledButton.styleFrom(
-                    shape: const StadiumBorder(),
-                    textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ),
-              if (adsToo) ...[
-                const SizedBox(height: 10),
-                SizedBox(
-                  height: 56,
-                  child: FilledButton.tonalIcon(
-                    onPressed: () => Navigator.pop(ctx, 'ad'),
-                    icon: const Icon(Icons.play_circle_outline_rounded, size: 20),
-                    label: Text(adsButton, maxLines: 1, overflow: TextOverflow.ellipsis),
-                    style: FilledButton.styleFrom(
-                      shape: const StadiumBorder(),
-                      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 16),
-            ],
+    final buttonStyle = FilledButton.styleFrom(
+      minimumSize: const Size.fromHeight(56),
+      shape: const StadiumBorder(),
+      textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+    );
+    Widget label(String text) => Text(text, maxLines: 1, overflow: TextOverflow.ellipsis);
+
+    final List<Widget> actions;
+    if (item.src == 'coins') {
+      actions = [
+        Expanded(
+          child: FilledButton.icon(
+            onPressed: _busy || coins < item.price ? null : () => _buyCoins(item),
+            icon: const CoinImage(side: 20, animated: false),
+            label: label(ruEn('Купить · ${item.price}', 'Buy · ${item.price}')),
+            style: buttonStyle,
           ),
+        ),
+        if (!_plus && item.adsNeeded > 0) ...[
+          const SizedBox(width: 10),
+          Expanded(
+            child: FilledButton.tonalIcon(
+              onPressed: _busy ? null : () => _watchAd(item),
+              icon: const Icon(Icons.play_circle_outline_rounded, size: 20),
+              label: label(progress > 0
+                  ? ruEn('Ещё ролик · $progress из ${item.adsNeeded}', 'Next ad · $progress of ${item.adsNeeded}')
+                  : _adsWord(item.adsNeeded)),
+              style: buttonStyle,
+            ),
+          ),
+        ],
+      ];
+    } else if (item.src == 'ad') {
+      actions = [
+        Expanded(
+          child: FilledButton.icon(
+            onPressed: _busy ? null : () => _watchAd(item),
+            icon: Icon(_plus ? Icons.check_rounded : Icons.play_circle_outline_rounded, size: 20),
+            label: label(_plus ? ruEn('Забрать', 'Get') : ruEn('Смотреть ролик', 'Watch ad')),
+            style: buttonStyle,
+          ),
+        ),
+      ];
+    } else {
+      // Пиджаки выпадают из обычного сундука, вещи набора — из своего.
+      actions = [
+        Icon(Icons.lock_outline, color: cs.onSurfaceVariant),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            item.set == 'autumn'
+                ? ruEn('Выпадает из сундука «Уютная осень»', 'Drops from the “Cozy autumn” chest')
+                : ruEn('Выпадает из сундука', 'Drops from the chest'),
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: cs.onSurface),
+          ),
+        ),
+      ];
+    }
+    return Container(
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerLow,
+        border: Border(top: BorderSide(color: cs.outlineVariant)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: SizedBox(height: 56, child: Row(children: actions)),
         ),
       ),
     );
@@ -341,37 +405,46 @@ class _TuWardrobeScreenState extends State<TuWardrobeScreen> {
       ..showSnackBar(SnackBar(behavior: SnackBarBehavior.floating, content: Text(text)));
   }
 
+  /// Своя вещь надевается и снимается, чужая — примеряется на сцене; второе
+  /// нажатие на примеряемую снимает примерку.
   Future<void> _tap(TuWear item, bool owned) async {
     if (owned) {
+      setState(() => _trying = null);
       await TuWearService.instance.toggle(item);
       return;
     }
-    if (item.fromChest || (item.src != 'coins' && item.src != 'ad')) {
-      _say(ruEn('Выпадает из сундука «Уютная осень»', 'Drops from the “Cozy autumn” chest'));
-      return;
-    }
+    setState(() => _trying = _trying?.key == item.key ? null : item);
+  }
+
+  Future<void> _buyCoins(TuWear item) async {
     if (_busy) return;
     final name = _ru ? item.nameRu : item.nameEn;
     final service = TuWearService.instance;
-    final way = await _confirmBuy(item, name);
-    if (way == null || !mounted) return;
     setState(() => _busy = true);
-    var next = false;
     try {
-      if (way == 'coins') {
-        final error = await service.buy(item);
-        if (!mounted) return;
-        _say(switch (error) {
-          null => ruEn('«$name» теперь ваше и уже надето', '“$name” is yours and already on'),
-          'insufficient' => ruEn('Не хватает монет: нужно ${item.price}, у вас ${service.coins}',
-              'Not enough coins: ${item.price} needed, you have ${service.coins}'),
-          _ => ruEn('Не получилось, попробуйте ещё раз', 'Something went wrong, try again'),
-        });
-        return;
-      }
-      // С Плюсом вещь «за ролик» отдаётся без ролика, вещь за монеты сюда с
-      // Плюсом не попадает (кнопки роликов у него нет).
-      if (!PlusService.instance.active) {
+      final error = await service.buy(item);
+      if (!mounted) return;
+      if (error == null) _trying = null;
+      _say(switch (error) {
+        null => ruEn('«$name» теперь ваше и уже надето', '“$name” is yours and already on'),
+        'insufficient' => ruEn('Не хватает монет: нужно ${item.price}, у вас ${service.coins}',
+            'Not enough coins: ${item.price} needed, you have ${service.coins}'),
+        _ => ruEn('Не получилось, попробуйте ещё раз', 'Something went wrong, try again'),
+      });
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Один ролик за вещь. С Плюсом вещь «за ролик» отдаётся без ролика; вещь
+  /// за монеты сюда с Плюсом не попадает (кнопки роликов у него нет). Не
+  /// последний ролик — панель остаётся с «Ещё ролик · 1 из 3».
+  Future<void> _watchAd(TuWear item) async {
+    if (_busy) return;
+    final name = _ru ? item.nameRu : item.nameEn;
+    setState(() => _busy = true);
+    try {
+      if (!_plus) {
         if (!_ad.isReady) {
           unawaited(_ad.load());
           _say(ruEn('Ролик ещё грузится, попробуйте через пару секунд', 'The ad is still loading, try again in a moment'));
@@ -384,11 +457,12 @@ class _TuWardrobeScreenState extends State<TuWardrobeScreen> {
           return;
         }
       }
-      final step = await service.adStep(item);
+      final step = await TuWearService.instance.adStep(item);
       if (!mounted) return;
-      next = step.error == null && !step.granted;
+      if (step.granted) _trying = null;
+      final more = step.error == null && !step.granted;
       _say(switch (step.error) {
-        null when next => ruEn('Ролик засчитан: ${step.progress} из ${item.adsNeeded}', 'Ad counted: ${step.progress} of ${item.adsNeeded}'),
+        null when more => ruEn('Ролик засчитан: ${step.progress} из ${item.adsNeeded}', 'Ad counted: ${step.progress} of ${item.adsNeeded}'),
         null => ruEn('«$name» теперь ваше и уже надето', '“$name” is yours and already on'),
         'too_fast' => ruEn('Подождите пару секунд и смотрите следующий', 'Wait a few seconds before the next one'),
         _ => ruEn('Не получилось, попробуйте ещё раз', 'Something went wrong, try again'),
@@ -396,8 +470,5 @@ class _TuWardrobeScreenState extends State<TuWardrobeScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
-    // Засчитан не последний ролик — лист сразу открывается снова со
-    // следующим, чтобы не искать вещь в сетке заново.
-    if (next && mounted) await _tap(item, false);
   }
 }
