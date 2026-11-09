@@ -9,6 +9,9 @@ import 'mood_pack.dart';
 /// какой цвет у настроения и что облачко делает сейчас.
 const String kCloudMascotId = 'cloud';
 
+/// Кадр покоя Ту в обычном цвете: им Ту стоит на виджете рабочего стола.
+const String kCloudIdleArtKey = 'cloud_idle_base';
+
 /// Цвета облачка: обычный и семь настроений дня.
 const List<String> kCloudTints = ['base', 'joy', 'love', 'calm', 'sad', 'angry', 'tired', 'shy'];
 

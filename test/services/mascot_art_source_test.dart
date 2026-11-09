@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:love_app/models/mascot.dart';
 import 'package:love_app/models/mascot_anim.dart';
 import 'package:love_app/services/mascot/mascot_art_source.dart';
+import 'package:love_app/services/mascot_service.dart';
 
 Mascot _mascot({String? imageUrl, String? defaultAsset, String? catalogUrl}) => Mascot(
       id: 'm1',
@@ -74,6 +75,33 @@ void main() {
 
     test('у маскота без картинки виджету нечего показывать', () {
       expect(mascotArtSource(_mascot(), null).kind, MascotArtKind.none);
+    });
+
+    // Обращение 618: у Ту своей картинки нет, его рисунок — сцены каталога
+    // `cloud_*`, и виджет «Маскот на столе» у всех новых пар стоял пустым.
+    test('Ту берётся кадром покоя из каталога', () {
+      final source = mascotArtSource(
+        MascotService.cloudMascot,
+        null,
+        cloudIdleUrl: 'https://example.invalid/cloud_idle_base.png',
+      );
+      expect(source.kind, MascotArtKind.network);
+      expect(source.ref, 'https://example.invalid/cloud_idle_base.png');
+      expect(source.pixel, isFalse);
+    });
+
+    test('пока каталог не пришёл, у Ту показывать нечего', () {
+      expect(mascotArtSource(MascotService.cloudMascot, null).kind, MascotArtKind.none);
+      expect(mascotArtSource(MascotService.cloudMascot, null, cloudIdleUrl: '').kind, MascotArtKind.none);
+    });
+
+    test('чужому маскоту кадр Ту не достаётся', () {
+      final source = mascotArtSource(
+        _mascot(),
+        null,
+        cloudIdleUrl: 'https://example.invalid/cloud_idle_base.webp',
+      );
+      expect(source.kind, MascotArtKind.none);
     });
   });
 

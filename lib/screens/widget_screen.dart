@@ -97,6 +97,8 @@ import '../widgets/common/app_dialog.dart';
 import '../widgets/app_sheet.dart';
 import '../widgets/widget_content_view.dart';
 import '../models/ios_widget_gaps.dart';
+import '../models/cloud_mascot.dart' show kCloudMascotId;
+import '../widgets/mascot/cloud_mascot_view.dart' show CloudMascotView;
 
 /// Экран виджетов — два тайла (мой / партнёра) + настройки автоотправки.
 class WidgetScreen extends StatefulWidget {
@@ -3586,7 +3588,9 @@ class _WidgetScreenState extends State<WidgetScreen>
     // рисунков и нарисованных вручную его нет, и превью берёт их картинку.
     final anim = id.isEmpty ? null : CatalogService.instance.animById(id);
 
-    if (mascot == null || (!mascot.hasImage && anim == null)) {
+    // У Ту своей картинки нет, его рисуют сцены каталога (`CloudMascotView`).
+    final isCloud = mascot?.id == kCloudMascotId;
+    if (mascot == null || (!mascot.hasImage && anim == null && !isCloud)) {
       return AspectRatio(
         aspectRatio: aspect,
         child: Container(
@@ -3856,6 +3860,11 @@ class _WidgetScreenState extends State<WidgetScreen>
   /// Картинка непиксельного маскота: встроенного, каталожного или
   /// нарисованного человеком. Порядок тот же, что на главной.
   Widget _mascotPicture(Mascot mascot) {
+    if (mascot.id == kCloudMascotId) {
+      return LayoutBuilder(
+        builder: (_, c) => CloudMascotView(size: c.biggest.shortestSide.isFinite ? c.biggest.shortestSide : 96),
+      );
+    }
     final asset = mascot.defaultAsset;
     if (asset != null && asset.isNotEmpty) {
       return buildMascotAssetImage(asset, fit: BoxFit.contain);

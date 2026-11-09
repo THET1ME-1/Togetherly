@@ -7,9 +7,11 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:home_widget/home_widget.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../models/cloud_mascot.dart';
 import '../../models/mascot.dart';
 import '../../models/mascot_anim.dart';
 import '../../models/mascot_widget_data.dart';
+import '../catalog_service.dart';
 import '../home_widget_service.dart';
 import '../locale_service.dart';
 import '../offline/media_view_cache.dart';
@@ -87,9 +89,13 @@ class MascotWidgetService {
     bool force = false,
   }) async {
     final when = now ?? DateTime.now();
-    final art = mascotArtSource(mascot, anim);
+    final cloudIdle = CatalogService.instance.giftArt(kCloudIdleArtKey);
+    // Неподвижный кадр: PNG 480 точек весит 37 КБ, анимация — 1,3 МБ.
+    final art = mascotArtSource(mascot, anim, cloudIdleUrl: cloudIdle?.stillUrl ?? cloudIdle?.lgUrl);
     if (art.kind == MascotArtKind.none) {
-      await clear(groupId);
+      // Ту ждёт каталог: стирать стол незачем, кадр приедет с ним
+      // (`MascotService._onCatalogChanged`).
+      if (mascot.id != kCloudMascotId) await clear(groupId);
       return;
     }
     final signature = [

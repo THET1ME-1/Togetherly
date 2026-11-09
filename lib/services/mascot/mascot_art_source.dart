@@ -1,3 +1,4 @@
+import '../../models/cloud_mascot.dart';
 import '../../models/mascot.dart';
 import '../../models/mascot_anim.dart';
 
@@ -38,8 +39,17 @@ class MascotArtSource {
 
 /// Выбирает источник картинки. Порядок тот же, что на главной
 /// (`_MascotImage`): атлас старше всего, иначе ассет под рукой, иначе сеть.
-MascotArtSource mascotArtSource(Mascot mascot, MascotAnim? anim) {
+///
+/// [cloudIdleUrl] — кадр покоя Ту из каталога (`cloud_idle_base`). Своей
+/// картинки у Ту нет, он рисуется сценами каталога, и без этой ссылки виджет
+/// у всех новых пар стоял пустым (обращение 618).
+MascotArtSource mascotArtSource(Mascot mascot, MascotAnim? anim, {String? cloudIdleUrl}) {
   if (anim != null) return MascotArtSource(MascotArtKind.atlas, anim.sheetUrl);
+
+  if (mascot.id == kCloudMascotId) {
+    if (cloudIdleUrl == null || cloudIdleUrl.isEmpty) return const MascotArtSource(MascotArtKind.none, '');
+    return MascotArtSource(MascotArtKind.network, cloudIdleUrl);
+  }
 
   final asset = mascot.defaultAsset;
   if (asset != null && asset.isNotEmpty) {
