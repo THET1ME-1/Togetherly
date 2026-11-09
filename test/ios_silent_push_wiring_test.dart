@@ -55,7 +55,8 @@ void main() {
     // С приоритетом 10 Apple отвечает отказом на background-пуш.
     expect(relay.contains('"5" if push_type == "background" else "10"'), isTrue);
     expect(relay.contains('"content-available": 1'), isTrue);
-    expect(relay.contains('push_type="background" if req.get("silent")'), isTrue);
+    // С 13.08.2026 пуш уходит через очередь релея: тип кладётся в задание.
+    expect(relay.contains('"push_type": "background" if req.get("silent") else "alert"'), isTrue);
   });
 
   test('сервер будит партнёра на изменение данных виджетов', () {
