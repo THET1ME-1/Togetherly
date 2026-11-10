@@ -381,6 +381,22 @@ class PbAuthService {
         .timeout(const Duration(seconds: 15));
   }
 
+  /// Меняют ли прямо сейчас пароль МОЕГО аккаунта. null — запроса нет.
+  Future<OwnReset?> ownPartnerReset() async {
+    final res = await _pb
+        .send('/api/auth/partner-reset/own')
+        .timeout(const Duration(seconds: 15));
+    final p = res is Map ? res['pending'] : null;
+    return OwnReset.fromJson(p is Map ? Map<String, dynamic>.from(p) : null);
+  }
+
+  /// «Это не я»: гаснут и код, и уже выданный пропуск на новый пароль.
+  Future<void> cancelPartnerReset() async {
+    await _pb
+        .send('/api/auth/partner-reset/cancel', method: 'POST')
+        .timeout(const Duration(seconds: 15));
+  }
+
   /// Ответ вида «токен и запись» — в хранилище сессии.
   void _saveSession(Object? res) {
     if (res is! Map || res['token'] is! String || res['record'] is! Map) {

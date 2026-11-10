@@ -1455,7 +1455,8 @@ class _HomeScreenState extends State<HomeScreen> {
     };
   }
 
-  /// Код для партнёра, который забыл пароль. Пары нет — спрашивать некого.
+  /// Код для партнёра, который забыл пароль, и запрос на свой же аккаунт
+  /// («Ваш пароль меняют», отмена). Пары нет — спрашивать некого.
   void _checkPartnerReset() {
     if (!mounted || !_pairData.isPaired) return;
     unawaited(maybeShowPartnerReset(context));

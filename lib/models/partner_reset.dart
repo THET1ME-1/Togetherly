@@ -52,6 +52,55 @@ class PendingReset {
   }
 }
 
+/// Запрос на смену пароля МОЕГО аккаунта
+/// (`GET /api/auth/partner-reset/own`, 10.11.2026).
+///
+/// Код приходит партнёру, а попросить его на чужую почту может и сам партнёр.
+/// Поэтому хозяин аккаунта видит запрос у себя и может его отменить. Самого
+/// кода здесь нет: он только у партнёра.
+class OwnReset {
+  const OwnReset({
+    required this.codeEntered,
+    required this.partnerName,
+    required this.at,
+    required this.expiresAt,
+  });
+
+  /// null — запроса нет или ответ кривой.
+  static OwnReset? fromJson(Map<String, dynamic>? json) {
+    if (json == null) return null;
+    final stage = json['stage'];
+    if (stage != 'code' && stage != 'ticket') return null;
+    int ms(Object? v) => v is num ? v.toInt() : 0;
+    final at = ms(json['at']);
+    final until = ms(json['expiresAt']);
+    // Без срока лист висел бы вечно.
+    if (until <= at) return null;
+    return OwnReset(
+      codeEntered: stage == 'ticket',
+      partnerName: json['partnerName'] is String
+          ? json['partnerName'] as String
+          : '',
+      at: DateTime.fromMillisecondsSinceEpoch(at, isUtc: true),
+      expiresAt: DateTime.fromMillisecondsSinceEpoch(until, isUtc: true),
+    );
+  }
+
+  /// Код уже введён, выдан пропуск на новый пароль: времени совсем мало.
+  final bool codeEntered;
+
+  /// У кого код.
+  final String partnerName;
+  final DateTime at;
+  final DateTime expiresAt;
+
+  /// Сколько ещё можно отменить.
+  Duration left(DateTime now) {
+    final d = expiresAt.difference(now);
+    return d.isNegative ? Duration.zero : d;
+  }
+}
+
 /// Пропуск после верного кода (`POST /api/auth/partner-reset/verify`).
 class PartnerResetTicket {
   const PartnerResetTicket({

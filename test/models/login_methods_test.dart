@@ -85,6 +85,37 @@ void main() {
       expect(PendingReset.fromJson({'code': '12345'}), isNull);
     });
 
+    test('запрос на свой аккаунт разбирается и считает остаток', () {
+      final at = DateTime.utc(2026, 11, 10, 12, 40);
+      final own = OwnReset.fromJson({
+        'stage': 'code',
+        'partnerName': 'Петя',
+        'partnerGender': 'male',
+        'at': at.millisecondsSinceEpoch,
+        'expiresAt': at.add(const Duration(minutes: 10)).millisecondsSinceEpoch,
+      })!;
+      expect(own.partnerName, 'Петя');
+      expect(own.codeEntered, isFalse);
+      expect(own.left(at.add(const Duration(minutes: 4))), const Duration(minutes: 6));
+      expect(own.left(at.add(const Duration(minutes: 11))), Duration.zero);
+
+      final entered = OwnReset.fromJson({
+        'stage': 'ticket',
+        'partnerName': '',
+        'at': at.millisecondsSinceEpoch,
+        'expiresAt': at.add(const Duration(minutes: 15)).millisecondsSinceEpoch,
+      })!;
+      expect(entered.codeEntered, isTrue);
+    });
+
+    test('запроса на свой аккаунт нет или ответ кривой — молчим', () {
+      expect(OwnReset.fromJson(null), isNull);
+      expect(OwnReset.fromJson({}), isNull);
+      expect(OwnReset.fromJson({'stage': 'другое', 'at': 1, 'expiresAt': 2}), isNull);
+      // Без срока лист висел бы вечно.
+      expect(OwnReset.fromJson({'stage': 'code', 'at': 5, 'expiresAt': 0}), isNull);
+    });
+
     test('причина отказа сервера по коду ответа', () {
       ClientException err(int status, Map<String, dynamic> body) =>
           ClientException(statusCode: status, response: body);

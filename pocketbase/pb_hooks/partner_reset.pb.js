@@ -125,9 +125,92 @@ routerAdd("POST", "/api/auth/partner-reset/request", (e) => {
     "pair_reset",
     { force: true },
   );
+  // Хозяину аккаунта — на его телефоны: попросить код на чужую почту может и
+  // сам партнёр, и тогда код приходит ему же. Без этого уведомления хозяин о
+  // смене своего пароля не узнавал вовсе (10.11.2026). Метка та же
+  // `pair_reset`: приложение по ней спрашивает и `pending`, и `own`.
+  let partnerName = "";
+  try {
+    const p = $app.findRecordById("users", pick.partner);
+    partnerName = String(p.getString("display_name") || p.getString("name") || "").trim();
+  } catch (_) {
+    partnerName = "";
+  }
+  push.sendTo(
+    user.id,
+    (lang) => T.t("reset_own_title", lang),
+    (lang) => T.t("reset_own_body", lang, { name: partnerName || T.t("partner", lang) }),
+    "pair_reset",
+    { force: true },
+  );
   $app.logger().warn("partner-reset: код у партнёра", "uid", user.id, "partner", pick.partner, "group", pick.groupId);
   return e.json(200, { via: "partner", ttl: Math.round(rule.CODE_TTL_MS / 1000) });
 });
+
+/// Запрос на МОЙ аккаунт: приложение хозяина показывает лист «Ваш пароль
+/// меняют» с кнопкой отмены. Самого кода здесь нет: он только у партнёра.
+/// `stage`: `code` — код ещё не введён, `ticket` — введён, выдан пропуск на
+/// новый пароль.
+routerAdd("GET", "/api/auth/partner-reset/own", (e) => {
+  const rule = require(`${__hooks}/partner_reset.js`);
+  const store = $app.store();
+  const me = e.auth.id;
+  const now = Date.now();
+
+  let found = null;
+  const req = store.get("preset_req_" + me);
+  if (req && req.code && now - req.at <= rule.CODE_TTL_MS && Number(req.tries || 0) < rule.MAX_TRIES) {
+    found = { stage: "code", partner: req.partner, at: req.at, expiresAt: req.at + rule.CODE_TTL_MS };
+  }
+  if (!found) {
+    const tix = store.get("preset_tix_" + me);
+    if (tix && tix.ticket && now - tix.at <= rule.TICKET_TTL_MS && store.get("preset_ticket_" + tix.ticket)) {
+      found = { stage: "ticket", partner: tix.partner, at: tix.at, expiresAt: tix.at + rule.TICKET_TTL_MS };
+    }
+  }
+  if (!found) return e.json(200, { pending: null });
+
+  let partnerName = "";
+  let partnerGender = "";
+  try {
+    const p = $app.findRecordById("users", found.partner);
+    partnerName = String(p.getString("display_name") || p.getString("name") || "");
+    partnerGender = p.getString("gender");
+  } catch (_) {
+    partnerName = "";
+  }
+  return e.json(200, {
+    pending: {
+      stage: found.stage,
+      partnerName: partnerName,
+      partnerGender: partnerGender,
+      at: found.at,
+      expiresAt: found.expiresAt,
+    },
+  });
+}, $apis.requireAuth("users"));
+
+/// «Это не я»: хозяин аккаунта гасит и код, и уже выданный пропуск.
+routerAdd("POST", "/api/auth/partner-reset/cancel", (e) => {
+  const store = $app.store();
+  const me = e.auth.id;
+  let cancelled = false;
+
+  const req = store.get("preset_req_" + me);
+  if (req) {
+    if (req.partner) store.remove("preset_for_" + req.partner);
+    store.remove("preset_req_" + me);
+    cancelled = true;
+  }
+  const tix = store.get("preset_tix_" + me);
+  if (tix) {
+    if (tix.ticket && store.get("preset_ticket_" + tix.ticket)) cancelled = true;
+    if (tix.ticket) store.remove("preset_ticket_" + tix.ticket);
+    store.remove("preset_tix_" + me);
+  }
+  if (cancelled) $app.logger().warn("partner-reset: хозяин отменил", "uid", me);
+  return e.json(200, { ok: true, cancelled: cancelled });
+}, $apis.requireAuth("users"));
 
 /// Код для партнёра: приложение забирает его при открытии и по пушу.
 routerAdd("GET", "/api/auth/partner-reset/pending", (e) => {
@@ -226,7 +309,9 @@ routerAdd("POST", "/api/auth/partner-reset/verify", (e) => {
     store.remove(key);
     store.remove("preset_for_" + req.partner);
     const ticket = $security.randomString(40);
-    store.set("preset_ticket_" + ticket, { uid: user.id, at: now });
+    store.set("preset_ticket_" + ticket, { uid: user.id, at: now, partner: req.partner });
+    // По этой записи хозяин находит и гасит пропуск (`own`, `cancel`).
+    store.set("preset_tix_" + user.id, { ticket: ticket, at: now, partner: req.partner });
     let partnerName = "";
     let partnerGender = "";
     try {
@@ -287,6 +372,29 @@ routerAdd("POST", "/api/auth/partner-reset/complete", (e) => {
   } catch (err) {
     $app.logger().warn("partner-reset: отметка пароля не записалась", "uid", user.id, "err", String(err));
   }
+  store.remove("preset_tix_" + user.id);
   $app.logger().warn("partner-reset: пароль сменён", "uid", user.id);
+  // Хозяину — на все его телефоны: прежние сессии сменой пароля сорваны, и без
+  // этих слов он не поймёт, почему его выкинуло и чьим кодом это сделано.
+  try {
+    const push = require(`${__hooks}/apns_push.js`);
+    const T = require(`${__hooks}/push_texts.js`);
+    let partnerName = "";
+    try {
+      const p = $app.findRecordById("users", String(pass.partner || ""));
+      partnerName = String(p.getString("display_name") || p.getString("name") || "").trim();
+    } catch (_) {
+      partnerName = "";
+    }
+    push.sendTo(
+      user.id,
+      (lang) => T.t("reset_done_title", lang),
+      (lang) => T.t("reset_done_body", lang, { name: partnerName || T.t("partner", lang) }),
+      "security",
+      { force: true },
+    );
+  } catch (err) {
+    $app.logger().warn("partner-reset: уведомление о смене не ушло", "uid", user.id, "err", String(err));
+  }
   return $apis.recordAuthResponse(e, user, "password", null);
 });

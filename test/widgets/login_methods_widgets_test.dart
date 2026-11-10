@@ -225,6 +225,44 @@ void main() {
         await t.pumpWidget(const SizedBox());
       });
 
+      testWidgets('лист хозяину «Ваш пароль меняют»: $tag', (t) async {
+        final at = DateTime.utc(2026, 11, 10, 9, 40);
+        var cancelled = 0;
+        await pump(
+          t,
+          Scaffold(
+            body: Align(
+              alignment: Alignment.bottomCenter,
+              child: OwnResetSheet(
+                own: OwnReset(
+                  codeEntered: false,
+                  partnerName: 'Константин',
+                  at: at,
+                  expiresAt: at.add(const Duration(minutes: 10)),
+                ),
+                clock: () => at.add(const Duration(seconds: 36)),
+                onCancel: () async => cancelled++,
+              ),
+            ),
+          ),
+          width: width,
+          b: b,
+        );
+        expect(find.text('Ваш пароль меняют'), findsOneWidget);
+        expect(find.textContaining('Константин'), findsOneWidget);
+        // Сам код хозяину не показывают: он только у партнёра.
+        expect(find.textContaining(RegExp(r'\d{3} \d{3}')), findsNothing);
+        oneLine(t, 'Это я');
+        oneLine(t, 'Это не я');
+        expect(t.takeException(), isNull);
+
+        await t.tap(find.text('Это не я'));
+        await t.pump();
+        expect(cancelled, 1);
+        expect(t.takeException(), isNull);
+        await t.pumpWidget(const SizedBox());
+      });
+
       for (final ios in [false, true]) {
         testWidgets(
           'способы входа (${ios ? 'iPhone' : 'Android'}): $tag',

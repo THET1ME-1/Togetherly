@@ -175,6 +175,45 @@ const TEXTS = {
     zh: "{name}没有确认验证码请求。如果是你本人，请重新获取验证码",
     uk: "{name} не підтвердив запит коду. Якщо це були ви, попросіть код ще раз",
   },
+  // Хозяину аккаунта: его пароль сбрасывают через партнёра (10.11.2026).
+  // Попросить код на чужую почту может и сам партнёр, поэтому хозяин обязан
+  // узнать о запросе и суметь его отменить.
+  reset_own_title: {
+    ru: "Ваш пароль меняют", en: "Your password is being changed",
+    de: "Dein Passwort wird geändert", fr: "Votre mot de passe est en train d’être changé",
+    es: "Están cambiando tu contraseña", it: "Qualcuno sta cambiando la tua password",
+    pt: "Estão alterando a sua senha", zh: "有人正在修改你的密码",
+    uk: "Ваш пароль змінюють",
+  },
+  reset_own_body: {
+    ru: "Код для входа у {name}. Если это не вы, откройте Togetherly и отмените",
+    en: "{name} has the sign-in code. Not you? Open Togetherly and cancel",
+    de: "{name} hat den Anmeldecode. Warst du das nicht? Öffne Togetherly und brich ab",
+    fr: "{name} a le code de connexion. Ce n’est pas vous ? Ouvrez Togetherly et annulez",
+    es: "{name} tiene el código de acceso. ¿No eres tú? Abre Togetherly y cancela",
+    it: "{name} ha il codice di accesso. Non sei tu? Apri Togetherly e annulla",
+    pt: "{name} está com o código de acesso. Não é você? Abra o Togetherly e cancele",
+    zh: "登录验证码在{name}手中。不是你本人？请打开 Togetherly 取消",
+    uk: "Код для входу у {name}. Якщо це не ви, відкрийте Togetherly і скасуйте",
+  },
+  reset_done_title: {
+    ru: "Пароль изменён", en: "Password changed",
+    de: "Passwort geändert", fr: "Mot de passe modifié",
+    es: "Contraseña cambiada", it: "Password cambiata",
+    pt: "Senha alterada", zh: "密码已修改",
+    uk: "Пароль змінено",
+  },
+  reset_done_body: {
+    ru: "Его сменили по коду от {name}. Если это были не вы, восстановите доступ по письму",
+    en: "It was changed with the code {name} received. If that wasn’t you, restore access by email",
+    de: "Es wurde mit dem Code von {name} geändert. Warst du das nicht, stelle den Zugang per E-Mail wieder her",
+    fr: "Il a été changé avec le code reçu par {name}. Si ce n’était pas vous, récupérez l’accès par e-mail",
+    es: "Se cambió con el código que recibió {name}. Si no fuiste tú, recupera el acceso por correo",
+    it: "È stata cambiata con il codice ricevuto da {name}. Se non eri tu, recupera l’accesso via email",
+    pt: "Foi alterada com o código que {name} recebeu. Se não foi você, recupere o acesso por e-mail",
+    zh: "密码是用{name}收到的验证码修改的。如果不是你本人，请通过邮件找回账号",
+    uk: "Його змінили за кодом від {name}. Якщо це були не ви, відновіть доступ листом",
+  },
 };
 
 /// Код из профиля → язык текста. Пусто или незнакомо — русский.
