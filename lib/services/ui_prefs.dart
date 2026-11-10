@@ -293,7 +293,8 @@ class UiPrefs {
 
   static const _loveAdAtKey = 'love_test_ad_at';
 
-  /// Когда перед результатом теста последний раз крутили ролик (epoch-ms).
+  /// Когда перед результатом любого теста пары последний раз крутили ролик
+  /// (epoch-ms).
   /// Ноль — ни разу. Пауза между показами живёт в `models/love_test_ad.dart`.
   static Future<int> loveTestAdAt() async {
     final prefs = await SharedPreferences.getInstance();

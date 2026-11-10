@@ -4,9 +4,13 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../models/love_test_ad.dart';
 import '../models/pair_quiz.dart';
+import '../services/interstitial_ad_service.dart';
 import '../services/locale_service.dart';
 import '../services/pair_quiz_service.dart';
+import '../services/plus_service.dart';
+import '../services/ui_prefs.dart';
 import '../theme/profile_theme.dart';
 import 'pair_quiz_story_screen.dart';
 
@@ -58,6 +62,15 @@ class _PairQuizScreenState extends State<PairQuizScreen> {
   List<int> _round = [];
   final Random _rand = Random();
 
+  /// Ролик перед результатом, как в «Умении любить» (владелец 10.11.2026:
+  /// «На все поставь»). Заказываем на входе: пока человек отвечает, ролик
+  /// успевает загрузиться. Пауза между показами общая на все тесты пары,
+  /// поэтому два теста подряд не дают двух роликов подряд.
+  final InterstitialAdService _ads = InterstitialAdService();
+
+  /// Последний ответ принят, идёт ролик: повторные нажатия не считаем.
+  bool _finishing = false;
+
   String get _lang => LocaleService.instance.language.code;
   QuizResult? get _mine => _results.mine[widget.kind];
   QuizResult? get _theirs => _results.theirs[widget.kind];
@@ -71,6 +84,31 @@ class _PairQuizScreenState extends State<PairQuizScreen> {
     } else {
       unawaited(_load());
     }
+    if (!PlusService.instance.active) unawaited(_ads.load());
+  }
+
+  @override
+  void dispose() {
+    _ads.dispose();
+    super.dispose();
+  }
+
+  /// Показывает ролик, если пора, и запоминает время показа. Правило то же,
+  /// что у «Умения любить»: с Плюсом ролика нет, незагруженный не ждём,
+  /// после показа полчаса тишины.
+  Future<void> _showAdIfDue() async {
+    // Ролика нет или он не нужен — результат без задержки на чтение памяти.
+    if (PlusService.instance.active || !_ads.isReady) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final due = showAdBeforeLoveResult(
+      plusActive: PlusService.instance.active,
+      adReady: _ads.isReady,
+      lastShownMs: await UiPrefs.loveTestAdAt(),
+      nowMs: now,
+    );
+    if (!due) return;
+    final shown = await _ads.show();
+    if (shown) await UiPrefs.setLoveTestAdAt(now);
   }
 
   /// [keepMine] — после прохождения: свой свежий итог уже на экране, а сервер
@@ -91,34 +129,43 @@ class _PairQuizScreenState extends State<PairQuizScreen> {
   }
 
   /// [shown] — номер варианта на экране; в ответ ложится его исходный номер.
-  void _answer(int shown) {
+  Future<void> _answer(int shown) async {
+    if (_finishing) return;
     final step = _step!;
     final q = _order[step];
     final done = step + 1 == _order.length;
-    setState(() {
-      _answers[q] = _optOrder[q][shown];
-      if (!done) {
+    if (!done) {
+      setState(() {
+        _answers[q] = _optOrder[q][shown];
         _step = step + 1;
-        return;
-      }
-      final res = scoreQuiz(widget.kind, _answers, round: _round);
+      });
+      return;
+    }
+    _answers[q] = _optOrder[q][shown];
+    _finishing = true;
+    final res = scoreQuiz(widget.kind, _answers, round: _round);
+    final roundKeys = quizRoundKeys(widget.kind, _round);
+    // Итог уходит на сервер сразу, до ролика: закрой человек приложение
+    // посреди рекламы, тест всё равно останется пройденным.
+    unawaited(PairQuizService.instance.save(
+      widget.groupId,
+      widget.myUid,
+      res,
+      round: roundKeys,
+    ));
+    await _showAdIfDue();
+    if (!mounted) return;
+    setState(() {
       _results = PairQuizResults(
         mine: {..._results.mine, widget.kind: res},
         theirs: _results.theirs,
-        myRounds: {..._results.myRounds, widget.kind: quizRoundKeys(widget.kind, _round).toSet()},
+        myRounds: {..._results.myRounds, widget.kind: roundKeys.toSet()},
       );
       _step = null;
+      _finishing = false;
     });
-    if (done) {
-      unawaited(PairQuizService.instance.save(
-        widget.groupId,
-        widget.myUid,
-        _mine!,
-        round: quizRoundKeys(widget.kind, _round),
-      ));
-      // Свежий итог партнёра мог прийти, пока человек отвечал.
-      unawaited(_load(keepMine: true));
-    }
+    // Свежий итог партнёра мог прийти, пока человек отвечал.
+    unawaited(_load(keepMine: true));
   }
 
   /// Набор вопросов. В «Насколько вы похожи» сравнивать можно только одни и те
