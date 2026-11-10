@@ -33,8 +33,12 @@ trap remove_rules EXIT
 safety_unit=hotpath-restart-safety-$$
 n=0
 for rule in "${rules[@]}"; do
+  # Обычно правило к этому времени уже снято самим скриптом, и голый
+  # `iptables -D` кончался ошибкой: после каждой выкладки в списке упавших
+  # служб оставались две страховки (10.11.2026 их набралось 42).
   systemd-run --quiet --unit "$safety_unit-$((++n))" --on-active=60 \
-    --timer-property=AccuracySec=1s /usr/sbin/iptables -D $rule
+    --timer-property=AccuracySec=1s \
+    /bin/sh -c "/usr/sbin/iptables -D $rule 2>/dev/null; true"
 done
 
 old_pid=$(systemctl show -p MainPID --value hotpath)
