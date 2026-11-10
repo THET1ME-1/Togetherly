@@ -32,6 +32,28 @@ Offset clampMascotPosition(
   );
 }
 
+/// Место маскота на этом экране по общему месту пары.
+///
+/// Место пара делит на двоих и хранит долями экрана, а экраны у партнёров
+/// разные: доля, поставленная у самого верха на телефоне с низкой строкой
+/// состояния, на айфоне ложится под часы, и достать маскота нечем
+/// (обращение 620). Поэтому доля всегда идёт через прижатие.
+Offset mascotPositionOnScreen({
+  required double x,
+  required double y,
+  required Size screen,
+  required double half,
+  double top = 0,
+  double bottom = 0,
+}) =>
+    clampMascotPosition(
+      Offset(x * screen.width, y * screen.height),
+      screen,
+      half,
+      top: top,
+      bottom: bottom,
+    );
+
 /// Тап это был или перетаскивание.
 ///
 /// Жест по маскоту разбирает `onScale*`: распознаватель масштаба забирает

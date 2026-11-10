@@ -185,13 +185,9 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
       // First sync: adopt group position/scale
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        final size = MediaQuery.of(context).size;
         setState(() {
-          _position = Offset(
-            state.positionX * size.width,
-            state.positionY * size.height,
-          );
           _scale = state.scale.clamp(_kMinScale, _kMaxScale);
+          _position = _sharedPosition(state.positionX, state.positionY, _scale);
           _positionInitialized = true;
         });
         _entranceCtrl.forward(from: 0);
@@ -201,12 +197,8 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
     }
 
     if (_positionInitialized && !_isInteracting) {
-      final size = MediaQuery.of(context).size;
-      final nextPosition = Offset(
-        state.positionX * size.width,
-        state.positionY * size.height,
-      );
       final nextScale = state.scale.clamp(_kMinScale, _kMaxScale);
+      final nextPosition = _sharedPosition(state.positionX, state.positionY, nextScale);
       final shouldUpdatePosition =
           (_position.dx - nextPosition.dx).abs() > 0.5 ||
           (_position.dy - nextPosition.dy).abs() > 0.5;
@@ -464,6 +456,19 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
   void _setAnim(MascotAnimState s) {
     if (_anim == s || !mounted) return;
     setState(() => _anim = s);
+  }
+
+  /// Общее место пары (доли экрана) на этом экране, в пределах краёв.
+  Offset _sharedPosition(double x, double y, double scale) {
+    final media = MediaQuery.of(context);
+    return mascotPositionOnScreen(
+      x: x,
+      y: y,
+      screen: media.size,
+      half: 40.0 * scale,
+      top: media.viewPadding.top,
+      bottom: media.viewPadding.bottom + kHomeBottomNavHeight,
+    );
   }
 
   void _clampPosition() {

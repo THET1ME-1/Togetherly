@@ -228,4 +228,28 @@ void main() {
       expect(mascotSquash(sinceHit: 0, strength: 0.3).flat, greaterThan(mascotSquash(sinceHit: 0, strength: 1).flat));
     });
   });
+
+  // Обращение 620: место маскота общее у пары и хранится долями экрана.
+  // Партнёр поставил Ту к самому верху, а на айфоне с высокой строкой
+  // состояния та же доля легла под часы, и достать Ту было нечем.
+  group('место пары на своём экране', () {
+    const screen = Size(390, 844);
+
+    test('доля партнёра под строкой состояния прижимается вниз', () {
+      final p = mascotPositionOnScreen(x: 0.02, y: 0.02, screen: screen, half: 40, top: 47, bottom: 120);
+      expect(p.dy, greaterThanOrEqualTo(47 + 40));
+      expect(p.dx, greaterThanOrEqualTo(40));
+    });
+
+    test('обычная доля переводится в точки как есть', () {
+      final p = mascotPositionOnScreen(x: 0.5, y: 0.5, screen: screen, half: 40, top: 47, bottom: 120);
+      expect(p, const Offset(195, 422));
+    });
+
+    test('экран берёт место пары только через прижатие', () {
+      final source = File('lib/widgets/active_mascot_widget.dart').readAsStringSync();
+      expect(source.contains('state.positionX * size.width'), isFalse,
+          reason: 'место пары переводить через mascotPositionOnScreen, иначе Ту уедет за край');
+    });
+  });
 }
