@@ -41,6 +41,7 @@ import '../models/daily_task.dart';
 import '../dict_strings.dart';
 import '../models/feed_category.dart';
 import '../models/memory.dart';
+import '../models/memory_frames.dart';
 import '../models/sound_clip.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import '../models/memory_media.dart';
@@ -4483,6 +4484,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             required caption,
             mediaPaths,
             keptUrls,
+            freshCover = false,
             mediaPath,
             locationName,
             latitude,
@@ -4491,13 +4493,17 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             customDate,
           }) async {
             // Новые кадры сперва уезжают в хранилище, потом встают в конец
-            // списка — обложка при этом не меняется.
-            final added = <String>[];
+            // списка; новый кадр, поставленный обложкой, — в начало. Прежние
+            // остаются в записи в любом случае (`framesAfterEdit`).
+            final uploaded = <String?>[];
             for (final path in mediaPaths ?? const <String>[]) {
-              final url = await _uploadMemoryPhoto(path);
-              if (url != null) added.add(url);
+              uploaded.add(await _uploadMemoryPhoto(path));
             }
-            final next = <String>[...(keptUrls ?? const []), ...added];
+            final next = framesAfterEdit(
+              kept: keptUrls ?? const [],
+              uploaded: uploaded,
+              freshCover: freshCover,
+            );
             await _memRepo.update(
               groupId: _groupId,
               memoryId: memory.id,
@@ -4547,6 +4553,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   required caption,
                   mediaPaths,
                   keptUrls,
+                  freshCover = false,
                   mediaPath,
                   locationName,
                   latitude,

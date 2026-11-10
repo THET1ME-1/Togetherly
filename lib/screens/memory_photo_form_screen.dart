@@ -11,6 +11,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:video_compress/video_compress.dart';
 
 import '../models/memory.dart';
+import '../models/memory_frames.dart';
 import '../services/locale_service.dart';
 import '../utils/safe_pick.dart';
 import '../theme/app_theme.dart';
@@ -58,6 +59,9 @@ typedef MemoryPhotoSaveCallback = Future<void> Function({
   /// Кадры записи, которые остались после правки, в порядке показа.
   /// Первый из них — обложка. Пусто у новой записи.
   List<String>? keptUrls,
+  /// Обложкой поставлен первый из новых кадров: при правке он встаёт перед
+  /// прежними, а не в конец.
+  bool freshCover,
   String? mediaPath,
   String? locationName,
   double? latitude,
@@ -102,6 +106,17 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
   /// Кадры, которые уже лежат в записи. При правке они стоят в плёнке рядом
   /// с только что выбранными, и порядок между ними общий.
   List<String> _kept = [];
+
+  /// Обложкой поставлен первый новый кадр: в ряду он стоит перед прежними.
+  bool _freshCover = false;
+
+  /// Какой кадр стоит на этом месте общего ряда.
+  FrameSlot _slot(int position) => frameSlot(
+        position,
+        keptCount: _kept.length,
+        freshCount: _media.length,
+        freshCover: _freshCover,
+      );
   // Кэш превью для видео: path → thumbnail bytes
   final Map<String, Uint8List> _videoThumbs = {};
 
@@ -241,8 +256,11 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
   /// Отразить можно обложку, если это только что выбранный снимок: прежние
   /// кадры записи уже на сервере, а у видео отражать нечего. Другой кадр
   /// сперва ставят обложкой касанием в плёнке.
-  bool get _coverFlippable =>
-      _kept.isEmpty && _media.isNotEmpty && !_isVideo(_media.first);
+  bool get _coverFlippable {
+    if (_media.isEmpty) return false;
+    final cover = _slot(0);
+    return !cover.kept && !_isVideo(_media[cover.index]);
+  }
 
   Future<void> _generateVideoThumb(String path) async {
     try {
@@ -331,6 +349,11 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
       caption: _captionCtrl.text.trim(),
       mediaPaths: photos.isNotEmpty ? photos.map((f) => f.path).toList() : null,
       keptUrls: _kept.isEmpty ? null : List<String>.from(_kept),
+      // Видео при правке в список кадров не идёт, обложкой ему не стать.
+      freshCover: _freshCover &&
+          _kept.isNotEmpty &&
+          _media.isNotEmpty &&
+          !_isVideo(_media.first),
       mediaPath: videos.isNotEmpty ? videos.first.path : null,
       locationName: _locationCtrl.text.trim().isEmpty
           ? null
@@ -505,12 +528,13 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
       );
     }
     // Кадры записи идут одним рядом: сперва прежние (при правке), затем
-    // только что выбранные. Обложка — первый в этом ряду.
-    final keptCount = _kept.length;
-    final total = keptCount + _media.length;
+    // только что выбранные. Обложка — первый в этом ряду; новый кадр,
+    // поставленный обложкой, встаёт перед прежними (`frameSlot`).
+    final total = _kept.length + _media.length;
     Widget frameAt(int i, double height, {bool cover = false}) {
-      if (i < keptCount) {
-        final url = _kept[i];
+      final slot = _slot(i);
+      if (slot.kept) {
+        final url = _kept[slot.index];
         return cover
             ? AspectCover(url: url, radius: 22, maxHeight: 400)
             : FilmFrame(
@@ -520,7 +544,7 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
                 onLongPress: () => _removeAt(i),
               );
       }
-      final file = _media[i - keptCount];
+      final file = _media[slot.index];
       if (_isVideo(file)) {
         return ClipRRect(
           borderRadius: BorderRadius.circular(cover ? 22 : 8),
@@ -678,22 +702,17 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
 
   /// Поставить кадр обложкой: он уходит в начало ряда, прежний сдвигается.
   void _makeCover(int index) {
+    final slot = _slot(index);
     setState(() {
-      if (index < _kept.length) {
-        final x = _kept.removeAt(index);
-        _kept.insert(0, x);
+      if (slot.kept) {
+        _kept.insert(0, _kept.removeAt(slot.index));
+        _freshCover = false;
       } else {
-        final i = index - _kept.length;
-        final x = _media.removeAt(i);
-        if (_kept.isEmpty) {
-          _media.insert(0, x);
-        } else {
-          // Новый кадр становится обложкой только вместе с переездом в
-          // начало общего ряда: прежние кадры уступают ему место.
-          _media.insert(0, x);
-          _kept = [];
-          _media = [x, ..._media.where((f) => f != x)];
-        }
+        // Новый кадр встаёт первым среди новых и перед прежними. Прежние
+        // остаются в записи: до 10.11.2026 их список здесь обнулялся, и при
+        // сохранении старые фото пропадали.
+        _media.insert(0, _media.removeAt(slot.index));
+        _freshCover = true;
       }
     });
   }
@@ -881,13 +900,16 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
 
   /// Убрать кадр из записи — по общему ряду: сперва прежние, затем новые.
   void _removeAt(int index) {
+    if (index < 0 || index >= _kept.length + _media.length) return;
+    final slot = _slot(index);
     setState(() {
-      if (index < _kept.length) {
-        _kept.removeAt(index);
+      if (slot.kept) {
+        _kept.removeAt(slot.index);
         return;
       }
-      final i = index - _kept.length;
-      if (i >= 0 && i < _media.length) _media.removeAt(i);
+      _media.removeAt(slot.index);
+      // Убрали новую обложку — обложкой снова первый прежний кадр.
+      if (slot.index == 0) _freshCover = false;
     });
   }
 

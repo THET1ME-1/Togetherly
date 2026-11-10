@@ -577,14 +577,29 @@ routerAdd("POST", "/api/coins/partner-invite", (e) => {
         return;
       }
       let partnerKey = partnerUid;
+      // Платим только за человека, с которым есть общая пара. Пока сервер
+      // верил номеру из запроса, выдуманный партнёр давал 50 монет каждый раз
+      // (найдено 10.11.2026, тест coins_reward_guard.test.py).
+      let together = false;
       try {
         const p = txApp.findRecordById("users", partnerUid);
         const pe = String(p.getString("email") || "").trim().toLowerCase();
         if (pe) partnerKey = pe;
-      } catch (_) { /* партнёра ещё нет — ключ = uid */ }
+        const mine = rec.getStringSlice("group_ids");
+        const theirs = p.getStringSlice("group_ids");
+        for (let i = 0; i < mine.length; i++) {
+          if (theirs.indexOf(mine[i]) !== -1) together = true;
+        }
+      } catch (_) { /* такого человека нет — общей пары тоже нет */ }
+      if (partnerUid === e.auth.id) together = false;
       const rewarded = safeParse(rec.getString("partner_invite_rewarded_keys"), []);
       if (rewarded.indexOf(partnerKey) !== -1) {
         out = { s: 200, b: { ok: false, alreadyGranted: true, coins: coinsNow } };
+        return;
+      }
+      if (!together) {
+        try { $app.logger().warn("partner-invite: общей пары нет", "uid", e.auth.id, "partner", partnerUid); } catch (_) {}
+        out = { s: 200, b: { ok: false, noPartner: true, coins: coinsNow } };
         return;
       }
       if (rewarded.length === 0 && rec.getBool("partner_invite_reward_granted")) {
@@ -616,6 +631,13 @@ routerAdd("POST", "/api/coins/mood-streak", (e) => {
     $app.runInTransaction((txApp) => {
       const rec = txApp.findRecordById("users", e.auth.id);
       const now = Date.now();
+      // Только за свою пару: выдуманный номер пары давал 10 монет каждый раз
+      // (найдено 10.11.2026, тест coins_reward_guard.test.py).
+      if (rec.getStringSlice("group_ids").indexOf(groupId) === -1) {
+        try { $app.logger().warn("mood-streak: пара не своя", "uid", e.auth.id, "group", groupId); } catch (_) {}
+        out = { s: 200, b: { ok: false, notMember: true, coins: rec.getInt("coins") || 0 } };
+        return;
+      }
       const map = safeParse(rec.getString("mood_streak_rewards"), {});
       const last = Number(map[groupId] || 0);
       if (last && now - last < COOLDOWN) {
