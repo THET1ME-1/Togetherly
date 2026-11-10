@@ -65,10 +65,35 @@ routerAdd("POST", "/api/google/native", (e) => {
     user = $app.findRecordById("users", link.getString("recordRef"));
   } catch (_) { user = null; }
 
+  let byEmail = false;
   if (!user && email) {
     try {
       user = $app.findFirstRecordByFilter("users", "email = {:e}", { e: email });
+      byEmail = true;
     } catch (_) { user = null; }
+  }
+
+  // Аккаунт нашёлся по почте, а почту в нём никто не подтверждал: завести его
+  // по паролю мог кто угодно, в расчёте на то, что хозяин почты потом войдёт
+  // через Google в эту заготовку, а пароль останется рабочим. Google почту
+  // подтвердил, значит аккаунт теперь хозяина почты: прежний пароль и все
+  // прежние входы гасим, как делает штатный вход PocketBase страницей
+  // (10.11.2026, стенд — `pocketbase/native_signin_stand.test.py`).
+  // `password_set = -1` — «пароль выдуман сервером»: экран «Способы входа»
+  // покажет, что пароля нет, и даст задать свой.
+  if (user && byEmail && !user.verified()) {
+    try {
+      user.setPassword($security.randomString(40));
+      user.setVerified(true);
+      $app.save(user);
+      $app.db()
+        .newQuery("UPDATE users SET password_set = -1 WHERE id = {:id}")
+        .bind({ id: user.id })
+        .execute();
+      $app.logger().warn("google native: прежний пароль неподтверждённого аккаунта погашен", "uid", user.id);
+    } catch (err) {
+      return deny(500, "не удалось погасить прежний пароль: " + String(err));
+    }
   }
 
   // Бан по почте, как у обычной регистрации (users_guard.pb.js).

@@ -40,7 +40,9 @@ routerAdd("GET", "/api/auth/methods", (e) => {
     if (providers.indexOf(rows[i].provider) === -1) providers.push(rows[i].provider);
   }
   return e.json(200, {
-    password: Number(born.set) > 0 || Number(born.born) === 0,
+    // `password_set` < 0 — пароль выдуман сервером (нативный вход погасил
+    // пароль чужой заготовки, см. google_native.pb.js): человек его не знает.
+    password: Number(born.set) > 0 || (Number(born.set) === 0 && Number(born.born) === 0),
     providers: providers,
     email: e.auth.email(),
   });
@@ -64,7 +66,7 @@ routerAdd("POST", "/api/auth/set-password", (e) => {
     )
     .bind({ id: me })
     .one(born);
-  if (Number(born.set) > 0 || Number(born.born) === 0) {
+  if (Number(born.set) > 0 || (Number(born.set) === 0 && Number(born.born) === 0)) {
     return e.json(409, { code: "has_password", message: "Пароль уже есть. Смените его со старым паролем." });
   }
   const problem = rule.passwordProblem(password);
@@ -108,7 +110,7 @@ routerAdd("POST", "/api/auth/unlink", (e) => {
     )
     .bind({ id: me })
     .one(born);
-  const hasPassword = Number(born.set) > 0 || Number(born.born) === 0;
+  const hasPassword = Number(born.set) > 0 || (Number(born.set) === 0 && Number(born.born) === 0);
   if (providers.length + (hasPassword ? 1 : 0) <= 1) {
     return e.json(409, { code: "last", message: "Это последний способ входа. Сначала привяжите другой." });
   }
@@ -146,9 +148,11 @@ onRecordAuthWithOAuth2Request((e) => {
 onRecordAuthWithPasswordRequest((e) => {
   e.next();
   try {
-    if (e.record && !Number(e.record.get("password_set") || 0)) {
+    // Вошёл по паролю — знает его, чем бы ни была отметка раньше (ноль или
+    // «пароль выдуман сервером»).
+    if (e.record && !(Number(e.record.get("password_set") || 0) > 0)) {
       $app.db()
-        .newQuery("UPDATE users SET password_set = {:t} WHERE id = {:id} AND coalesce(password_set, 0) = 0")
+        .newQuery("UPDATE users SET password_set = {:t} WHERE id = {:id} AND coalesce(password_set, 0) <= 0")
         .bind({ t: Date.now(), id: e.record.id })
         .execute();
     }

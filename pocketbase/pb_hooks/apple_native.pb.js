@@ -72,11 +72,34 @@ routerAdd("POST", "/api/apple/native", (e) => {
   // Почта Apple («…@privaterelay.appleid.com») у человека одна и та же, поэтому
   // ею закрываем случай, когда связки нет, а аккаунт уже есть — например, вход
   // раньше был по почте.
-  if (!user && email) {
+  // По почте цепляемся, только если Apple её подтвердила (так всегда и бывает;
+  // проверка на случай, если перестанет).
+  let byEmail = false;
+  if (!user && email && claims.email_verified === true) {
     try {
       user = $app.findFirstRecordByFilter(
         "users", "email = {:e}", { e: email });
+      byEmail = true;
     } catch (_) { user = null; }
+  }
+
+  // Аккаунт нашёлся по почте, а почту в нём никто не подтверждал: завести его
+  // по паролю мог кто угодно. Apple почту подтвердила, значит аккаунт теперь
+  // хозяина почты: прежний пароль и прежние входы гасим (то же самое и по той
+  // же причине в `google_native.pb.js`, 10.11.2026).
+  if (user && byEmail && !user.verified()) {
+    try {
+      user.setPassword($security.randomString(40));
+      user.setVerified(true);
+      $app.save(user);
+      $app.db()
+        .newQuery("UPDATE users SET password_set = -1 WHERE id = {:id}")
+        .bind({ id: user.id })
+        .execute();
+      $app.logger().warn("apple native: прежний пароль неподтверждённого аккаунта погашен", "uid", user.id);
+    } catch (err) {
+      return deny(500, "не удалось погасить прежний пароль: " + String(err));
+    }
   }
 
   let created = false;

@@ -56,7 +56,9 @@ routerAdd("POST", "/api/migrate/verify-password", (e) => {
   // (10.11.2026, сторож — `pocketbase/migrate_bridge.test.py`).
   let known = 0;
   try { known = Number(user.get("password_set") || 0); } catch (_) { known = 0; }
-  if (known > 0) {
+  // Меньше нуля — пароль погасил сервер при входе через Google или Apple
+  // (google_native.pb.js): такому аккаунту мост тоже не нужен.
+  if (known !== 0) {
     return e.json(200, { ok: false, reason: "password_known" });
   }
 

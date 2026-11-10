@@ -93,6 +93,14 @@ def main():
               st == 200 and res.get("ok") is False and res.get("reason") == "password_known",
               f"{st} {res}")
 
+        # Отметка «пароль выдуман сервером» (вход через Google погасил пароль
+        # чужой заготовки) мост тоже закрывает.
+        sql(f"UPDATE users SET password_set = -1 WHERE id = '{uid}'")
+        st, res = api("/api/migrate/verify-password",
+                      {"email": email, "password": "Old" + rnd(10) + "!"})
+        check("аккаунту с погашенным паролем мост тоже закрыт",
+              st == 200 and res.get("reason") == "password_known", f"{st} {res}")
+
         log("=== 2. кому мост ещё нужен, тому он по-прежнему отвечает ===")
         sql(f"UPDATE users SET password_set = 0 WHERE id = '{uid}'")
         st, res = api("/api/migrate/verify-password",
