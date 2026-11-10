@@ -105,6 +105,50 @@ GROUPS_SRC = os.environ.get("HOTPATH_GROUPS", "sqlite")
 # может любой из пары). Остальное правит только автор.
 ЧАТ_ЧУЖОЕ_МОЖНО = frozenset({"reactions", "voice_heard_at", "note_seen_at", "note_hearts", "pinned_at", "pinned_by", "id"})
 
+
+def поле_автора(колонки) -> str | None:
+    """Колонка, где записан автор: правкой её не переписать."""
+    for имя in ("user_uid", "author_uid"):
+        if имя in колонки:
+            return имя
+    return None
+
+
+def переезд_запрещён(scope, тело, группы, uid, поле, автор_сейчас) -> str | None:
+    """Причина отказа, если правка уводит запись в чужую пару или меняет автора.
+
+    До 10.11.2026 правка принимала любой `group_id`: свою запись переносили в
+    чужую пару по её номеру, и та видела её у себя. Автора тоже можно было
+    переписать на партнёра. Приложение шлёт при правке запись целиком, с теми
+    же парой и автором, поэтому прежние значения проходят.
+
+    [автор_сейчас] — что лежит в записи: None, если записи нет (правка сама
+    ответит 404), пустая строка у записи без автора.
+    """
+    if scope in ("group", "own_or_shared") and "group_id" in тело:
+        if str(тело.get("group_id") or "") not in группы:
+            return "group_id: not your pair"
+    if scope == "channel" and "channel" in тело:
+        канал = str(тело.get("channel") or "")
+        if uid not in канал and канал not in группы:
+            return "channel: not yours"
+    if поле and поле in тело and автор_сейчас is not None:
+        if str(тело.get(поле) or "") != (автор_сейчас or uid):
+            return f"{поле}: author cannot be changed"
+    return None
+
+
+# «Кто в сети» отдаём только про себя и людей из своих живых пар. До
+# 10.11.2026 список читал любой вошедший: 227 тысяч записей «кто когда был».
+# Массив считается один раз на запрос, поиск идёт по индексу user_uid
+# (замер на боевой базе: 0,05–0,09 мс).
+def свои_люди_sql(номер_групп: int, номер_uid: int) -> str:
+    return (
+        "user_uid = ANY(ARRAY(SELECT jsonb_array_elements_text(members) FROM groups "
+        f"WHERE id = ANY(${номер_групп}) AND NOT coalesce(disbanded, false)) "
+        f"|| ${номер_uid}::text)"
+    )
+
 # Типы колонок: text | num | bool | json | auto (updated, ведём сами).
 COLLECTIONS = {
     "canvas_strokes": {
@@ -149,7 +193,9 @@ COLLECTIONS = {
                        "text", "voice_url", "note_url", "pin_id", "pinned_at"},
         # Поиск по переписке: `text ~ 'слово'` → ILIKE внутри своей пары.
         "searchable": {"text"},
-        "create_owner_field": None,
+        # createRule PB: автор — только сам. При переезде в hotpath проверка
+        # потерялась, и участник писал от имени партнёра (до 10.11.2026).
+        "create_owner_field": "user_uid",
         "guard": "chat",
         "delete_guard": "author",
         "after_create": "chat",
@@ -200,8 +246,8 @@ COLLECTIONS = {
         "columns": {"seen_at": "num", "user_uid": "text"},
         "sortable": {"seen_at", "id"},
         "filterable": {"id", "user_uid", "seen_at"},
-        # listRule у presence — просто «залогинен»: партнёрское присутствие
-        # читают по user_uid, группы тут ни при чём.
+        # Присутствие читают по user_uid, колонки группы тут нет. Отдаём
+        # только себя и людей из своих живых пар: `свои_люди_sql`.
         "scope": "authed",
         "create_owner_field": "user_uid",
         "update_owner_field": "user_uid",
@@ -285,7 +331,7 @@ COLLECTIONS = {
         },
         "sortable": {"updated", "id"},
         "filterable": {"id", "group_id", "user_uid", "updated"},
-        "create_owner_field": None,
+        "create_owner_field": "user_uid",   # createRule PB: счётчик заводят себе
         "guard": None,
         "delete_guard": None,
         "after_create": None,
@@ -344,7 +390,7 @@ COLLECTIONS = {
         },
         "sortable": {"updated", "timestamp", "id"},
         "filterable": {"id", "group_id", "user_uid", "mood_id", "timestamp", "updated"},
-        "create_owner_field": None,
+        "create_owner_field": "user_uid",   # createRule PB: настроение ставят себе
         "guard": None,
         "delete_guard": None,
         "after_create": "mood",
@@ -4419,8 +4465,12 @@ async def list_records(col: str, request: Request):
         "totalPages": -1 if skip_total else 0,
         "items": [],
     }
-    if scope in ("authed", "public"):
+    if scope == "public":
         pass  # ограничений нет
+    elif scope == "authed":
+        args.append(list(groups))
+        args.append(uid)
+        where.append(свои_люди_sql(len(args) - 1, len(args)))
     elif scope == "members":
         # Правило записи пары: members ?~ @request.auth.id. Условие ставим
         # ВСЕГДА, даже когда клиент уже прислал такой фильтр сам, — дубль
@@ -4511,8 +4561,10 @@ async def get_record(col: str, rid: str, request: Request):
             return _err(401, "The request requires valid record authorization token.")
         uid, groups = auth
 
-    if scope in ("authed", "public"):
+    if scope == "public":
         cond, args = "TRUE", [rid]
+    elif scope == "authed":
+        cond, args = свои_люди_sql(2, 3), [rid, list(groups), uid]
     elif scope == "own_or_shared":
         cond, args = "group_id = ANY($2) AND (user_uid = $3 OR shared)", [
             rid, list(groups), uid]
@@ -4583,7 +4635,10 @@ async def create_record(col: str, request: Request):
             return _err(400, "Failed to create record.")
     owner_field = meta.get("create_owner_field")
     if owner_field and str(body.get(owner_field) or "") != uid:
-        # У memories и widget_data createRule требует авторства записи.
+        # createRule PB требует авторства записи. Отказ пишем в журнал: по нему
+        # видно, не упёрлась ли в проверку честная сборка приложения.
+        log.warning("создание отклонено: %s uid=%s, автором прислан %r",
+                    col, uid, str(body.get(owner_field) or "")[:20])
         return _err(400, "Failed to create record.")
 
     rid = str(body.get("id") or "") or _new_id()
@@ -4701,6 +4756,21 @@ async def update_record(col: str, rid: str, request: Request):
             for m in новый:
                 if str(m) not in текущий:
                     return _err(403, "cannot add members directly")
+
+    # Запись не уходит в чужую пару и не меняет автора: `переезд_запрещён`.
+    # Автора читаем, только когда его прислали в теле.
+    поле = поле_автора(meta["columns"])
+    автор_сейчас = None
+    if поле and поле in body:
+        async with pg.acquire() as c:
+            строка = await c.fetchrow(f"SELECT {поле} FROM {col} WHERE id = $1", rid)
+        if строка is not None:
+            автор_сейчас = строка[0] or ""
+    причина = переезд_запрещён(
+        meta.get("scope", "group"), body, groups, uid, поле, автор_сейчас)
+    if причина:
+        log.warning("правка отклонена: %s %s uid=%s: %s", col, rid, uid, причина)
+        return _err(403, причина)
 
     # Страж чата (перенос chat_guard.pb.js): не-автор правит только поля из
     # ЧАТ_ЧУЖОЕ_МОЖНО. Смотрим ТЕЛО запроса, как и хук.
