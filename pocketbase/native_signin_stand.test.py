@@ -166,6 +166,27 @@ def scenarios(admin):
     check("пароль прежний", bool(login("known@example.com", "KnownPass123!")))
     check("прежний вход жив", alive(was))
 
+    log("=== 3а. Google привязан в «Способах входа»: работают оба способа ===")
+    # Человек вошёл по паролю и привязал Google на экране «Способы входа»
+    # (привязку делает PocketBase страницей, здесь она заведена записью).
+    # Почта при этом так и не подтверждена. Вход через Google находит такого
+    # человека по привязке, а не по почте, и пароль не трогает.
+    uid_l = signup("linked@example.com", "LinkedPass123!")
+    was = login("linked@example.com", "LinkedPass123!")
+    st, r = api("/api/collections/_externalAuths/records", {
+        "collectionRef": "_pb_users_auth_", "recordRef": uid_l,
+        "provider": "google", "providerId": "g-linked"}, admin)
+    check("привязка Google заведена (стенд)", st == 200, f"{st} {str(r)[:120]}")
+    st, r = google("g-linked", "linked@example.com")
+    check("вошёл через Google в свой аккаунт",
+          st == 200 and (r.get("record") or {}).get("id") == uid_l, f"{st}")
+    check("пароль по-прежнему работает", bool(login("linked@example.com", "LinkedPass123!")))
+    check("вход на другом телефоне не сорван", alive(was))
+    st, m = api("/api/auth/methods", None, r.get("token", ""))
+    check("«Способы входа»: и пароль, и Google",
+          st == 200 and m.get("password") is True and m.get("providers") == ["google"],
+          f"{st} {m}")
+
     log("=== 4. новой почты нет — заводится аккаунт ===")
     st, r = google("g-new", "newcomer@example.com")
     check("аккаунт заведён и подтверждён",
