@@ -44,6 +44,13 @@ def api(path, data=None, token=None, method=None):
     req.add_header("Content-Type", "application/json")
     if token:
         req.add_header("Authorization", token)
+    # Пометку `store=rustore` сервер принимает только с ключом проверочного
+    # прогона (см. iap_guard.test.py): без него чек без сверки отклоняется.
+    try:
+        with open("/opt/pocketbase/pb_data/.iap_test_key", encoding="utf-8") as f:
+            req.add_header("X-Iap-Test-Key", f.read().strip())
+    except OSError:
+        pass
     try:
         with urllib.request.urlopen(req, timeout=25) as r:
             raw = r.read().decode()

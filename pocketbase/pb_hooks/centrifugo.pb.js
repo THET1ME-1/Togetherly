@@ -192,7 +192,9 @@ routerAdd("POST", "/api/centrifugo/subscription-token", (e) => {
     if (target === uid) { allowed = true; }
     else {
       try {
-        const rows = $app.findRecordsByFilter("groups", "members ~ {:a} && members ~ {:b}", "", 1, 0, { a: uid, b: target });
+        // Только живая общая пара: роспуск состав не чистит, и без этого
+        // условия бывший партнёр оставался в личном канале (как в hotpath).
+        const rows = $app.findRecordsByFilter("groups", "members ~ {:a} && members ~ {:b} && disbanded = false", "", 1, 0, { a: uid, b: target });
         allowed = !!(rows && rows.length > 0);
       } catch (_) {}
     }

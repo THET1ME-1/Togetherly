@@ -940,9 +940,9 @@
       "indexes": [],
       "listRule": "@request.auth.id != \"\" && user_uid = @request.auth.id",
       "viewRule": "@request.auth.id != \"\" && user_uid = @request.auth.id",
-      "createRule": "@request.auth.id != \"\" && user_uid = @request.auth.id",
-      "updateRule": "@request.auth.id != \"\" && user_uid = @request.auth.id",
-      "deleteRule": "@request.auth.id != \"\" && user_uid = @request.auth.id"
+      "createRule": null,
+      "updateRule": null,
+      "deleteRule": null
     },
     {
       "name": "migration_flags",

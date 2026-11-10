@@ -49,6 +49,17 @@ routerAdd("POST", "/api/migrate/verify-password", (e) => {
     return e.json(200, { ok: false, reason: "no_pb_user" });
   }
 
+  // Мост — для тех, кто после переезда ещё ни разу не вошёл. Человек, чей
+  // пароль уже известен PocketBase (`password_set`: вошёл по паролю, сменил
+  // его по письму или через партнёра), сюда не попадает: иначе пароль времён
+  // Firebase открывал бы аккаунт и после смены — мост ставил его обратно
+  // (10.11.2026, сторож — `pocketbase/migrate_bridge.test.py`).
+  let known = 0;
+  try { known = Number(user.get("password_set") || 0); } catch (_) { known = 0; }
+  if (known > 0) {
+    return e.json(200, { ok: false, reason: "password_known" });
+  }
+
   // Проверяем пароль в Firebase Auth REST.
   let fbOk = false;
   try {
@@ -77,6 +88,17 @@ routerAdd("POST", "/api/migrate/verify-password", (e) => {
   } catch (err) {
     try { $app.logger().error("migrate bridge: set password failed: " + String(err)); } catch (_) {}
     return e.json(500, { ok: false, error: "set_password_failed" });
+  }
+
+  // Пароль перенесён, человек его знает: второй раз мост этому аккаунту не
+  // нужен. Отметку ставим мимо записи, как login_methods.pb.js.
+  try {
+    $app.db()
+      .newQuery("UPDATE users SET password_set = {:t} WHERE id = {:id}")
+      .bind({ t: Date.now(), id: user.id })
+      .execute();
+  } catch (err) {
+    try { $app.logger().warn("migrate bridge: отметка пароля не записалась", "uid", user.id, "err", String(err)); } catch (_) {}
   }
 
   return e.json(200, { ok: true });

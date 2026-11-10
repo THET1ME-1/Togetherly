@@ -3179,10 +3179,15 @@ async def cent_subscription_token(request: Request):
         if target == uid:
             allowed = True
         else:
+            # Только живая общая пара. Роспуск ставит флаг и состав не чистит,
+            # поэтому без этого условия бывший партнёр оставался в личном
+            # канале человека: видел, когда тот в сети, и получал запись его
+            # новой пары (10.11.2026, сторож — pair_privacy.test.py).
             async with pg.acquire() as c:
                 allowed = bool(await c.fetchval(
                     "SELECT 1 FROM groups WHERE members @> $1::jsonb "
-                    "AND members @> $2::jsonb LIMIT 1",
+                    "AND members @> $2::jsonb "
+                    "AND NOT coalesce(disbanded, false) LIMIT 1",
                     json.dumps([uid]), json.dumps([target])))
     elif channel.startswith("loc:"):
         allowed = uid in channel
@@ -3837,6 +3842,20 @@ async def internal_pair_accept(request: Request):
 
     async with pg.acquire() as c:
         async with c.transaction():
+            # Приёмы с участием этих двоих идут по очереди. Блокировка строки
+            # пары (ниже, в `войти`) держит только уже существующую пару, а у
+            # новой строки ещё нет: запросы, пришедшие разом (диплинк шлёт код
+            # дважды, кнопку жмут два раза), каждый видел «общей пары нет» и
+            # заводил свою. Так появлялись пары-дубли: две живые группы с
+            # одним составом, каждый телефон на своей (10.11.2026, сторож —
+            # pair_accept_race.test.py). Очередь держится до конца транзакции;
+            # ключи берутся по порядку, чтобы два встречных приёма не заперли
+            # друг друга.
+            for человек in sorted({хозяин, я}):
+                await c.execute(
+                    "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+                    "pair-accept:" + человек)
+
             async def войти(gid: str, кто: str = я):
                 # [кто] — кого добавить в группу: обычно принимающего, а в его
                 # собственную группу — приглашающего.
@@ -4657,11 +4676,14 @@ async def update_record(col: str, rid: str, request: Request):
     # Клиент состав только СОКРАЩАЕТ (выход из пары), добавляют серверные пути.
     if col == "groups":
         ЗАКРЫТЫЕ = ("claim_token", "claim_uid", "claim_name", "claim_at",
-                    "waiting_mode")
+                    "waiting_mode", "owned_features")
         for f in ЗАКРЫТЫЕ:
             if f in body:
                 # Код второго места и заявку на него пишет только сервер:
                 # иначе участник подменит код своим и уведёт чужую заявку.
+                # Купленное парой (`owned_features`) кладёт тоже сервер, через
+                # /internal/group-write: до 10.11.2026 пак настроений или
+                # маскота участник вписывал себе этой правкой без оплаты.
                 return _err(403, f"read-only pairing field: {f}")
         if "members" in body:
             новый = body.get("members")

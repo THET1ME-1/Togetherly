@@ -112,8 +112,13 @@ RULES = {
     },
     # live-локация: канал pair_<uidA>_<uidB>; create — точку пишешь только за себя
     "live_location": same_authored(CHANNEL, "user_uid"),
-    # покупки — только свои
-    "iap_purchases": same(IAP),
+    # покупки — читаешь только свои, пишет только сервер (coins.pb.js). Пока
+    # хозяин мог стереть свою запись, тот же настоящий чек принимался заново:
+    # от повторной выдачи защищает только она (10.11.2026).
+    "iap_purchases": {
+        "listRule": IAP, "viewRule": IAP,
+        "createRule": None, "updateRule": None, "deleteRule": None,
+    },
     # медиа — чтение: владелец/член/любые аватары; запись: строго владелец/член
     "media": {
         "listRule": MEDIA_READ,

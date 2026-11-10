@@ -722,10 +722,34 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
   // App Store — у Apple на verifyReceipt (общий секрет там нужен только
   // подпискам, а Togetherly+ — разовая покупка). Токен RuStore не признаёт
   // ни тот, ни другой, поэтому он идёт без сверки.
+  //
+  // Пометка `rustore` сверку пропускает, поэтому принимается только от
+  // проверочного прогона с ключом сервера (заголовок `X-Iap-Test-Key`, файл
+  // `pb_data/.iap_test_key`). До 10.11.2026 ключа не требовалось: приложение
+  // из RuStore сюда не ходит (оно платит через lava), но запрос, собранный
+  // руками, с выдуманным токеном получал Плюс и монеты даром. Сторож —
+  // `pocketbase/iap_guard.test.py`.
+  let testRun = false;
+  if (store === "rustore") {
+    let want = "";
+    try {
+      const b = $os.readFile("/opt/pocketbase/pb_data/.iap_test_key");
+      want = (typeof b === "string" ? b : String.fromCharCode.apply(null, b)).trim();
+    } catch (_) { want = ""; }
+    const got = String(e.request.header.get("X-Iap-Test-Key") || "");
+    testRun = want !== "" && $security.equal(got, want);
+    if (!testRun) {
+      try {
+        $app.logger().error("iap: чек без сверки отклонён",
+          "product", productId, "uid", e.auth.id, "store", store);
+      } catch (_) {}
+      return e.json(403, { ok: false, error: "purchase_not_verified" });
+    }
+  }
   // Номер сделки App Store. По нему уведомление о возврате находит покупку:
   // в самом уведомлении есть только он, ни нашего uid, ни почты там нет.
   let appleTxId = "";
-  if (store !== "rustore") {
+  if (!testRun) {
     let verdict = { ok: false, reason: "unreachable" };
     try {
       const res = $http.send({
