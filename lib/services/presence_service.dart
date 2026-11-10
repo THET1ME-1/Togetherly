@@ -56,8 +56,13 @@ class PresenceService with WidgetsBindingObserver {
     _groupId = groupId;
     WidgetsBinding.instance.addObserver(this);
     if (groupId.isNotEmpty) _listenChannel(groupId);
-    _beat();
-    _heartbeat = Timer.periodic(PresenceLiveness.beat, (_) => _beat());
+    // Разбуженное в фоне (тихий пуш на iPhone поднимает и главный экран)
+    // молчит: иначе спящий человек горит у партнёра «в сети». Выйдет на экран —
+    // `didChangeAppLifecycleState(resumed)` начнёт удары сам.
+    if (PresenceLiveness.shouldBeat(WidgetsBinding.instance.lifecycleState)) {
+      _beat();
+      _heartbeat = Timer.periodic(PresenceLiveness.beat, (_) => _beat());
+    }
   }
 
   void stop() {

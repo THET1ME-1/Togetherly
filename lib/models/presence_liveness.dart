@@ -15,6 +15,8 @@
 /// про канал ещё не знать. Пока такие сборки живы, его онлайн виден по базе.
 library;
 
+import 'dart:ui' show AppLifecycleState;
+
 class PresenceLiveness {
   /// Сколько времени отметка считается свежей.
   ///
@@ -51,6 +53,14 @@ class PresenceLiveness {
       _latest(channelBeatMs, storedSeenMs);
 
   /// Пора ли класть отметку в базу.
+  /// Слать ли «я жив» при таком состоянии приложения: только когда оно на
+  /// экране. Тихий пуш будит закрытое приложение на iPhone целиком, главный
+  /// экран строится в фоне, и без этой проверки партнёр видел «в сети» у
+  /// спящего человека (обращение 624, 10.11.2026). Пустое состояние — система
+  /// ещё не сказала, видно ли приложение; придёт `resumed`, начнём тогда.
+  static bool shouldBeat(AppLifecycleState? state) =>
+      state == AppLifecycleState.resumed;
+
   static bool shouldWriteLastSeen({int? writtenAtMs, required int nowMs}) {
     if (writtenAtMs == null) return true;
     return nowMs - writtenAtMs >= lastSeenWrite.inMilliseconds;

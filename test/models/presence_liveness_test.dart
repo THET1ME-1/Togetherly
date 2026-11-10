@@ -1,4 +1,7 @@
 // Присутствие: канал вместо записи в базу, но старые сборки не теряются.
+import 'dart:io';
+import 'dart:ui' show AppLifecycleState;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:love_app/models/presence_liveness.dart';
 
@@ -99,6 +102,35 @@ void main() {
     test('пишем в двадцать пять раз реже прежнего heartbeat', () {
       final ratio = PresenceLiveness.lastSeenWrite.inSeconds / 12;
       expect(ratio, greaterThanOrEqualTo(25));
+    });
+  });
+
+  // Обращение 624 (10.11.2026): партнёр спал, а в приложении «появился в сети и
+  // сразу пропал». Тихий пуш будит закрытое приложение на iPhone целиком, главный
+  // экран строится в фоне и до этой правки сразу слал «я жив» с таймером раз
+  // в 20 с: партнёр видел «в сети», пока iOS не усыпит процесс.
+  group('«я жив» только с экрана', () {
+    test('приложение на экране — шлём', () {
+      expect(PresenceLiveness.shouldBeat(AppLifecycleState.resumed), isTrue);
+    });
+
+    test('разбужено в фоне или свёрнуто — молчим', () {
+      for (final s in [
+        null,
+        AppLifecycleState.inactive,
+        AppLifecycleState.hidden,
+        AppLifecycleState.paused,
+        AppLifecycleState.detached,
+      ]) {
+        expect(PresenceLiveness.shouldBeat(s), isFalse, reason: '$s');
+      }
+    });
+
+    test('запуск присутствия спрашивает состояние приложения', () {
+      final src = File('lib/services/presence_service.dart').readAsStringSync();
+      final start = src.substring(src.indexOf('void start('), src.indexOf('void stop('));
+      expect(start, contains('shouldBeat('),
+          reason: 'start() не должен слать «я жив», пока приложение не на экране');
     });
   });
 }
