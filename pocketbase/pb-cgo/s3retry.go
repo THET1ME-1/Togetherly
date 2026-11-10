@@ -56,6 +56,13 @@ type s3Retry struct {
 	// пауза перед второй, третьей… попыткой
 	backoff []time.Duration
 	logf    func(format string, args ...any)
+	// склад свежих файлов на своём диске, см. s3spool.go; nil — выключен
+	spool *s3Spool
+	// сроки попыток чтения, по одной на попытку; пусто — как у [headerWait].
+	// Хранилище временами держит ответ по 20–70 секунд и отпускает всех
+	// ждущих разом: три попытки по 15 секунд обрывались все, а одна долгая
+	// дожидается (замер 10.11.2026). Поэтому последняя попытка чтения длинная.
+	readWaits []time.Duration
 }
 
 // Сроки сведены с приложением: маленький файл оно ждёт 60 секунд
@@ -159,6 +166,13 @@ func (t *s3Retry) RoundTrip(req *http.Request) (*http.Response, error) {
 	if !isS3Request(req) {
 		return t.base.RoundTrip(req)
 	}
+	if t.spool != nil {
+		// Свежий файл пишется и читается со склада, хранилище на пути
+		// человека не стоит.
+		if resp, taken := t.spool.handle(req); taken {
+			return resp, nil
+		}
+	}
 	if !t.canRetry(req) {
 		return t.store.RoundTrip(req)
 	}
@@ -167,6 +181,9 @@ func (t *s3Retry) RoundTrip(req *http.Request) (*http.Response, error) {
 		if err == nil && !retryableStatus(resp.StatusCode) {
 			if attempt > 1 {
 				t.logf("[s3-retry] %s %s: прошло с попытки %d%s", req.Method, req.URL.Path, attempt, t.pathNote(attempt))
+			}
+			if t.spool != nil {
+				resp = t.spool.remember(req, resp)
 			}
 			return resp, nil
 		}
@@ -222,6 +239,9 @@ func (t *s3Retry) try(req *http.Request, attempt int) (*http.Response, error) {
 		attemptReq.Body = body
 	}
 	wait := t.waitFor(req)
+	if reading := req.Method == http.MethodGet || req.Method == http.MethodHead; reading && attempt <= len(t.readWaits) {
+		wait = t.readWaits[attempt-1]
+	}
 	timer := time.AfterFunc(wait, cancel)
 	resp, err := t.transportFor(attempt).RoundTrip(attemptReq)
 	if !timer.Stop() {

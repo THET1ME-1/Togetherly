@@ -361,7 +361,21 @@ func main() {
 	// Клиент S3 в PocketBase ходит в хранилище через http.DefaultClient и сам не
 	// повторяет: изредка Hetzner не отвечает 120 секунд, и загрузка срывается
 	// (s3retry.go, TOG-41). Остальные запросы этот транспорт не трогает.
-	http.DefaultClient.Transport = newS3Retry(http.DefaultTransport)
+	storeRetry := newS3Retry(http.DefaultTransport)
+	// Склад свежих файлов на своём диске (s3spool.go): хранилище временами
+	// держит запись по 20–70 секунд, и человек получал отказ. Включается
+	// переменной окружения; без неё сборка ведёт себя по-прежнему.
+	if dir := os.Getenv("S3_SPOOL_DIR"); dir != "" {
+		spool, err := newS3Spool(dir, storeRetry)
+		if err != nil {
+			log.Println("pocketbase-cgo: склад файлов не поднялся, работаю без него:", err)
+		} else {
+			storeRetry.spool = spool
+			storeRetry.readWaits = []time.Duration{10 * time.Second, 15 * time.Second, 80 * time.Second}
+			log.Println("pocketbase-cgo: склад свежих файлов —", dir)
+		}
+	}
+	http.DefaultClient.Transport = storeRetry
 
 	// PocketBase зовёт DBConnect для каждой базы ДВАЖДЫ: сперва для пула чтения,
 	// затем для пула записи (core/base.go, initDataDB). Второму подключению
@@ -466,6 +480,13 @@ func main() {
 	go authCacheSweeper()
 
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
+		// Складу нужен секрет хранилища: досылки он подписывает сам. Заодно
+		// досылаем то, что не успело уйти до перезапуска.
+		if spool := storeRetry.spool; spool != nil {
+			spool.secret.Store(e.App.Settings().S3.Secret)
+			spool.resume()
+			go spool.run()
+		}
 		// Пул записи: PocketBase даёт ему ОДНО соединение, и на нашей нагрузке
 		// этого мало — под вечерним пиком в очереди стояло 3262 запроса при
 		// 11 работающих, а перезапуск лишь смывал очередь на несколько минут.
