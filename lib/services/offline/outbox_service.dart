@@ -564,13 +564,24 @@ class OutboxService {
   Future<void> retryPoison() async {
     final db = await LocalStore.instance.database();
     if (db == null) return;
-    final items = await _poison.find(db);
+    final items = await _poison.find(db,
+        finder: Finder(sortOrders: [SortOrder(Field.key)]));
     for (final s in items) {
-      await _store.add(db, {
-        'type': s.value['type'],
-        'payload': s.value['payload'],
-        'attempts': 0,
-      });
+      // Копии правки одной записи склеиваем тем же правилом, что и при
+      // постановке в очередь: сдавшаяся правка туда не возвращается, и каждая
+      // новая правка той же записи ложилась рядом отдельной копией. У одного
+      // телефона так набралось 359 копий одной правки (10.11.2026), и каждая
+      // отрабатывала свои пять попыток.
+      final parsed = _parseOp(s.value);
+      final merged = parsed != null &&
+          await _coalesce(db, parsed.type, parsed.payload);
+      if (!merged) {
+        await _store.add(db, {
+          'type': s.value['type'],
+          'payload': s.value['payload'],
+          'attempts': 0,
+        });
+      }
       await _poison.record(s.key).delete(db);
     }
     await _updatePending();

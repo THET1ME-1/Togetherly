@@ -4455,6 +4455,35 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     return MediaService().uploadFile(path, destination);
   }
 
+  /// Залить видео и кадр-обложку из него. Кадр — по возможности: на части
+  /// устройств его снятие виснет, поэтому срок 30 секунд и запись без него.
+  Future<({String? url, String? thumb, UploadFailure? failure})>
+      _uploadMemoryVideo(String path) async {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final ext = path.split('.').last;
+    String? thumb;
+    try {
+      final bytes = await VideoCompress.getByteThumbnail(
+        path,
+        quality: 80,
+        position: -1,
+      ).timeout(const Duration(seconds: 30), onTimeout: () => null);
+      if (bytes != null) {
+        final dir = await getTemporaryDirectory();
+        final file = File('${dir.path}/thumb_$timestamp.jpg');
+        await file.writeAsBytes(bytes);
+        thumb = await MediaService()
+            .uploadFile(file.path, 'memories/$_groupId/thumb_$timestamp.jpg');
+        file.delete().catchError((_) => file);
+      }
+    } catch (e) {
+      debugPrint('Video thumbnail upload failed: $e');
+    }
+    final outcome = await MediaService().uploadFileWithReason(
+        path, 'memories/$_groupId/memory_$timestamp.$ext');
+    return (url: outcome.ref, thumb: thumb, failure: outcome.failure);
+  }
+
   /// Правка записи тем же экраном, что и создание.
   void _openMemoryEditor(Memory memory) {
     final frames = <String>[
@@ -4504,6 +4533,30 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               uploaded: uploaded,
               freshCover: freshCover,
             );
+            // Видео, выбранное при правке. До 10.11.2026 отсюда читались
+            // только фото: ролик молча пропадал, а запись выглядела
+            // сохранённой. Не залилось — говорим причину, остальное сохраняем.
+            String? videoUrl;
+            String? videoThumb;
+            if (mediaPath != null) {
+              final video = await _uploadMemoryVideo(mediaPath);
+              videoUrl = video.url;
+              videoThumb = video.thumb;
+              if (videoUrl == null && mounted) {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(uploadFailureText(
+                      video.failure ?? UploadFailure.other,
+                      LocaleService.current,
+                      video: true,
+                    )),
+                    behavior: SnackBarBehavior.floating,
+                    duration: const Duration(seconds: 5),
+                  ),
+                );
+              }
+            }
             await _memRepo.update(
               groupId: _groupId,
               memoryId: memory.id,
@@ -4512,6 +4565,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               locationName: locationName,
               latitude: latitude,
               longitude: longitude,
+              videoUrl: videoUrl,
+              type: videoUrl == null ? null : typeWithVideo(memory.type),
+              // У записи без кадров обложкой становится кадр из ролика.
+              imageUrl: videoUrl != null && next.isEmpty ? videoThumb : null,
               imageUrls: next.isEmpty ? null : next,
               isAdult: isAdult,
               customDate: customDate,

@@ -151,6 +151,7 @@ class PbDataService {
     String op = 'upsert',
     bool expectNew = false,
     bool? ifMissing,
+    void Function()? onMissing,
   }) async {
     body.remove('id');
     if (expectNew) {
@@ -184,6 +185,7 @@ class PbDataService {
     } on ClientException catch (e) {
       if (e.statusCode == 404 && ifMissing != null) {
         debugPrint('PbData.$op($col/$id): записи нет на сервере');
+        onMissing?.call();
         return ifMissing;
       }
       if (e.statusCode == 404) {
@@ -1319,7 +1321,15 @@ class PbDataService {
     Map<String, dynamic> data,
   ) async {
     if (id.isEmpty) return false;
-    return _upsertById('memories', id, {
+    // Чужое воспоминание, которого на сервере уже нет (автор удалил), заново
+    // не создаём: правка выполнена, запись-призрак уходит из кэша.
+    final ghost = missingRecordIsDone(
+      authorUid: (data['authorUid'] ?? '').toString(),
+      myUid: PocketBaseService().userId ?? '',
+    );
+    return _upsertById('memories', id, ifMissing: ghost ? true : null,
+        onMissing: () =>
+            unawaited(LocalStore.instance.deleteRecord('memories', id)), {
       'group_id': groupId,
       'type': data['type'],
       'author_uid': data['authorUid'],

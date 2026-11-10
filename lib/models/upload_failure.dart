@@ -135,8 +135,17 @@ UploadSource? pickUploadSource({
 
 /// Итог заливки: ссылка или причина отказа.
 class UploadOutcome {
-  const UploadOutcome.ok(String this.ref) : failure = null;
-  const UploadOutcome.failed(UploadFailure this.failure) : ref = null;
+  const UploadOutcome.ok(String this.ref)
+      : failure = null,
+        deferrable = false;
+  const UploadOutcome.failed(UploadFailure this.failure,
+      {this.deferrable = false})
+      : ref = null;
+
+  /// Отказ не по вине файла: сервер или хранилище не приняли его, позже он
+  /// пройдёт (`uploadWorthDeferring`). Файл воспоминания с таким отказом
+  /// откладывается и доезжает сам.
+  final bool deferrable;
 
   /// `pb://…` или `localfile://…`; null — не залилось.
   final String? ref;

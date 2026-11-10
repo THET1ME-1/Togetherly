@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sembast/sembast_io.dart';
 
+import '../../models/pending_media_policy.dart';
 import '../pb_media_service.dart';
 import '../pocketbase_service.dart';
 import 'connectivity_service.dart';
@@ -29,9 +30,21 @@ class MediaCache {
   factory MediaCache() => instance;
 
   static const String scheme = 'localfile://';
-  static const int _maxAttempts = 8;
 
   bool _flushing = false;
+
+  /// Следующая попытка дозалить отложенное. Раньше пробовали только на старте
+  /// и при возврате сети; файл, отложенный из-за отказа хранилища, при живой
+  /// сети так не дождался бы повтора никогда.
+  Timer? _retryTimer;
+
+  /// Назначить попытку дозаливки, если она ещё не назначена.
+  void retryLater([int attempts = 0]) {
+    if (_retryTimer?.isActive ?? false) return;
+    _retryTimer = Timer(pendingRetryDelay(attempts), () {
+      unawaited(flushPending());
+    });
+  }
   StreamSubscription<bool>? _connSub;
 
   StoreRef<String, Map<String, Object?>> get _pending =>
@@ -76,6 +89,8 @@ class MediaCache {
           'kind': kind,
           'groupId': groupId,
           'attempts': 0,
+          // С какого времени файл ждёт: по нему решается, когда сдаться.
+          'at': DateTime.now().millisecondsSinceEpoch,
         });
       }
       return '$scheme$path';
@@ -92,6 +107,8 @@ class MediaCache {
     final db = await LocalStore.instance.database();
     if (db == null) return;
     _flushing = true;
+    // Наименьшее число попыток среди оставшихся файлов: по нему пауза.
+    int? waiting;
     try {
       final items = await _pending.find(db);
       for (final it in items) {
@@ -113,14 +130,19 @@ class MediaCache {
           kind: it.value['kind'] as String?,
         );
         if (pbRef == null) {
-          // не удалось залить — счётчик попыток, чтобы не копить вечно
+          // Не залилось. Свежий файл не бросаем, сколько бы попыток ни
+          // сорвалось: хранилище может лежать часами, а это чьё-то фото.
           final next = ((it.value['attempts'] as num?)?.toInt() ?? 0) + 1;
-          if (next >= _maxAttempts) {
+          final at = (it.value['at'] as num?)?.toInt();
+          final age =
+              at == null ? null : DateTime.now().millisecondsSinceEpoch - at;
+          if (pendingGiveUp(attempts: next, ageMs: age)) {
             debugPrint('MediaCache: бросаю $path после $next попыток заливки');
             await file.delete().catchError((_) => file);
             await _pending.record(it.key).delete(db);
           } else {
             await _pending.record(it.key).update(db, {'attempts': next});
+            if (waiting == null || next < waiting) waiting = next;
           }
           continue;
         }
@@ -133,6 +155,7 @@ class MediaCache {
     } finally {
       _flushing = false;
     }
+    if (waiting != null) retryLater(waiting);
   }
 
   /// Подменить [localRef]→[pbRef] во всех воспоминаниях кэша (рекурсивно по json

@@ -6,6 +6,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:love_app/models/memory.dart';
 import 'package:love_app/models/memory_frames.dart';
 
 void main() {
@@ -73,6 +74,35 @@ void main() {
             kept: ['a'], uploaded: ['x', null, 'z'], freshCover: false),
         ['a', 'x', 'z'],
       );
+    });
+  });
+
+  group('видео, добавленное при правке', () {
+    // До 10.11.2026 правка читала из формы только фото: выбранное видео
+    // молча пропадало, человек видел «сохранено» без ролика.
+    test('заметка с видео становится видео', () {
+      expect(typeWithVideo(MemoryType.text), MemoryType.video);
+    });
+
+    test('запись с фото остаётся фото: ролик идёт рядом с кадрами', () {
+      expect(typeWithVideo(MemoryType.photo), MemoryType.photo);
+    });
+
+    test('видео остаётся видео', () {
+      expect(typeWithVideo(MemoryType.video), MemoryType.video);
+    });
+
+    test('правка записи заливает выбранное видео и кладёт его в запись', () {
+      final lane =
+          File('lib/screens/memory_lane_screen.dart').readAsStringSync();
+      final start = lane.indexOf('void _openMemoryEditor(Memory memory)');
+      final editor = lane.substring(start, lane.indexOf('void _openMemoryForm('));
+      expect(editor, contains('mediaPath != null'));
+      expect(editor, contains('videoUrl:'));
+      expect(editor, contains('typeWithVideo('));
+      final repo =
+          File('lib/services/memory_repository.dart').readAsStringSync();
+      expect(repo, contains("put('videoUrl', videoUrl);"));
     });
   });
 

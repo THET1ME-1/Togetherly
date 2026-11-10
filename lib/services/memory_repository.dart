@@ -235,6 +235,9 @@ class MemoryRepository {
     String? imageUrl,
     /// Новый список кадров записи после правки; первый — обложка.
     List<String>? imageUrls,
+    /// Видео, добавленное при правке, и тип записи с ним (`typeWithVideo`).
+    String? videoUrl,
+    MemoryType? type,
     bool? isPinned,
     bool? isAdult,
     bool? isSecret,
@@ -267,6 +270,11 @@ class MemoryRepository {
     put('bookAuthor', bookAuthor);
     if (rating != null) map['rating'] = rating == 0 ? null : rating;
     put('imageUrl', imageUrl);
+    put('videoUrl', videoUrl);
+    if (type != null) {
+      map['type'] = type.name;
+      row['type'] = type.name;
+    }
     if (isPinned != null) map['isPinned'] = isPinned;
     if (isAdult != null) map['isAdult'] = isAdult;
     if (isSecret != null) map['isSecret'] = isSecret;

@@ -118,9 +118,18 @@ class PbMediaService {
     final response = e is ClientException ? e.response.toString() : null;
     final loggedIn = PocketBaseService().isLoggedIn;
     final failure = classifyUploadError(e, loggedIn: loggedIn);
+    // Хранилище или сервер не приняли файл не по его вине: вызывающий может
+    // отложить его и дозалить позже (файлы воспоминаний так и делают).
+    final deferrable = uploadWorthDeferring(
+      statusCode,
+      response: e is ClientException ? e.response : null,
+      loggedIn: loggedIn,
+    );
     // Обрыв сети и протухшая сессия — не баги: первое лечит повтор, второе
     // вход. Их в панель не шлём, чтобы не топить настоящие отказы.
-    if (!uploadErrorWorthReporting(e)) return UploadOutcome.failed(failure);
+    if (!uploadErrorWorthReporting(e)) {
+      return UploadOutcome.failed(failure, deferrable: deferrable);
+    }
     unawaited(Sentry.captureException(e, withScope: (s) {
       s.level = SentryLevel.warning;
       s.setExtra('reason', 'PbMedia.uploadBytes failed');
@@ -136,7 +145,7 @@ class PbMediaService {
       if (statusCode != null) s.setExtra('statusCode', statusCode.toString());
       if (response != null) s.setExtra('pbResponse', response);
     }));
-    return UploadOutcome.failed(failure);
+    return UploadOutcome.failed(failure, deferrable: deferrable);
   }
 
   /// Загружает локальный файл по пути. Читает байты, имя — из пути. Возвращает

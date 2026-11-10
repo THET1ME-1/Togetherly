@@ -1986,11 +1986,17 @@ async def miss_you(request: Request):
 
     group_id = str(body.get("groupId") or "").strip()
     uid = str(body.get("uid") or "").strip() or uid_auth
+    if uid != uid_auth:
+        # «Скучаю» шлёт тот, кто вошёл. До 10.11.2026 номер брался из запроса,
+        # и участник пары нажимал кнопку от имени партнёра.
+        log.warning("miss-you: в запросе чужой номер, считаем отправителем вошедшего uid=%s", uid_auth)
+        uid = uid_auth
     vibe = str(body.get("vibe") or "miss_you")
     text = str(body.get("text") or "")
     reply_to = str(body.get("replyTo") or "").strip() or None
     if not group_id or not uid:
         return _err(400, "bad params")
+    groups = await _догнать_пары(uid_auth, groups, group_id)
     if group_id not in groups:
         return ORJSONResponse({"ok": False, "error": "not a member"}, status_code=403)
 
@@ -2164,6 +2170,8 @@ async def record_activity(request: Request):
     today = str(body.get("today") or "").strip()
     if not group_id or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", today):
         return _err(400, "bad params")
+    if GROUPS_SRC == "pg":
+        groups = await _догнать_пары(uid_auth, groups, group_id)
     if group_id not in groups:
         return ORJSONResponse({"ok": False, "error": "not a member"}, status_code=403)
 
@@ -2185,6 +2193,11 @@ async def record_activity(request: Request):
         return ответ
 
     uid = str(body.get("uid") or "").strip() or uid_auth
+    if uid != uid_auth:
+        # День отмечает тот, кто вошёл. До 10.11.2026 номер брался из запроса:
+        # один человек отмечал день за обоих и держал серию пары в одиночку.
+        log.warning("record-activity: в запросе чужой номер, отмечаем вошедшего uid=%s", uid_auth)
+        uid = uid_auth
     return await _record_activity_pg(group_id, uid_auth, uid, today)
 
 
@@ -2875,6 +2888,7 @@ async def note_export(request: Request):
         log.warning("note export %s: записи нет в Postgres", msg_id)
         return _err(404, "not found")
     # Фигурка принадлежит паре, а не тому, кто знает её id.
+    groups = await _догнать_пары(_uid, groups, row["group_id"])
     if str(row["group_id"]) not in groups:
         log.warning("note export %s: чужая пара %s", msg_id, row["group_id"])
         return _err(403, "not your message")
@@ -3196,6 +3210,32 @@ async def _in_group(uid: str, group_id: str) -> bool:
         return bool(await c.fetchval(
             "SELECT 1 FROM groups WHERE id = $1 AND members @> $2::jsonb",
             group_id, json.dumps([uid])))
+
+
+async def _догнать_пары(uid: str, groups: frozenset, group_id) -> frozenset:
+    """Список пар человека, сверенный с самой записью пары.
+
+    Список пар каждый рабочий процесс помнит пять секунд (`_GROUPS_TTL`).
+    Сразу после приёма в пару процессы с прежним списком отвечали новому
+    участнику пустой историей чата, отказом на первое сообщение и на «Скучаю»
+    (10.11.2026, сторож — fresh_member_access.test.py). Поэтому на промахе
+    спрашиваем саму запись пары: один поиск по ключу, и только когда названной
+    пары в списке нет. Вышедшего из пары это не пускает: в составе его уже нет.
+    """
+    gid = str(group_id or "")
+    if not gid or gid in groups:
+        return groups
+    if not await _in_group(uid, gid):
+        return groups
+    _groups_cache.pop(uid, None)
+    return groups | {gid}
+
+
+async def _догнать_по_записи(col: str, rid: str, uid: str, groups: frozenset) -> frozenset:
+    """То же для запроса по номеру записи, где пара в запросе не названа."""
+    async with pg.acquire() as c:
+        gid = await c.fetchval(f"SELECT group_id FROM {col} WHERE id = $1", rid)
+    return await _догнать_пары(uid, groups, gid)
 
 
 @app.post("/api/centrifugo/subscription-token")
@@ -4488,6 +4528,7 @@ async def list_records(col: str, request: Request):
             where.append(f"(channel LIKE '%' || ${len(args) + 1} || '%' OR channel = ANY(${len(args)}))")
             args.append(uid)
     elif filtered_group is not None:
+        groups = await _догнать_пары(uid, groups, filtered_group)
         if filtered_group not in groups:
             return empty
     else:
@@ -4580,6 +4621,13 @@ async def get_record(col: str, rid: str, request: Request):
         cond = f"{cond} AND {hold}"
     async with pg.acquire() as c:
         row = await c.fetchrow(f"SELECT * FROM {col} WHERE id = $1 AND {cond}", *args)
+    if row is None and scope in ("group", "own_or_shared"):
+        свежие = await _догнать_по_записи(col, rid, uid, groups)
+        if свежие is not groups:
+            args[1] = list(свежие)
+            async with pg.acquire() as c:
+                row = await c.fetchrow(
+                    f"SELECT * FROM {col} WHERE id = $1 AND {cond}", *args)
     if row is None:
         # Чужое и несуществующее PocketBase прячет одним 404.
         return _err(404, "The requested resource wasn't found.")
@@ -4621,6 +4669,7 @@ async def create_record(col: str, request: Request):
 
     scope = meta.get("scope", "group")
     if scope in ("group", "own_or_shared"):
+        groups = await _догнать_пары(uid, groups, body.get("group_id"))
         if str(body.get("group_id") or "") not in groups:
             # createRule не прошёл — PB в этом случае тоже отвечает 400.
             return _err(400, "Failed to create record.")
@@ -4629,16 +4678,45 @@ async def create_record(col: str, request: Request):
         сам = body.get("members")
         if not isinstance(сам, list) or uid not in [str(m) for m in сам]:
             return _err(400, "Failed to create record.")
+        if [str(m) for m in сам] != [uid]:
+            # Напрямую заводится только своё пространство из одного человека.
+            # Второго добавляют серверные пути (приём кода, одобрение заявки):
+            # до 10.11.2026 сюда проходил любой состав с автором внутри, и
+            # человек вписывал в «пару» постороннего без его согласия — получал
+            # его «в сети» и личный канал. Приложение пар так не создаёт.
+            log.warning("создание пары отклонено: uid=%s прислал состав из %d человек",
+                        uid, len(сам))
+            return _err(400, "Failed to create record.")
     elif scope == "channel":
         chan = str(body.get("channel") or "")
+        if uid not in chan:
+            groups = await _догнать_пары(uid, groups, chan)
         if uid not in chan and chan not in groups:
             return _err(400, "Failed to create record.")
     owner_field = meta.get("create_owner_field")
     if owner_field and str(body.get(owner_field) or "") != uid:
+        if col == "memories" and body.get("id"):
+            # Правка чужого воспоминания, которого уже нет: автор его удалил,
+            # а у партнёра оно осталось в кэше с правкой в очереди. Сборки до
+            # 1.43 после 404 на правке идут создавать запись заново с прежним
+            # автором и на простой отказ повторяют без конца: у одного телефона
+            # пара запросов шла каждые 20–30 секунд сутками (10.11.2026, 359
+            # копий правки в очереди). «Уже есть» — единственный ответ, который
+            # их очередь считает концом дела. Записи при этом не создаётся.
+            async with pg.acquire() as c:
+                есть = await c.fetchval(
+                    "SELECT 1 FROM memories WHERE id = $1", str(body.get("id")))
+            if not есть:
+                log.warning("правка удалённого воспоминания: %s uid=%s, очередь снята",
+                            str(body.get("id"))[:20], uid)
+                return _err(400, "Failed to create record.", {
+                    "id": {"code": "validation_not_unique",
+                           "message": "Value must be unique."}})
         # createRule PB требует авторства записи. Отказ пишем в журнал: по нему
         # видно, не упёрлась ли в проверку честная сборка приложения.
-        log.warning("создание отклонено: %s uid=%s, автором прислан %r",
-                    col, uid, str(body.get(owner_field) or "")[:20])
+        log.warning("создание отклонено: %s %s uid=%s, автором прислан %r",
+                    col, str(body.get("id") or "")[:20], uid,
+                    str(body.get(owner_field) or "")[:20])
         return _err(400, "Failed to create record.")
 
     rid = str(body.get("id") or "") or _new_id()
@@ -4759,6 +4837,8 @@ async def update_record(col: str, rid: str, request: Request):
 
     # Запись не уходит в чужую пару и не меняет автора: `переезд_запрещён`.
     # Автора читаем, только когда его прислали в теле.
+    if "group_id" in body and meta.get("scope", "group") in ("group", "own_or_shared"):
+        groups = await _догнать_пары(uid, groups, body.get("group_id"))
     поле = поле_автора(meta["columns"])
     автор_сейчас = None
     if поле and поле in body:
@@ -4866,6 +4946,13 @@ async def update_record(col: str, rid: str, request: Request):
     )
     async with pg.acquire() as c:
         row = await c.fetchrow(sql, *args)
+    if row is None and cond.startswith("group_id = ANY("):
+        # Пара в теле не названа, а список пар мог устареть: `_догнать_пары`.
+        свежие = await _догнать_по_записи(col, rid, uid, groups)
+        if свежие is not groups:
+            args[-1] = list(свежие)
+            async with pg.acquire() as c:
+                row = await c.fetchrow(sql, *args)
     if row is None:
         # Чужое и несуществующее PB прячет одним 404.
         return _err(404, "The requested resource wasn't found.")
@@ -4895,6 +4982,7 @@ async def _наклейка_воспоминания(rid: str, тело: dict, u
     `not_yours` (чужую не переставить и не убрать), `bad_sticker`.
     """
     сейчас = int(time.time() * 1000)
+    groups = await _догнать_по_записи("memories", rid, uid, groups)
     async with pg.acquire() as c:
         async with c.transaction():
             row = await c.fetchrow(
@@ -4964,6 +5052,13 @@ async def delete_record(col: str, rid: str, request: Request):
             row = await c.fetchrow(
                 f"DELETE FROM {col} WHERE id = $1 AND group_id = ANY($2) RETURNING *",
                 rid, list(groups))
+    if row is None and not owner_del and meta.get("scope", "group") in ("group", "own_or_shared"):
+        свежие = await _догнать_по_записи(col, rid, uid, groups)
+        if свежие is not groups:
+            async with pg.acquire() as c:
+                row = await c.fetchrow(
+                    f"DELETE FROM {col} WHERE id = $1 AND group_id = ANY($2) RETURNING *",
+                    rid, list(свежие))
     if row is None:
         return _err(404, "The requested resource wasn't found.")
     rec = _record_json(col, row)

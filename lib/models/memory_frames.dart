@@ -6,6 +6,14 @@
 /// прежних, и при сохранении они пропадали из записи.
 library;
 
+import 'memory.dart';
+
+/// Тип записи после правки, в которую добавили видео: заметка становится
+/// видео, запись с фото остаётся фото (ролик идёт рядом с кадрами, как у
+/// новой записи из фото и видео разом).
+MemoryType typeWithVideo(MemoryType now) =>
+    now == MemoryType.text ? MemoryType.video : now;
+
 /// Откуда кадр на этом месте ряда: из прежних или из новых.
 class FrameSlot {
   const FrameSlot.kept(this.index) : kept = true;

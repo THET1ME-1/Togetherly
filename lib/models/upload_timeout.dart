@@ -49,6 +49,15 @@ bool uploadWorthRetry(int? statusCode, {Map<String, dynamic>? response}) {
   return statusCode >= 500;
 }
 
+/// Отложить ли файл после отказа: сервер или хранилище не приняли его не по
+/// его вине, и позже он пройдёт. Без входа не откладываем — дозаливать некому.
+bool uploadWorthDeferring(
+  int? statusCode, {
+  Map<String, dynamic>? response,
+  bool loggedIn = true,
+}) =>
+    loggedIn && uploadWorthRetry(statusCode, response: response);
+
 /// 400 без ошибок полей: хранилище не приняло файл (TOG-41). Hetzner изредка
 /// не отвечает, и PocketBase отдаёт «Failed to create record.» с пустым
 /// `data`, а повтор проходит. Ошибка проверки (файл слишком большой, не тот

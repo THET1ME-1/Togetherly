@@ -253,6 +253,20 @@ class MediaService {
         groupId: groupId,
         kind: kind,
       );
+      // Хранилище не приняло файл воспоминания не по его вине (отказы окнами
+      // по несколько минут, 9–10.11.2026: около 200 сорванных загрузок в
+      // сутки). Откладываем, как без сети: запись сохраняется сейчас, файл
+      // дозаливает MediaCache по расписанию.
+      if (deferrable && outcome.ref == null && outcome.deferrable) {
+        final localRef = await MediaCache.instance
+            .stash(bytes, filename, kind: kind, groupId: groupId);
+        if (localRef != null) {
+          compressedTempFile?.delete().ignore();
+          debugPrint('uploadFile → хранилище отказало, отложено: $localRef');
+          MediaCache.instance.retryLater();
+          return UploadOutcome.ok(localRef);
+        }
+      }
       compressedTempFile?.delete().ignore();
       debugPrint('uploadFile → PocketBase: ${outcome.ref ?? outcome.failure}');
       return outcome;
