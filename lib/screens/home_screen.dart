@@ -292,9 +292,6 @@ class _HomeScreenState extends State<HomeScreen> {
   StreamSubscription? _memorySub;
   StreamSubscription? _achievementSub;
 
-  // -- User location (for distance calc) --
-  double? _userLat;
-  double? _userLng;
   bool _wasPaired = false;
 
   /// Раздел подарков включён на сервере. По умолчанию выключен: если конфиг не
@@ -468,9 +465,6 @@ class _HomeScreenState extends State<HomeScreen> {
         _openConnectTabForInvite();
       }
     });
-
-    // Fetch user location for distance display
-    _fetchUserLocation();
 
     // Check for Play Store update after a brief delay
     if (Platform.isAndroid) {
@@ -4489,42 +4483,6 @@ class _HomeScreenState extends State<HomeScreen> {
       isScrollControlled: true,
       builder: (_) => _UpdateBottomSheet(info: info, primaryColor: primary),
     );
-  }
-
-  // ── User location ───────────────────────────────────────────────────────────
-
-  /// Fetch user location for distance calculation on photo cards.
-  /// На входе в приложение разрешение НЕ запрашиваем — только используем уже
-  /// выданное. Иначе пользователю, который отказал, диалог геолокации всплывал
-  /// бы на каждом запуске. Сам запрос остаётся в контекстных экранах (добавление
-  /// воспоминания с локацией, выбор точки на карте), где он уместен.
-  Future<void> _fetchUserLocation() async {
-    // Не трогаем GPS, если «Показывать мою геопозицию» выключено. Раньше
-    // расстояние до мест на карточках воспоминаний читало GPS при КАЖДОМ
-    // открытии главного экрана независимо от тумблера → iOS зажигал индикатор
-    // геолокации, хотя трансляция выключена (жалоба тестера). Теперь уважаем
-    // тумблер: нет трансляции — нет обращения к GPS.
-    if (!LiveLocationService.instance.sharingEnabled.value) return;
-    try {
-      final perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.always ||
-          perm == LocationPermission.whileInUse) {
-        final pos = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.low,
-            timeLimit: Duration(seconds: 10),
-          ),
-        );
-        if (mounted) {
-          setState(() {
-            _userLat = pos.latitude;
-            _userLng = pos.longitude;
-          });
-        }
-      }
-    } catch (e) {
-      debugPrint('Failed to get user location: $e');
-    }
   }
 
   /// Convert EXIF GPS rational values to double degrees.

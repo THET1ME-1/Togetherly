@@ -10,7 +10,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:love_app/screens/plus_screen.dart';
 import 'package:love_app/services/locale_service.dart';
 import 'package:love_app/theme/app_palettes.dart';
-import 'package:love_app/theme/app_theme.dart';
 
 /// Снимок экрана Togetherly+ для карточки товара в App Store Connect.
 ///

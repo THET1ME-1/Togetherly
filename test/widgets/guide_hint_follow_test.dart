@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:love_app/theme/app_palettes.dart';
-import 'package:love_app/theme/app_theme.dart';
 import 'package:love_app/widgets/common/guide_hint.dart';
 
 /// Главная прокручивается и под открытой подсказкой. Владелец пролистал вниз:

@@ -21,28 +21,6 @@ void main() {
     }
   }
 
-  Future<String?> pumpEntry(
-    WidgetTester tester, {
-    required bool create,
-  }) async {
-    String? done;
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: SingleChildScrollView(
-            child: PinEntry(
-              create: create,
-              onDone: (pin) => done = pin,
-              confirmHint: 'Повторите пароль',
-              mismatchError: 'Не совпал, попробуйте снова',
-            ),
-          ),
-        ),
-      ),
-    );
-    return done;
-  }
-
   testWidgets('существующий PIN отдаётся сразу, без повтора', (tester) async {
     String? done;
     await tester.pumpWidget(

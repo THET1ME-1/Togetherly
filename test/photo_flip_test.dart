@@ -62,8 +62,18 @@ void main() {
   test('в форме воспоминания у снимка есть кнопка «Отразить»', () {
     final src =
         File('lib/screens/memory_photo_form_screen.dart').readAsStringSync();
-    expect(src, contains('_flipAt('));
     expect(src, contains('flipPhotoFile('));
-    expect(src, contains('Icons.flip_rounded'));
+    // Кнопка обязана стоять в том, что экран рисует (`_formMedia`), а не
+    // просто где-то в файле. Её добавили 23.09.2026 в ряд миниатюр, который
+    // экран уже три дня как не показывал, и прежняя проверка «слово есть в
+    // исходнике» проходила: до людей кнопка не доехала вовсе (10.11.2026).
+    final from = src.indexOf('Widget _formMedia(');
+    expect(from, isNot(-1), reason: 'нет _formMedia');
+    final to = src.indexOf('void _makeCover(', from);
+    expect(to, isNot(-1), reason: 'нет _makeCover после _formMedia');
+    final shown = src.substring(from, to);
+    expect(shown, contains('_flipAt('));
+    expect(shown, contains('Icons.flip_rounded'));
+    expect(src, contains('_formMedia(cs)'), reason: 'экран не рисует _formMedia');
   });
 }

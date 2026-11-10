@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:ui' show Rect;
 
 import 'package:archive/archive_io.dart';

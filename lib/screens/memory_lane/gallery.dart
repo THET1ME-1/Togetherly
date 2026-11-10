@@ -526,58 +526,6 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
     }
   }
 
-  Widget _viewerPill({
-    required Key key,
-    required IconData icon,
-    required String label,
-    VoidCallback? onTap,
-    bool ok = false,
-    bool busy = false,
-  }) {
-    final bg = ok ? const Color(0xFFE9F6EE) : Colors.white.withValues(alpha: 0.14);
-    final fg = ok ? const Color(0xFF1C4A2C) : Colors.white;
-    return Material(
-      key: key,
-      color: bg,
-      borderRadius: BorderRadius.circular(23),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: SizedBox(
-          height: 46,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (busy)
-                  SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2.4, color: fg),
-                  )
-                else
-                  Icon(icon, size: 20, color: fg),
-                const SizedBox(width: 8),
-                Text(
-                  label,
-                  maxLines: 1,
-                  style: TextStyle(
-                    fontFamily: 'Onest',
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: fg,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-
   /// Круглая кнопка поверх кадра: стекло, чтобы читалась и на светлом.
   /// Плёнка едет за кадром: текущий всегда виден, а не остаётся за краем.
   void _scrollStripTo(int index, {bool animate = true}) {

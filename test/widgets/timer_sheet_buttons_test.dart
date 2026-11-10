@@ -19,7 +19,6 @@ import 'package:love_app/screens/expandable_timer_card.dart';
 import 'package:love_app/services/locale_service.dart';
 import 'package:love_app/services/timer_service.dart';
 import 'package:love_app/theme/app_palettes.dart';
-import 'package:love_app/theme/app_theme.dart';
 
 Future<void> _loadFont(String family, String path) async {
   final file = File(path);

@@ -29,7 +29,7 @@ void main() {
     final tile = part(screen, 'Widget _chatTile(', 'Widget _chatTileBody(');
     expect(tile, contains('UnfoldSource('));
     expect(tile, contains('_openChat(from: tile)'));
-    final open = part(screen, 'void _openChat(', 'Widget _buildChatButton(');
+    final open = part(screen, 'void _openChat(', 'Widget _buildCodeInput(');
     expect(open, contains('unfoldFrom<void>('));
   });
 

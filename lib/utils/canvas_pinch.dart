@@ -88,7 +88,6 @@ const double kPinchRotationSlop = 0.16;
 class PinchTracker {
   int? _pointers;
   double _scale = 1;
-  double _rotation = 0;
   bool _rotationUnlocked = false;
   double _rotationSlopUsed = 0;
   double _turnedApplied = 0;
@@ -97,7 +96,6 @@ class PinchTracker {
   void begin() {
     _pointers = null;
     _scale = 1;
-    _rotation = 0;
     _rotationUnlocked = false;
     _rotationSlopUsed = 0;
     _turnedApplied = 0;
@@ -118,13 +116,11 @@ class PinchTracker {
     if (pointerCount < 2) {
       _pointers = pointerCount;
       _scale = scale;
-      _rotation = rotation;
       return null;
     }
     if (_pointers != pointerCount) {
       _pointers = pointerCount;
       _scale = scale;
-      _rotation = rotation;
       _rotationUnlocked = false;
       _rotationSlopUsed = 0;
       _turnedApplied = 0;
@@ -143,7 +139,6 @@ class PinchTracker {
     _turnedApplied = turned;
 
     _scale = scale;
-    _rotation = rotation;
     return PinchStep(
       focal: focal,
       focalDelta: focalDelta,

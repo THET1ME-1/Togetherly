@@ -12,7 +12,6 @@ import 'package:video_compress/video_compress.dart';
 
 import '../models/memory.dart';
 import '../services/locale_service.dart';
-import '../utils/photo_crop.dart';
 import '../utils/safe_pick.dart';
 import '../theme/app_theme.dart';
 import '../theme/fonts.dart';
@@ -110,7 +109,6 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
   double? _lng;
   bool _isAdult = false;
   bool _isSaving = false;
-  bool _isLoadingLocation = false;
   DateTime? _customDate;
 
   static bool _isVideo(XFile f) {
@@ -228,25 +226,9 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
     }
   }
 
-  /// Кадрирование уже выбранного снимка. Пачку кроппером не гоняем: человек
-  /// выбирает сразу несколько кадров, и открывать редактор на каждый — пытка.
-  /// Поэтому обрезка идёт по требованию: тап по плитке или кнопка на кадре.
-  ///
-  /// Координаты снимка к этому моменту уже прочитаны (`_tryExifGps` при
-  /// выборе), а кроппер EXIF не сохраняет — иначе метка места пропадала бы
-  /// у каждого обрезанного фото.
-  Future<void> _cropAt(int index) async {
-    if (index < 0 || index >= _media.length) return;
-    final item = _media[index];
-    if (_isVideo(item)) return;
-    final path = await cropPhoto(item.path, accentColor: _cs.primary);
-    if (path == null || !mounted) return;
-    setState(() => _media[index] = XFile(path));
-  }
-
   /// Отражение снимка слева направо. Часть телефонов сохраняет селфи уже
   /// зеркальным и без пометки — выправить такое сами мы не можем, поэтому
-  /// кадр переворачивает человек (обращение 187).
+  /// кадр переворачивает человек (обращение 187). [index] — место в `_media`.
   Future<void> _flipAt(int index) async {
     if (index < 0 || index >= _media.length) return;
     final item = _media[index];
@@ -255,6 +237,12 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
     if (path == null || !mounted) return;
     setState(() => _media[index] = XFile(path));
   }
+
+  /// Отразить можно обложку, если это только что выбранный снимок: прежние
+  /// кадры записи уже на сервере, а у видео отражать нечего. Другой кадр
+  /// сперва ставят обложкой касанием в плёнке.
+  bool get _coverFlippable =>
+      _kept.isEmpty && _media.isNotEmpty && !_isVideo(_media.first);
 
   Future<void> _generateVideoThumb(String path) async {
     try {
@@ -284,7 +272,6 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
   // ── Location ────────────────────────────────────────────────────────────────
 
   Future<void> _useCurrentLocation() async {
-    setState(() => _isLoadingLocation = true);
     try {
       if (!await Geolocator.isLocationServiceEnabled()) {
         _showError(LocaleService.current.locationServicesDisabled);
@@ -309,8 +296,6 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
       });
     } catch (_) {
       _showError(LocaleService.current.failedGetLocation);
-    } finally {
-      if (mounted) setState(() => _isLoadingLocation = false);
     }
   }
 
@@ -331,12 +316,6 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
       });
     }
   }
-
-  void _clearLocation() => setState(() {
-        _lat = null;
-        _lng = null;
-        _locationCtrl.clear();
-      });
 
   // ── Save ────────────────────────────────────────────────────────────────────
 
@@ -374,9 +353,6 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
 
   /// Схема M3 экрана: цвета берём ролями, а не из старой темы.
   ColorScheme get _cs => ProfileTheme.themeFor(widget.theme).colorScheme;
-
-  /// Выбранное место человеку видно строкой чипа.
-  bool get _hasPlace => _lat != null && _lng != null;
 
   @override
   Widget build(BuildContext context) {
@@ -626,6 +602,32 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
                   ),
                 ),
               ),
+              // «Отразить» — той же кнопкой, что крестик, в нижнем углу.
+              // До 10.11.2026 она жила в ряду миниатюр, который экран уже не
+              // рисовал, и до людей не доехала (обращение 187).
+              if (_coverFlippable)
+                Positioned(
+                  right: 10,
+                  bottom: 10,
+                  child: Semantics(
+                    button: true,
+                    label: LocaleService.current.flipPhoto,
+                    child: Material(
+                      color: cs.inverseSurface,
+                      shape: const CircleBorder(),
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        onTap: () => _flipAt(0),
+                        child: SizedBox(
+                          width: 36,
+                          height: 36,
+                          child: Icon(Icons.flip_rounded,
+                              size: 20, color: cs.onInverseSurface),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -898,385 +900,6 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
     if (shot != null) await _acceptPicked([shot]);
   }
 
-  // ── Кадр ───────────────────────────────────────────────────────────────────
-
-  Widget _buildHero(ColorScheme cs) {
-    if (_media.isEmpty) {
-      // Пустой кадр зовёт сам собой: тональная плоскость во всю ширину вместо
-      // прямоугольника с пунктиром — обводок на экране нет вовсе.
-      return GestureDetector(
-        onTap: _pickMedia,
-        child: Container(
-          color: cs.surfaceContainerHigh,
-          alignment: Alignment.center,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 76,
-                height: 76,
-                decoration: BoxDecoration(
-                  color: cs.primaryContainer,
-                  borderRadius: BorderRadius.circular(26),
-                ),
-                alignment: Alignment.center,
-                child: Icon(Icons.add_photo_alternate_rounded,
-                    size: 34, color: cs.onPrimaryContainer),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                LocaleService.current.photoVideo,
-                style: TextStyle(
-                  fontFamily: ProfileTheme.displayFont,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: cs.onSurface,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                LocaleService.current.optionalTapToSelect,
-                style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    final first = _media.first;
-    final isFirstVideo = _isVideo(first);
-    return GestureDetector(
-      onTap: _pickMedia,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          if (isFirstVideo)
-            _videoPreviewWidget(first.path, fit: BoxFit.cover)
-          else
-            Image.file(File(first.path), fit: BoxFit.cover),
-          if (isFirstVideo)
-            const Center(
-              child: Icon(Icons.play_circle_filled_rounded,
-                  color: Colors.white, size: 56),
-            ),
-        ],
-      ),
-    );
-  }
-
-  /// Кружок поверх фотографии. Полупрозрачная подложка нужна, чтобы крестик
-  /// читался и на светлом кадре, и на тёмном.
-  Widget _glassButton(ColorScheme cs,
-      {required IconData icon, required VoidCallback onTap}) {
-    return Material(
-      color: cs.inverseSurface.withValues(alpha: 0.55),
-      shape: const CircleBorder(),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: SizedBox(
-          width: 44,
-          height: 44,
-          child: Icon(icon, size: 22, color: cs.onInverseSurface),
-        ),
-      ),
-    );
-  }
-
-  Widget _glassPill(ColorScheme cs, String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      decoration: BoxDecoration(
-        color: cs.inverseSurface.withValues(alpha: 0.55),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: cs.onInverseSurface,
-        ),
-      ),
-    );
-  }
-
-  // ── Лист с полями ─────────────────────────────────────────────────────────
-
-  Widget _buildSheet(ColorScheme cs, MediaQueryData media) {
-    final s = LocaleService.current;
-    return Container(
-      decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      child: Column(
-        children: [
-          const SizedBox(height: 10),
-          Container(
-            width: 36,
-            height: 4,
-            decoration: BoxDecoration(
-              color: cs.outlineVariant,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              keyboardDismissBehavior:
-                  ScrollViewKeyboardDismissBehavior.onDrag,
-              padding: EdgeInsets.fromLTRB(
-                16,
-                14,
-                16,
-                media.padding.bottom + 96,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (_media.isNotEmpty) ...[
-                    _buildThumbRow(cs),
-                    // Про обрезку иначе не догадаются: тап по миниатюре
-                    // выглядит как выбор, а не как вход в редактор.
-                    if (_media.any((m) => !_isVideo(m))) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        LocaleService.current.cropPhotoHint,
-                        style: TextStyle(
-                          fontFamily: ProfileTheme.bodyFont,
-                          fontSize: 12,
-                          color: cs.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 14),
-                  ],
-                  _buildTitleField(s),
-                  const SizedBox(height: 10),
-                  _buildCaptionField(s),
-                  const SizedBox(height: 14),
-                  _buildMetaChips(cs, s),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Лента миниатюр. Плитка добавления — такая же по форме и размеру, как
-  /// кадры: ряд читается лентой, а не «две картинки и дырка с плюсом».
-  Widget _buildThumbRow(ColorScheme cs) {
-    return SizedBox(
-      height: 64,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: _media.length + 1,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (_, i) {
-          if (i == _media.length) {
-            return Material(
-              color: cs.primaryContainer,
-              borderRadius: BorderRadius.circular(18),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                onTap: _pickMedia,
-                child: SizedBox(
-                  width: 64,
-                  height: 64,
-                  child: Icon(Icons.photo_library_rounded,
-                      size: 24, color: cs.onPrimaryContainer),
-                ),
-              ),
-            );
-          }
-          final item = _media[i];
-          final isVid = _isVideo(item);
-          return SizedBox(
-            width: 64,
-            height: 64,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                GestureDetector(
-                  onTap: isVid ? null : () => _cropAt(i),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(18),
-                    child: isVid
-                        ? _videoPreviewWidget(item.path, width: 64, height: 64)
-                        : Image.file(File(item.path),
-                            key: ValueKey(item.path),
-                            width: 64, height: 64, fit: BoxFit.cover),
-                  ),
-                ),
-                if (isVid)
-                  const Positioned.fill(
-                    child: Center(
-                      child: Icon(Icons.play_circle_filled_rounded,
-                          color: Colors.white70, size: 22),
-                    ),
-                  ),
-                if (!isVid)
-                  Positioned(
-                    left: -4,
-                    bottom: -4,
-                    child: Semantics(
-                      button: true,
-                      label: LocaleService.current.flipPhoto,
-                      child: GestureDetector(
-                        onTap: () => _flipAt(i),
-                        child: Container(
-                          width: 22,
-                          height: 22,
-                          decoration: BoxDecoration(
-                            color: cs.inverseSurface,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(Icons.flip_rounded,
-                              size: 14, color: cs.onInverseSurface),
-                        ),
-                      ),
-                    ),
-                  ),
-                Positioned(
-                  top: -4,
-                  right: -4,
-                  child: GestureDetector(
-                    onTap: () => setState(() => _media.removeAt(i)),
-                    child: Container(
-                      width: 22,
-                      height: 22,
-                      decoration: BoxDecoration(
-                        color: cs.inverseSurface,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(Icons.close_rounded,
-                          size: 14, color: cs.onInverseSurface),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  // ── Метки: место, дата, 18+ ───────────────────────────────────────────────
-
-  /// Три чипа вместо двух блоков формы. Пустой зовёт, заполненный показывает
-  /// значение и снимается крестиком — экран из-за них больше не растёт.
-  Widget _buildMetaChips(ColorScheme cs, AppStrings s) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        _metaChip(
-          cs: cs,
-          icon: Icons.location_on_rounded,
-          label: _hasPlace
-              ? (_locationCtrl.text.isNotEmpty
-                  ? _locationCtrl.text
-                  : '${_lat!.toStringAsFixed(3)}, ${_lng!.toStringAsFixed(3)}')
-              : s.location,
-          filled: _hasPlace,
-          accent: true,
-          loading: _isLoadingLocation,
-          onTap: _showPlaceSheet,
-          onClear: _hasPlace ? _clearLocation : null,
-        ),
-        _metaChip(
-          cs: cs,
-          icon: Icons.schedule_rounded,
-          label: _customDate == null
-              ? s.dateNowLabel
-              : _formatCustomDate(_customDate!),
-          filled: _customDate != null,
-          onTap: _pickCustomDate,
-          onClear: _customDate == null
-              ? null
-              : () => setState(() => _customDate = null),
-        ),
-        _metaChip(
-          cs: cs,
-          icon: _isAdult ? Icons.lock_rounded : Icons.lock_open_rounded,
-          label: s.adultContent,
-          filled: _isAdult,
-          onTap: () => setState(() => _isAdult = !_isAdult),
-        ),
-      ],
-    );
-  }
-
-  Widget _metaChip({
-    required ColorScheme cs,
-    required IconData icon,
-    required String label,
-    required bool filled,
-    required VoidCallback onTap,
-    bool accent = false,
-    bool loading = false,
-    VoidCallback? onClear,
-  }) {
-    final bg = !filled
-        ? cs.surfaceContainerHigh
-        : (accent ? cs.primaryContainer : cs.secondaryContainer);
-    final fg = !filled
-        ? cs.onSurface
-        : (accent ? cs.onPrimaryContainer : cs.onSecondaryContainer);
-    return Material(
-      color: bg,
-      borderRadius: BorderRadius.circular(999),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(14, 9, onClear == null ? 15 : 8, 9),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (loading)
-                SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: fg),
-                )
-              else
-                Icon(icon, size: 18, color: fg),
-              const SizedBox(width: 7),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 180),
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w600,
-                    color: fg,
-                  ),
-                ),
-              ),
-              if (onClear != null) ...[
-                const SizedBox(width: 4),
-                GestureDetector(
-                  onTap: onClear,
-                  child: Padding(
-                    padding: const EdgeInsets.all(3),
-                    child: Icon(Icons.close_rounded, size: 16, color: fg),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   /// Лист выбора места. Обе кнопки — роли схемы: зелёная «На карте» была
   /// единственным зелёным пятном в теме пары.
   void _showPlaceSheet() {
@@ -1397,52 +1020,6 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
     final hh = d.hour.toString().padLeft(2, '0');
     final mm = d.minute.toString().padLeft(2, '0');
     return '${d.day} ${months[d.month - 1]}, $hh:$mm';
-  }
-
-  // ── Поля ──────────────────────────────────────────────────────────────────
-
-  /// Поля стоят на заливке, без единой линии: подпись отличается от описания
-  /// плотностью фона и весом текста.
-  InputDecoration _fieldDeco(String label, {Color? fill}) {
-    final cs = _cs;
-    final shape = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(20),
-      borderSide: BorderSide.none,
-    );
-    return InputDecoration(
-      labelText: label,
-      floatingLabelStyle: TextStyle(color: cs.primary, fontWeight: FontWeight.w600),
-      filled: true,
-      fillColor: fill ?? cs.surfaceContainerHigh,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-      border: shape,
-      enabledBorder: shape,
-      focusedBorder: shape,
-    );
-  }
-
-  Widget _buildTitleField(AppStrings s) {
-    return TextField(
-      controller: _titleCtrl,
-      onChanged: (_) => setState(() {}),
-      textCapitalization: TextCapitalization.sentences,
-      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-      decoration: _fieldDeco(s.titleOptional),
-    );
-  }
-
-  Widget _buildCaptionField(AppStrings s) {
-    return TextField(
-      controller: _captionCtrl,
-      onChanged: (_) => setState(() {}),
-      maxLines: 4,
-      minLines: 2,
-      textCapitalization: TextCapitalization.sentences,
-      decoration: _fieldDeco(
-        s.descriptionOptional,
-        fill: _cs.surfaceContainer,
-      ),
-    );
   }
 
   // Виджет превью видео: показывает кэшированный thumb или тёмный фон

@@ -9,7 +9,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:love_app/services/locale_service.dart';
 import 'package:love_app/theme/app_palettes.dart';
-import 'package:love_app/theme/app_theme.dart';
 import 'package:love_app/theme/profile_theme.dart';
 import 'package:love_app/widgets/app_sheet.dart';
 import 'package:love_app/widgets/memory/add_memory_sheet.dart';

@@ -25,7 +25,6 @@ import 'package:love_app/screens/home/home_bottom_nav.dart';
 import 'package:love_app/services/achievement_service.dart';
 import 'package:love_app/services/locale_service.dart';
 import 'package:love_app/theme/app_palettes.dart';
-import 'package:love_app/theme/app_theme.dart';
 import 'package:love_app/theme/profile_theme.dart';
 
 import '../helpers/achievement_harness.dart';

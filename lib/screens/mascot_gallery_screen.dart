@@ -1372,33 +1372,6 @@ class _PlaceholderBox extends StatelessWidget {
   }
 }
 
-// ── Action tile ───────────────────────────────────────────────────────────────
-
-class _ActionTile extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color? color;
-  final VoidCallback onTap;
-
-  const _ActionTile({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final c = color ?? context.appTheme.textPrimary;
-    return ListTile(
-      leading: Icon(icon, color: c, size: 22),
-      title: Text(label, style: TextStyle(color: c, fontSize: 15)),
-      dense: true,
-      onTap: onTap,
-    );
-  }
-}
-
 // ── Tiny helper: fetch cached image file ─────────────────────────────────────
 
 Future<File> fetchCachedImageFile(String url) async {

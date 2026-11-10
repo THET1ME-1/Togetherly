@@ -619,16 +619,6 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
         for (final p in _pair.partners) ..._mood.partnerEntries(p.uid),
       ]);
 
-  List<VesselDay> _vesselDaysFor(DateTime month) => buildVesselDays(
-        month: month,
-        mineMoods: _moodColors(_mood.myEntries),
-        partnerMoods: _moodColors([
-          for (final p in _pair.partners) ..._mood.partnerEntries(p.uid),
-        ]),
-        myCycle: _cycle.mine,
-        partnerCycle: _cycle.partner,
-      );
-
   // ═══════════════════════════════════════════
   //  КОНТРОЛЫ КАЛЕНДАРЯ (чипы + навигация)
   // ═══════════════════════════════════════════

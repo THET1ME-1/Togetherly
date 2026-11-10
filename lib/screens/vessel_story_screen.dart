@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -74,7 +73,7 @@ class _VesselStoryScreenState extends State<VesselStoryScreen> {
       '${dir.path}/togetherly_vessel_'
       '${DateTime.now().millisecondsSinceEpoch}.png',
     );
-    await file.writeAsBytes(data!.buffer.asUint8List() as Uint8List);
+    await file.writeAsBytes(data!.buffer.asUint8List());
     return file;
   }
 
