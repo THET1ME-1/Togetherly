@@ -52,13 +52,17 @@ ImageProvider _artProvider(String url, int decode) => ResizeImage(
 /// Картинка анимации. Смена сцены идёт без затухания и без пустого места:
 /// до готовности новой стоит прежний кадр (`gaplessPlayback`). Прежде
 /// старая гасла секунду поверх новой, и облачко двоилось.
-Image catalogArtImage(String url, {required double side, required int decode}) => Image(
+/// [whileLoading] стоит на месте картинки, пока не пришёл её первый кадр.
+Image catalogArtImage(String url, {required double side, required int decode, Widget? whileLoading}) => Image(
       image: _artProvider(url, decode),
       width: side,
       height: side,
       gaplessPlayback: true,
       filterQuality: FilterQuality.medium,
-      errorBuilder: (_, _, _) => SizedBox.square(dimension: side),
+      frameBuilder: whileLoading == null
+          ? null
+          : (_, child, frame, loadedAtOnce) => frame == null && !loadedAtOnce ? whileLoading : child,
+      errorBuilder: (_, _, _) => whileLoading ?? SizedBox.square(dimension: side),
     );
 
 /// Заранее скачивает и разжимает первые кадры сцен, чтобы смена была
@@ -120,7 +124,7 @@ Future<bool> catalogArtReady(String key, {required double side, required double 
 /// Анимация из каталога (вид `art`) по полному ключу. Общая для гида и для
 /// облачка-маскота на главной.
 class CatalogArtAnim extends StatelessWidget {
-  const CatalogArtAnim(this.artKey, {super.key, required this.side, this.fallbackKey});
+  const CatalogArtAnim(this.artKey, {super.key, required this.side, this.fallbackKey, this.whileLoading});
 
   final String artKey;
   final double side;
@@ -128,6 +132,10 @@ class CatalogArtAnim extends StatelessWidget {
   /// Что показать, пока нужной анимации в каталоге нет (старый каталог без
   /// цвета настроения): облачко обычного цвета лучше пустоты.
   final String? fallbackKey;
+
+  /// Что стоит на месте анимации, пока она качается: тяжёлый WebP на
+  /// медленной сети идёт секунды, и без подмены место пустует.
+  final Widget? whileLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -137,8 +145,8 @@ class CatalogArtAnim extends StatelessWidget {
         final dpr = MediaQuery.maybeDevicePixelRatioOf(context) ?? 2.0;
         final decode = artDecodeBucket(side * dpr);
         final url = _artUrl(artKey, decode, fallbackKey: fallbackKey);
-        if (url == null) return SizedBox.square(dimension: side);
-        return catalogArtImage(url, side: side, decode: decode);
+        if (url == null) return whileLoading ?? SizedBox.square(dimension: side);
+        return catalogArtImage(url, side: side, decode: decode, whileLoading: whileLoading);
       },
     );
   }

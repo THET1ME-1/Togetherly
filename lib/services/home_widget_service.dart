@@ -2268,14 +2268,19 @@ class HomeWidgetService {
   /// Тянет заметку из облака и раскладывает по листикам.
   Future<void> _syncNoteFromCloud(String groupId) async {
     if (groupId.isEmpty || groupId == 'solo') return;
+    Future<void>? doing;
     try {
       final uid = PocketBaseService().userId ?? '';
       if (uid.isEmpty) return;
       final records = await PbDataService().loadWidgetsForGroup(groupId);
       // «Чем заняты» читает те же записи: отдаём их, чтобы не ходить на
       // сервер второй раз. Заметка синхронизируется и в приложении, и в фоне,
-      // поэтому виджет занятий обновляется там же.
-      unawaited(DoingService.instance.sync(groupId, records: records));
+      // поэтому виджет занятий обновляется там же. Идёт рядом с заметкой, а
+      // дожидаемся его в конце: тихий пуш гасит движок сразу после ответа, и
+      // недокачанный кадр партнёра так и не попал бы на рабочий стол.
+      doing = DoingService.instance.sync(groupId, records: records).catchError((Object e) {
+        debugPrint('HomeWidgetService: «Чем заняты» не синхронизировался — $e');
+      });
       final note = latestNote(records.map((r) => r.data));
       final me = PbAuthService().currentProfile();
       var myName = (me?['displayName'] as String?) ?? '';
@@ -2302,6 +2307,8 @@ class HomeWidgetService {
       );
     } catch (e) {
       debugPrint('HomeWidgetService._syncNoteFromCloud failed: $e');
+    } finally {
+      await doing;
     }
   }
 

@@ -74,11 +74,15 @@ class DoingWidgetProvider : HomeWidgetProvider() {
         val partner = Half.read(data, group, "partner", theme.tertiaryContainer, theme.avatarPartner, now)
 
         // Размер холста — настоящий размер виджета, но не больше 960 точек по
-        // ширине: картинка едет через Binder, а он держит немного.
+        // ширине: картинка едет через Binder, а он держит немного. Пару берёт
+        // cellDp: в книжной ориентации высота — MAX_HEIGHT. С MIN_HEIGHT холст
+        // выходил ниже виджета, и fitXY вытягивал его (на эмуляторе 11.11.2026
+        // аватарки стали овалами, буквы узкими).
         val options = manager.getAppWidgetOptions(widgetId)
         val density = context.resources.displayMetrics.density
-        val widthDp = WidgetSizing.widthDp(options).takeIf { it > 0 } ?: 338
-        val heightDp = WidgetSizing.heightDp(options).takeIf { it > 0 } ?: 158
+        val (cellWidth, cellHeight) = WidgetSizing.cellDp(context, options)
+        val widthDp = cellWidth.takeIf { it > 0 } ?: 338
+        val heightDp = cellHeight.takeIf { it > 0 } ?: 158
         val scale = minOf(density, 960f / widthDp)
         val width = (widthDp * scale).toInt().coerceAtLeast(200)
         val height = (heightDp * scale).toInt().coerceAtLeast(90)
@@ -206,11 +210,15 @@ class DoingWidgetProvider : HomeWidgetProvider() {
             val rowBottom = h - 2.2f * u
             val rowTop = rowBottom - rowHeight
 
-            // Кадр занятия занимает верх половины.
-            val sceneSide = minOf(37.4f * u, rowTop - 0.4f * u + 4.6f * u).coerceAtLeast(10f)
+            // Кадр занятия стоит над нижней строкой и чуть заходит на неё, как
+            // в макете. На низком виджете (338×158) он упирается в верх, на
+            // высоком (Pixel даёт 4×2 около 360×224) растёт до 44u и садится
+            // на пол, а не висит под потолком с пустотой снизу.
+            val sceneSide = minOf(44f * u, rowTop + 0.9f * u).coerceAtLeast(10f)
+            val sceneTop = maxOf(0.4f * u, rowTop + 1.3f * u - sceneSide)
             WidgetImages.fitted(side.artPath, sceneSide.toInt())?.let { art ->
                 val x = left + (w - sceneSide) / 2f
-                canvas.drawBitmap(art, null, RectF(x, 0.4f * u, x + sceneSide, 0.4f * u + sceneSide), Paint(Paint.FILTER_BITMAP_FLAG))
+                canvas.drawBitmap(art, null, RectF(x, sceneTop, x + sceneSide, sceneTop + sceneSide), Paint(Paint.FILTER_BITMAP_FLAG))
             }
 
             val text = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { typeface = bold; color = pen; textSize = 3f * u }

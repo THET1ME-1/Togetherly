@@ -1,11 +1,11 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../dict_strings.dart';
 import '../../models/cloud_mascot.dart';
 import '../../models/doing.dart';
-import '../../services/offline/media_view_cache.dart';
+import '../../services/catalog_service.dart';
 import '../common/guide_mascot.dart';
+import '../storage_image.dart';
 
 /// Виджет «Чем заняты» внутри приложения: две комнатки, как на рабочем столе.
 ///
@@ -155,6 +155,7 @@ class _Room extends StatelessWidget {
                       key: ValueKey(doing.artKey ?? kCloudIdleArtKey),
                       side: side,
                       fallbackKey: kCloudIdleArtKey,
+                      whileLoading: _still(doing.artKey ?? kCloudIdleArtKey, side),
                     ),
                   ),
                 ),
@@ -178,6 +179,14 @@ class _Room extends StatelessWidget {
 
   TextStyle _text(double size, FontWeight weight) =>
       TextStyle(fontFamily: 'Onest', fontSize: size, fontWeight: weight, color: _pen, height: 1);
+
+  /// Неподвижный кадр занятия на время, пока качается анимация. Лист выбора
+  /// уже положил его в кэш, поэтому половина не стоит пустой.
+  Widget _still(String key, double side) {
+    final url = CatalogService.instance.giftArt(key)?.stillUrl;
+    if (url == null || url.isEmpty) return SizedBox.square(dimension: side);
+    return StorageImage(imageUrl: url, width: side, height: side, fit: BoxFit.contain);
+  }
 }
 
 /// Бумажная плашка с тонким контуром: без него на белой стене её не видно.
@@ -217,14 +226,16 @@ class _Avatar extends StatelessWidget {
       decoration: BoxDecoration(color: mine ? scheme.primary : scheme.tertiary, shape: BoxShape.circle),
       child: Icon(Icons.person_rounded, size: side * 0.72, color: paper),
     );
-    if (!url.startsWith('http')) return empty;
+    if (url.isEmpty) return empty;
+    // Аватарки лежат ссылкой pb://, её раскрывает StorageImage (с токеном
+    // файла); с проверкой на http превью рисовало силуэт вместо лица.
     return ClipOval(
-      child: CachedNetworkImage(
+      child: StorageImage(
         imageUrl: url,
-        cacheManager: OfflineImageCacheManager.instance,
         width: side,
         height: side,
         fit: BoxFit.cover,
+        memCacheWidth: (side * 3).toInt(),
         placeholder: (_, _) => empty,
         errorWidget: (_, _, _) => empty,
       ),
