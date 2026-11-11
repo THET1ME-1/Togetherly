@@ -6,6 +6,7 @@ import '../../services/chest_service.dart';
 import '../../theme/profile_theme.dart';
 import '../../utils/readable_text.dart';
 import '../app_sheet.dart';
+import 'chest_keep_confirm.dart';
 import '../common/gift_image.dart';
 import '../gifts/gift_note_sheet.dart';
 import '../memory/add_memory_sheet.dart' show shelfLabelSize, shelfTint;
@@ -86,6 +87,8 @@ class _ChestStashSheetState extends State<ChestStashSheet> {
       );
       if (asked == null || !mounted) return;
       note = asked;
+    } else if (!await confirmChestKeep(context, key) || !mounted) {
+      return;
     }
     setState(() => _busy = true);
     final ok = give

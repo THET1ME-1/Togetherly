@@ -143,12 +143,16 @@ void main() {
     await settle(tester);
     await tester.tap(find.widgetWithText(FilledButton, 'Оставить себе'));
     await settle(tester);
+    await tester.tap(find.text('Оставить себе').last);
+    await settle(tester);
     expect(calls, contains('POST /api/chest/keep aaaaaaaaaaaaaa2'));
     expect(find.text('Запас · 1'), findsOneWidget, reason: 'решённый подарок остался в запасе');
     expect(find.text('Чай'), findsNothing);
 
     // Последний решённый подарок закрывает лист, строки запаса больше нет.
     await tester.tap(find.widgetWithText(FilledButton, 'Оставить себе'));
+    await settle(tester);
+    await tester.tap(find.text('Оставить себе').last);
     await settle(tester);
     expect(calls, contains('POST /api/chest/keep aaaaaaaaaaaaaa1'));
     expect(find.textContaining('Запас ·'), findsNothing, reason: 'пустой запас держит лист открытым');
@@ -184,10 +188,28 @@ void main() {
 
     await tester.tap(find.text('Оставить себе'));
     await settle(tester);
+    await tester.tap(find.text('Оставить себе').last);
+    await settle(tester);
     expect(calls, contains('POST /api/chest/keep aaaaaaaaaaaaaa1'));
     expect(find.text('Подарить'), findsNothing, reason: 'следующий подарок из запаса снова требует выбора');
     expect(openButton(), findsOneWidget);
     expect(find.text('В запасе: 1'), findsOneWidget);
+    await done(tester);
+  });
+
+  // Письмо в поддержку 11.11.2026: медальон для девушки ушёл на свою полку.
+  testWidgets('свежий приз: «Оставить себе» сперва спрашивает, отмена оставляет выбор', (tester) async {
+    stash = [item('aaaaaaaaaaaaaa1', 'cocoa')];
+    await pumpChest(tester, choice: const ChestStashItem(openId: 'aaaaaaaaaaaaaa1', giftKey: 'cocoa'));
+
+    await tester.tap(find.text('Оставить себе'));
+    await settle(tester);
+    expect(find.text('Оставить «Какао» себе?'), findsOneWidget, reason: 'приз оставлен без вопроса');
+    await tester.tap(find.text(LocaleService.current.cancel));
+    await settle(tester);
+
+    expect(calls.where((c) => c.startsWith('POST /api/chest/')), isEmpty, reason: 'отмена всё равно оставила подарок');
+    expect(find.text('Подарить'), findsOneWidget, reason: 'после отмены пропал выбор «подарить или оставить»');
     await done(tester);
   });
 

@@ -376,6 +376,27 @@ const Map<String, Map<String, String>> chestStrings = {
     'fr': 'Le garder',
     'de': 'Behalten',
   },
+  // Подтверждение перед «Оставить себе»: кнопка стоит рядом с «Подарить», и
+  // промахом подарок уходил на свою полку (письмо в поддержку 11.11.2026).
+  // Подарить оставленный потом нельзя — об этом и говорит текст.
+  'chestKeepAskTitle': {
+    'ru': 'Оставить «{gift}» себе?',
+    'en': 'Keep “{gift}” for yourself?',
+    'pt': 'Ficar com “{gift}”?',
+    'it': 'Tenere “{gift}” per te?',
+    'es': '¿Quedarte con «{gift}»?',
+    'fr': 'Garder « {gift} » pour toi ?',
+    'de': '„{gift}“ selbst behalten?',
+  },
+  'chestKeepAskBody': {
+    'ru': 'Подарок встанет на вашу полку, и подарить его потом уже не получится.',
+    'en': 'It goes on your shelf, and you won’t be able to give it later.',
+    'pt': 'Ele vai para a sua estante, e depois não dá mais para oferecer.',
+    'it': 'Finirà sulla tua mensola e poi non potrai più regalarlo.',
+    'es': 'Irá a tu estante y luego ya no podrás regalarlo.',
+    'fr': 'Il ira sur ton étagère, et tu ne pourras plus l’offrir ensuite.',
+    'de': 'Es kommt in dein Regal, verschenken kannst du es danach nicht mehr.',
+  },
   // Под выбором стоит «Позже»: подарок можно отложить, и экран снова даёт
   // открыть сундук (TOG-38, обращение 480: «насильно заставляют выбирать»).
   'chestChoiceNote': {

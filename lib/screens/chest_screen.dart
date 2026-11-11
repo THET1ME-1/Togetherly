@@ -27,6 +27,7 @@ import '../theme/app_theme.dart';
 import '../theme/profile_theme.dart';
 import '../utils/readable_text.dart';
 import '../widgets/chest/chest_frames.dart';
+import '../widgets/chest/chest_keep_confirm.dart';
 import '../widgets/chest/chest_prize_image.dart';
 import '../widgets/chest/jar_drops.dart';
 import '../widgets/common/ad_result.dart';
@@ -765,6 +766,8 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
       );
       if (asked == null || !mounted) return;
       note = asked;
+    } else if (!await confirmChestKeep(context, choice.giftKey) || !mounted) {
+      return;
     }
     setState(() => _choosing = true);
     final ok = give

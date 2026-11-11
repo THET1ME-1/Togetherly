@@ -45,6 +45,8 @@ const Map<String, String> midAZh = {
   'chestFailed': '宝箱没打开。再点一次，不用重新看广告。',
   'chestGive': '送给 TA',
   'chestKeep': '留给自己',
+  'chestKeepAskTitle': '把“{gift}”留给自己？',
+  'chestKeepAskBody': '礼物会放到你的架子上，之后就不能再送出了。',
   'chestChoiceNote': '{name} 会收到礼物，还能回应你。点“以后再说”，礼物会先放进暂存，哪天都能送。',
   'chestPartner': '另一半',
   'chestGiven': '礼物已送出',

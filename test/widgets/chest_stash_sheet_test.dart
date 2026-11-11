@@ -142,11 +142,31 @@ void main() {
     await done(tester);
   });
 
+  // Кнопки «Подарить» и «Оставить себе» стоят рядом, и «оставить» срабатывала
+  // сразу: подарок девушке ушёл себе на полку (письмо в поддержку 11.11.2026).
+  testWidgets('«Оставить себе» сперва спрашивает, отмена ничего не шлёт', (tester) async {
+    await open(tester);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Оставить себе'));
+    await tester.pumpAndSettle();
+    expect(find.text('Оставить «Какао» себе?'), findsOneWidget);
+    expect(find.textContaining('подарить его потом уже не получится'), findsOneWidget);
+    expect(calls.where((c) => c.contains('/api/chest/')), isEmpty, reason: 'подарок оставлен без подтверждения');
+
+    await tester.tap(find.text(LocaleService.current.cancel));
+    await tester.pumpAndSettle();
+    expect(calls.where((c) => c.contains('/api/chest/')), isEmpty, reason: 'отмена всё равно оставила подарок');
+    expect(find.text('Запас · 3'), findsOneWidget);
+    await done(tester);
+  });
+
   testWidgets('отказ сервера: подарок остаётся в запасе', (tester) async {
     await open(tester);
     failWith = 500;
 
     await tester.tap(find.widgetWithText(FilledButton, 'Оставить себе'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Оставить себе').last);
     await tester.pumpAndSettle();
 
     expect(calls, contains('POST /api/chest/keep aaaaaaaaaaaaaa1'));
@@ -160,11 +180,24 @@ void main() {
 
     await tester.tap(find.widgetWithText(FilledButton, 'Оставить себе'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Оставить себе').last);
+    await tester.pumpAndSettle();
 
     expect(calls, contains('POST /api/chest/keep aaaaaaaaaaaaaa2'));
     expect(closed.value, isTrue, reason: 'пустой запас держит лист открытым');
     expect(find.textContaining('Запас ·'), findsNothing);
     await done(tester);
+  });
+
+  test('экран сундука тоже спрашивает перед «Оставить себе»', () {
+    for (final path in ['lib/screens/chest_screen.dart', 'lib/widgets/chest/chest_stash_sheet.dart']) {
+      final source = File(path).readAsStringSync();
+      final keep = source.indexOf('ChestService.instance.keep(');
+      final ask = source.indexOf('confirmChestKeep(');
+      expect(keep, isNot(-1), reason: '$path: не нашёл вызов keep');
+      expect(ask, isNot(-1), reason: '$path: «Оставить себе» без подтверждения');
+      expect(ask, lessThan(keep), reason: '$path: подтверждение стоит после записи');
+    }
   });
 
   testWidgets('касание по карточке ленты магазина открывает запас на этом подарке', (tester) async {
