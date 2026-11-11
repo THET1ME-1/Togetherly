@@ -7,6 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:love_app/models/feedback.dart';
 import 'package:love_app/screens/feedback_screen.dart';
+import 'package:love_app/services/locale_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:love_app/theme/app_palettes.dart';
 import 'package:love_app/theme/profile_theme.dart';
 
@@ -33,6 +35,9 @@ void main() {
           '/artifacts/material_fonts/MaterialIcons-Regular.otf',
     ]);
 
+    SharedPreferences.setMockInitialValues({});
+    await LocaleService.instance.setLanguage(AppLanguage.ru);
+
     tester.view.devicePixelRatio = 2;
     addTearDown(tester.view.reset);
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -56,8 +61,10 @@ void main() {
           ),
         ),
       ));
-      await tester.enterText(find.byKey(const Key('feedback_text')),
-          'После обновления не открывается лента воспоминаний: кручу, а она пустая.');
+      if (find.byKey(const Key('feedback_text')).evaluate().isNotEmpty) {
+        await tester.enterText(find.byKey(const Key('feedback_text')),
+            'После обновления не открывается лента воспоминаний: кручу, а она пустая.');
+      }
       await tester.pump();
       if (sent) {
         await tester.tap(find.byKey(const Key('feedback_send')));

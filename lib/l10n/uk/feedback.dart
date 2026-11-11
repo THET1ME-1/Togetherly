@@ -6,7 +6,7 @@ const Map<String, String> feedbackUk = {
   'fb.title': 'Повідомити про проблему',
   'fb.intro': 'Напишіть, що сталося. Повідомлення надійде нам напряму, виходити із застосунку не потрібно.',
   'fb.kindBug': 'Помилка',
-  'fb.kindIdea': 'Пропозиція',
+  'fb.kindIdea': 'Ідея',
   'fb.kindPayment': 'Оплата',
   'fb.kindAbuse': 'Скарга на людину або вміст',
   'fb.kindChild': 'Безпека дітей',

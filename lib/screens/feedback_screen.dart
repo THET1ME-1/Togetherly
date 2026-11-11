@@ -180,29 +180,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       children: [
         Text(trKey('fb.intro'), style: _body(cs)),
         const SizedBox(height: 16),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final kind in FeedbackKind.values)
-              ChoiceChip(
-                key: Key('feedback_kind_${kind.wire}'),
-                avatar: Icon(
-                  _iconOf(kind),
-                  size: 18,
-                  color: _kind == kind
-                      ? cs.onSecondaryContainer
-                      : cs.onSurfaceVariant,
-                ),
-                label: Text(_labelOf(kind)),
-                selected: _kind == kind,
-                showCheckmark: false,
-                onSelected: _sending
-                    ? null
-                    : (_) => setState(() => _kind = kind),
-              ),
-          ],
-        ),
+        _kinds(cs),
         if (_kind == FeedbackKind.childSafety) ...[
           const SizedBox(height: 12),
           Container(
@@ -254,6 +232,81 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
         const SizedBox(height: 4),
         Text(reply, style: _body(cs, size: 13)),
       ],
+    );
+  }
+
+  /// Виды обращения: четыре коротких парами, две жалобы во всю ширину.
+  /// Чипы в строку рвались по-разному на каждом языке, а «Жалоба на человека
+  /// или содержимое» на 320 точках обрезалась. Жалобам отдана целая строка:
+  /// их подпись должна читаться полностью, ради них форму и смотрит Google.
+  Widget _kinds(ColorScheme cs) {
+    Widget pair(FeedbackKind left, FeedbackKind right) => IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: _kindTile(cs, left)),
+          const SizedBox(width: 8),
+          Expanded(child: _kindTile(cs, right)),
+        ],
+      ),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        pair(FeedbackKind.bug, FeedbackKind.idea),
+        const SizedBox(height: 8),
+        pair(FeedbackKind.payment, FeedbackKind.other),
+        const SizedBox(height: 8),
+        _kindTile(cs, FeedbackKind.abuse),
+        const SizedBox(height: 8),
+        _kindTile(cs, FeedbackKind.childSafety),
+      ],
+    );
+  }
+
+  Widget _kindTile(ColorScheme cs, FeedbackKind kind) {
+    final selected = _kind == kind;
+    final ink = selected ? cs.onSecondaryContainer : cs.onSurfaceVariant;
+    return Material(
+      key: Key('feedback_kind_${kind.wire}'),
+      color: selected ? cs.secondaryContainer : Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: selected ? Colors.transparent : cs.outlineVariant,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: _sending ? null : () => setState(() => _kind = kind),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 48),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              children: [
+                Icon(_iconOf(kind), size: 18, color: ink),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _labelOf(kind),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: ProfileTheme.bodyFont,
+                      fontSize: 14,
+                      height: 1.2,
+                      fontWeight:
+                          selected ? FontWeight.w600 : FontWeight.w500,
+                      color: ink,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
