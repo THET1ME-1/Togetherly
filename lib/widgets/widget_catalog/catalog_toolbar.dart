@@ -25,8 +25,9 @@ class CatalogToolbar extends StatefulWidget {
   final CatalogQuery query;
   final ValueChanged<CatalogQuery> onChanged;
 
-  /// Показывать ли чип «С Togetherly+»: на iPhone у некупившего платных
-  /// карточек нет вовсе (App Store 3.1.1), и делить там нечего.
+  /// Показывать ли чип «С Togetherly+»: есть ли в каталоге платные карточки.
+  /// Сейчас они есть везде, Плюс продаётся и на Android, и на iPhone; у
+  /// человека без пары платных нет, и делить там нечего.
   final bool showPlus;
 
   /// Сколько виджетов каталога стоит на столе; 0 — чипа «На столе» нет.

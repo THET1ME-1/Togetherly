@@ -1903,8 +1903,9 @@ class _WidgetScreenState extends State<WidgetScreen>
   /// вовсе лежал сбоку от обоих. Теперь виджеты разложены по смыслу, а
   /// платные помечены замком внутри своего раздела.
   List<_CatalogCard> _catalogCards(bool isPaired) {
-    // На iPhone у некупившего Togetherly+ платных карточек не видно вовсе:
-    // вести на оплату мимо Apple запрещает 3.1.1.
+    // Togetherly+ продаётся и на Android, и на iPhone (на iPhone через StoreKit
+    // с 19.08.2026), поэтому платные карточки видны везде, у некупившего —
+    // под замком. `visible` остаётся на случай платформы, где Плюса нет.
     final plusShown = PlusService.instance.visible;
     final locked = !PlusService.instance.active;
     final photoOwner = isPaired || _pair.isSolo;
