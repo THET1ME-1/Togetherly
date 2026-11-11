@@ -102,6 +102,7 @@ import '../models/help_items.dart';
 import '../widgets/common/email_change_sheet.dart';
 import '../widgets/unfold/unfold_route.dart';
 import 'help_screen.dart';
+import 'feedback_screen.dart';
 
 /// Entry for a partner across all connections
 class _PartnerEntry {
@@ -519,9 +520,23 @@ class _ProfileScreenState extends State<ProfileScreen>
           scheme: _cs,
           plusInStore: PlusService.buysInStore,
           onAction: _runHelpAction,
-          onWriteUs: _openBugBot,
+          onWriteUs: () => _openFeedback(context),
         ),
         settings: const RouteSettings(name: '/help'),
+      ),
+    );
+  }
+
+  /// «Сообщить о проблеме»: форма внутри приложения, без почты и Telegram.
+  /// [from] — контекст экрана, откуда нажали (настройки или справка).
+  void _openFeedback(BuildContext from) {
+    Navigator.of(from).push(
+      MaterialPageRoute<void>(
+        builder: (_) => FeedbackScreen(
+          scheme: _cs,
+          accountEmail: widget.userData.email,
+        ),
+        settings: const RouteSettings(name: '/feedback'),
       ),
     );
   }
@@ -2253,6 +2268,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               onTelegramChannel: _openTelegramChannel,
               onBugBot: _openBugBot,
               onHelp: () => _openHelp(ctx),
+              onFeedback: () => _openFeedback(ctx),
               onChangeEmail: () async {
                 final email = await showEmailChangeSheet(ctx,
                     scheme: _cs,

@@ -1,0 +1,26 @@
+{
+  "name": "app_feedback",
+  "type": "base",
+  "listRule": null,
+  "viewRule": null,
+  "createRule": null,
+  "updateRule": null,
+  "deleteRule": null,
+  "fields": [
+    {"name": "uid", "type": "text", "max": 40},
+    {"name": "email", "type": "text", "max": 200},
+    {"name": "name", "type": "text", "max": 200},
+    {"name": "kind", "type": "text", "max": 30},
+    {"name": "text", "type": "text", "max": 5000},
+    {"name": "app", "type": "text", "max": 40},
+    {"name": "platform", "type": "text", "max": 20},
+    {"name": "lang", "type": "text", "max": 10},
+    {"name": "delivered", "type": "bool"},
+    {"name": "created", "type": "autodate", "onCreate": true, "onUpdate": false},
+    {"name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true}
+  ],
+  "indexes": [
+    "CREATE INDEX `idx_app_feedback_delivered` ON `app_feedback` (`delivered`)",
+    "CREATE INDEX `idx_app_feedback_uid` ON `app_feedback` (`uid`)"
+  ]
+}

@@ -38,6 +38,7 @@ class SettingsScreen extends StatelessWidget {
     required this.onTelegramChannel,
     required this.onBugBot,
     this.onHelp,
+    this.onFeedback,
     this.onChangeEmail,
     required this.onAbout,
     required this.onChangePassword,
@@ -102,6 +103,10 @@ class SettingsScreen extends StatelessWidget {
 
   /// Справка «Как сделать».
   final VoidCallback? onHelp;
+
+  /// «Сообщить о проблеме» — форма обращения внутри приложения. Google Play
+  /// требует, чтобы о проблеме можно было сообщить, не выходя из него.
+  final VoidCallback? onFeedback;
 
   /// Смена почты кодом из письма.
   final VoidCallback? onChangeEmail;
@@ -421,6 +426,16 @@ class SettingsScreen extends StatelessWidget {
                     trailing: const SettingsChevron(),
                     onTap: onTerms,
                   ),
+                  if (onFeedback != null)
+                    SettingsRow(
+                      icon: Icons.flag_rounded,
+                      title: trKey('fb.row'),
+                      subtitle: trKey('fb.rowHint'),
+                      iconBg: scheme.primaryContainer,
+                      iconFg: scheme.onPrimaryContainer,
+                      trailing: const SettingsChevron(),
+                      onTap: onFeedback,
+                    ),
                   SettingsRow(
                     icon: Icons.mail_rounded,
                     title: s.supportTitle,

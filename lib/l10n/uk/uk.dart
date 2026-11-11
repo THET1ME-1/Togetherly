@@ -31,12 +31,14 @@ import 'widget_screen.dart';
 import 'home_widgets.dart';
 import 'hour_ranks.dart';
 import 'login_methods.dart';
+import 'feedback.dart';
 import 'chat_pins.dart';
 
 const Map<String, String> kUkStrings = {
   ...dateHelpersUk,
   ...hourRanksUk,
   ...loginMethodsUk,
+  ...feedbackUk,
   ...chatPinsUk,
   ...smallAUk,
   ...smallBUk,

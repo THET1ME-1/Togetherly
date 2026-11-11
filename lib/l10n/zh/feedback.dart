@@ -1,0 +1,26 @@
+// 中文：词典分区 feedback（“反馈问题”，2026-11-11）。
+
+const Map<String, String> feedbackZh = {
+  'fb.row': '反馈问题',
+  'fb.rowHint': '错误、举报或疑问，直接在这里写',
+  'fb.title': '反馈问题',
+  'fb.intro': '请写下发生了什么。消息会直接发给我们，无需离开应用。',
+  'fb.kindBug': '错误',
+  'fb.kindIdea': '建议',
+  'fb.kindPayment': '付款',
+  'fb.kindAbuse': '举报用户或内容',
+  'fb.kindChild': '儿童安全',
+  'fb.kindOther': '其他',
+  'fb.childNote': '有关儿童安全的举报我们会优先处理。请描述您看到了什么、在哪里看到的。',
+  'fb.hint': '发生了什么？',
+  'fb.replyTo': '我们会回复到 {0}',
+  'fb.replyNoMail': '账号没有邮箱：请在消息中写明如何联系您。',
+  'fb.send': '发送',
+  'fb.tooShort': '请至少写几个字',
+  'fb.errFailed': '发送失败。请检查网络后再点一次',
+  'fb.errTooMany': '今天已收到您的多条消息。请明天再写，或直接回复我们的邮件',
+  'fb.sentTitle': '消息已收到',
+  'fb.sentBody': '谢谢。我们会回复到 {0}',
+  'fb.sentNoMail': '谢谢，我们都会看。',
+  'fb.done': '完成',
+};
