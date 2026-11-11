@@ -45,6 +45,9 @@ struct TogetherlyWidgetBundle: WidgetBundle {
         StreakWidget()
         RelationshipStatsWidget()
         PairMapWidget()
+        // «Чем заняты» стоит здесь, а не в `newWidgets`: там уже десять, а
+        // больше один блок не держит.
+        DoingWidget()
     }
 
     @WidgetBundleBuilder

@@ -6,6 +6,7 @@
     <string name="tg_desc_together_4x2">Tage zusammen und Fortschritt bis zum runden Datum</string>
     <string name="tg_desc_together_4x4">Tage zusammen und eure nächsten Termine</string>
     <string name="tg_desc_note_2x2">Gemeinsame Notiz: einer schreibt, der andere sieht es</string>
+    <string name="tg_desc_doing_4x2">Was jeder von euch gerade macht, zeigt Tu</string>
     <string name="tg_desc_note_4x2">Gemeinsame Notiz für zwei, ein paar Zeilen</string>
     <string name="tg_desc_note_4x4">Gemeinsame Notiz für zwei, eine ganze Liste</string>
     <string name="tg_note_empty">Tippen zum Schreiben</string>

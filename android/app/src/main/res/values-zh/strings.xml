@@ -6,6 +6,7 @@
     <string name="tg_desc_together_4x2">在一起的天数和距下一个整数日的进度</string>
     <string name="tg_desc_together_4x4">在一起的天数和即将到来的日子</string>
     <string name="tg_desc_note_2x2">共享便签：一人写，另一人看</string>
+    <string name="tg_desc_doing_4x2">你们各自现在在做什么，由图图来展示</string>
     <string name="tg_desc_note_4x2">两人共享便签，几行字</string>
     <string name="tg_desc_note_4x4">两人共享便签，一整张清单</string>
     <string name="tg_note_empty">点按书写</string>

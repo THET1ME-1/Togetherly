@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  «Чем заняты» 4x2. Размеры по формуле 70*n-30 — просить больше нельзя, лончер
+  всё равно даёт ячейку по своей сетке и молча режет содержимое. Растягивать
+  можно только вширь: комнатки рассчитаны на высоту в две клетки.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/tg_doing_4x2"
+    android:previewImage="@drawable/tg_preview_doing_4x2"
+    android:description="@string/tg_desc_doing_4x2"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="250dp"
+    android:minResizeHeight="110dp"
+    android:maxResizeWidth="306dp"
+    android:maxResizeHeight="140dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:resizeMode="horizontal"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen" />

@@ -6,7 +6,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/widget_data.dart';
 import '../models/memory.dart';
 import '../models/partner_note.dart';
+import '../models/doing.dart';
 import '../models/mood_entry.dart';
+import 'doing_service.dart';
 import 'locale_service.dart';
 import 'pair_widget_payload.dart';
 import 'media_service.dart';
@@ -79,6 +81,7 @@ class WidgetService extends ChangeNotifier {
   // Подписи заметки партнёра: текст и время. По смене тянем заметку пары
   // заново, иначе она доезжала только с полной синхронизацией на входе (TOG-13).
   final Map<String, String> _partnerNoteSigs = {};
+  final Map<String, String> _partnerDoingSigs = {};
 
   // Чья пара лежит в контейнере виджета прямо сейчас. Отвечает на вопрос,
   // который иначе не отличить: данных о половине нет — это холодный старт той
@@ -234,6 +237,16 @@ class WidgetService extends ChangeNotifier {
             knownNoteSig != noteSig) {
           unawaited(HomeWidgetService.instance.refreshNote(_groupId));
         }
+        // Партнёр сменил занятие или цвет комнатки — его половина виджета
+        // «Чем заняты» обновляется сразу, не дожидаясь общей синхронизации.
+        final doingSig = rec == null ? '' : doingSignatureOf(rec.data);
+        final knownDoingSig = _partnerDoingSigs[partnerUid];
+        _partnerDoingSigs[partnerUid] = doingSig;
+        if (_groupId.isNotEmpty &&
+            knownDoingSig != null &&
+            knownDoingSig != doingSig) {
+          unawaited(DoingService.instance.sync(_groupId));
+        }
         notifyListeners();
       },
       onError: (e) => debugPrint('WidgetService partner listener error: $e'),
@@ -254,6 +267,7 @@ class WidgetService extends ChangeNotifier {
     _myPhotoSig = null;
     _partnerPhotoSigs.clear();
     _partnerNoteSigs.clear();
+    _partnerDoingSigs.clear();
 
     // Признак пары держим до тех пор, пока пара действительно не распалась.
     // Раньше он затирался на каждом техническом переподключении — а их случается

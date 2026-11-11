@@ -162,6 +162,9 @@ import '../models/avatar_frame.dart';
 import '../services/frame_gift_service.dart';
 import '../services/gifts_service.dart';
 import '../widgets/note_editor_sheet.dart';
+import '../widgets/doing/doing_sheet.dart';
+import '../models/doing.dart';
+import '../services/doing_service.dart';
 import '../services/pb_media_service.dart';
 import '../services/widget_anim_service.dart';
 import 'snap_capture_screen.dart';
@@ -734,6 +737,12 @@ class _HomeScreenState extends State<HomeScreen> {
     else if (uri.host == 'note') {
       if (mounted && _pairData.isPaired) {
         unawaited(showNoteEditorSheet(context, groupId: _pairData.pairId));
+      }
+    }
+    // loveapp://doing → выбор своего занятия с виджета «Чем заняты».
+    else if (uri.host == 'doing') {
+      if (mounted && _pairData.isPaired) {
+        unawaited(_openDoingSheet());
       }
     }
     // loveapp://mood → открыть Mood Calendar
@@ -4065,6 +4074,21 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// «Скучаю» с карточки затихшего партнёра.
+  /// Лист «Чем ты занят?» по нажатию на свою половину виджета «Чем заняты».
+  /// Текущее занятие и цвет читаются с сервера: на главной их никто не держит.
+  Future<void> _openDoingSheet() async {
+    final groupId = _pairData.pairId;
+    final rooms = await DoingService.instance.load(groupId);
+    if (!mounted) return;
+    await showDoingSheet(
+      context,
+      groupId: groupId,
+      scheme: Theme.of(context).colorScheme,
+      current: rooms.my?.doing ?? const Doing.none(),
+      wall: rooms.my?.wall,
+    );
+  }
+
   /// Открывает холст по номеру с виджета. Не нашли — открываем галерею
   /// рисунков: она хотя бы там, куда человек шёл.
   Future<void> _openCanvasFromWidget(String canvasId) async {

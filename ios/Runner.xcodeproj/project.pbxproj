@@ -35,6 +35,7 @@
 		FE000000000000000000D016 /* YearWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE000000000000000000A016 /* YearWidgets.swift */; };
 		FE0000000000000000009001 /* MascotWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0000000000000000008001 /* MascotWidget.swift */; };
 		FE0000000000000000009002 /* CanvasWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0000000000000000008002 /* CanvasWidget.swift */; };
+		FE0000000000000000009003 /* DoingWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0000000000000000008003 /* DoingWidget.swift */; };
 		FE000000000000000000D017 /* LockScreenWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE000000000000000000A017 /* LockScreenWidgets.swift */; };
 		FE000000000000000000D018 /* PairMapWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE000000000000000000A018 /* PairMapWidget.swift */; };
 		FE000000000000000000E001 /* TogetherlyWidgetExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = FE000000000000000000C001 /* TogetherlyWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -124,6 +125,7 @@
 		FE000000000000000000A016 /* YearWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YearWidgets.swift; sourceTree = "<group>"; };
 		FE0000000000000000008001 /* MascotWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MascotWidget.swift; sourceTree = "<group>"; };
 		FE0000000000000000008002 /* CanvasWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasWidget.swift; sourceTree = "<group>"; };
+		FE0000000000000000008003 /* DoingWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoingWidget.swift; sourceTree = "<group>"; };
 		FE000000000000000000A017 /* LockScreenWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockScreenWidgets.swift; sourceTree = "<group>"; };
 		FE000000000000000000A018 /* PairMapWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairMapWidget.swift; sourceTree = "<group>"; };
 		FE000000000000000000B001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -258,6 +260,7 @@
 				FE000000000000000000A016 /* YearWidgets.swift */,
 				FE0000000000000000008001 /* MascotWidget.swift */,
 				FE0000000000000000008002 /* CanvasWidget.swift */,
+				FE0000000000000000008003 /* DoingWidget.swift */,
 				FE000000000000000000A017 /* LockScreenWidgets.swift */,
 				FE000000000000000000A018 /* PairMapWidget.swift */,
 				FE000000000000000000A009 /* Assets.xcassets */,
@@ -537,6 +540,7 @@
 				FE000000000000000000D016 /* YearWidgets.swift in Sources */,
 				FE0000000000000000009001 /* MascotWidget.swift in Sources */,
 				FE0000000000000000009002 /* CanvasWidget.swift in Sources */,
+				FE0000000000000000009003 /* DoingWidget.swift in Sources */,
 				FE000000000000000000D017 /* LockScreenWidgets.swift in Sources */,
 				FE000000000000000000D018 /* PairMapWidget.swift in Sources */,
 			);

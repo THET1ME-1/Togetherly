@@ -2272,6 +2272,22 @@ class PbDataService {
     }
   }
 
+  /// Как [loadWidget], но «записи нет» (`null`) отличается от «не дозвонились»
+  /// (исключение). Нужно тем, кто дописывает ключ в поле `data`: сервер
+  /// перезаписывает json целиком, и на пустом чтении без связи соседние ключи
+  /// (заметка на двоих, цвет комнатки) были бы стёрты.
+  Future<RecordModel?> loadWidgetOrThrow(String groupId, String uid) async {
+    try {
+      return await _pb.collection('widget_data').getFirstListItem(
+            _pb.filter('group_id = {:g} && user_uid = {:u}',
+                {'g': groupId, 'u': uid}),
+          );
+    } on ClientException catch (e) {
+      if (e.statusCode == 404) return null;
+      rethrow;
+    }
+  }
+
   /// Данные виджетов обоих участников группы.
   ///
   /// Нужны заметке на двоих: она общая, и свежую версию выбираем из записей

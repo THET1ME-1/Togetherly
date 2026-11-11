@@ -6,6 +6,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import '../widgets/note_editor_sheet.dart';
+import '../widgets/doing/doing_rooms.dart';
+import '../widgets/doing/doing_sheet.dart';
+import '../models/doing.dart';
+import '../services/doing_service.dart';
 import '../widgets/mood_image.dart';
 import '../widgets/storage_image.dart';
 import 'package:characters/characters.dart';
@@ -144,6 +148,8 @@ class _WidgetScreenState extends State<WidgetScreen>
   /// В превью каталога был зашит образец про молоко, и человек, написавший
   /// «Спасибо», видел в приложении прежнюю рыбу: «текст на заметке не
   /// меняется» (жалоба 20.09.2026).
+  DoingRoom? _doingMine;
+  DoingRoom? _doingPartner;
   String _noteText = '';
   String _noteAuthor = '';
   String _noteAt = '';
@@ -306,6 +312,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     _pair.addListener(_onDataChanged);
     _ws.addListener(_onDataChanged);
     unawaited(_loadNote());
+    unawaited(_loadDoing());
     // Холсты для карточки «Рисунок на столе»: заодно готовятся картинки для
     // виджета, чтобы он не встал пустым сразу после установки.
     unawaited(_loadCanvases());
@@ -1137,6 +1144,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           'canvas' => 'canvas',
           'year_grid' => 'year_grid',
           'map' => 'map',
+          'doing' => 'doing',
           // Парный виджет тоже помнит свою связь: до 04.09.2026 он один на все
           // пары показывал ту, что открыта в приложении последней. Ключ зовётся
           // по ТИПУ виджета (`pair_next_bind_group`) — его и ищет
@@ -1210,6 +1218,10 @@ class _WidgetScreenState extends State<WidgetScreen>
   Future<void> _syncWidgetDataAfterPin(String widgetType) async {
     final hws = HomeWidgetService.instance;
     switch (widgetType) {
+      case 'doing':
+        // Обе половины и кадры занятий — сразу, иначе свежий виджет стоит
+        // пустыми комнатками до следующей общей синхронизации.
+        await DoingService.instance.sync(_pair.pairId);
       case 'days_counter':
         // Используем тот же алгоритм выбора таймера, что и Timer-виджет,
         // чтобы Days Counter всегда показывал дни того же таймера.
@@ -1880,6 +1892,9 @@ class _WidgetScreenState extends State<WidgetScreen>
       if (isPaired) _CatalogCard(WidgetPanels.sectionPair, _cardMap),
       if (isPaired) _CatalogCard(WidgetPanels.sectionPair, _cardStats),
       if (isPaired) _CatalogCard(WidgetPanels.sectionPair, _cardMascot),
+      // «Чем заняты» открыт всем: виджет парный, и под замком он был бы
+      // наполовину пустым у пары, где Togetherly+ только у одного.
+      if (isPaired) _CatalogCard(WidgetPanels.sectionPair, _cardDoing),
       if (isPaired) _CatalogCard(WidgetPanels.sectionPhotos, _cardCanvas),
 
       // ── Дни и таймеры ──
@@ -2279,6 +2294,54 @@ class _WidgetScreenState extends State<WidgetScreen>
       _noteAt = at;
     });
   }
+
+  // ── Чем заняты ──
+
+  /// Занятие и цвет комнатки обоих — для превью и листа выбора.
+  Future<void> _loadDoing() async {
+    final rooms = await DoingService.instance.load(_pair.pairId);
+    if (!mounted) return;
+    setState(() {
+      _doingMine = rooms.my;
+      _doingPartner = rooms.partner;
+    });
+  }
+
+  /// «Чем заняты»: две комнатки, в каждой Ту показывает занятие человека.
+  /// Превью здесь живое, на рабочем столе виджет неподвижен.
+  Widget _cardDoing() => _buildGalleryItem(
+        title: trKey('doing.title'),
+        subtitle: trKey('doing.subtitle'),
+        svgString: _heartSvg,
+        qualifiedName: 'com.togetherly.love.DoingWidgetProvider',
+        widgetType: 'doing',
+        preview: DoingRooms(
+          my: DoingRoomLook(
+            wall: _doingMine?.wall ?? _cs.primaryContainer,
+            doing: _doingMine?.doing ?? const Doing.none(),
+            avatarUrl: _doingMine?.avatarUrl ?? '',
+          ),
+          partner: DoingRoomLook(
+            wall: _doingPartner?.wall ?? _cs.tertiaryContainer,
+            doing: _doingPartner?.doing ?? const Doing.none(),
+            avatarUrl: _doingPartner?.avatarUrl ?? '',
+          ),
+        ),
+        extraAction: (
+          label: trKey('doing.pick'),
+          icon: Icons.emoji_people_rounded,
+          onTap: () async {
+            await showDoingSheet(
+              context,
+              groupId: _pair.pairId,
+              scheme: _cs,
+              current: _doingMine?.doing ?? const Doing.none(),
+              wall: _doingMine?.wall,
+            );
+            await _loadDoing();
+          },
+        ),
+      );
 
   /// Заметка на двоих, карточкой M3.
   Widget _cardNote(bool locked) =>

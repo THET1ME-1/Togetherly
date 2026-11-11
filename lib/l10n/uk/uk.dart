@@ -32,6 +32,7 @@ import 'home_widgets.dart';
 import 'hour_ranks.dart';
 import 'login_methods.dart';
 import 'feedback.dart';
+import 'doing.dart';
 import 'chat_pins.dart';
 
 const Map<String, String> kUkStrings = {
@@ -39,6 +40,7 @@ const Map<String, String> kUkStrings = {
   ...hourRanksUk,
   ...loginMethodsUk,
   ...feedbackUk,
+  ...doingUk,
   ...chatPinsUk,
   ...smallAUk,
   ...smallBUk,

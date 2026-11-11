@@ -13,6 +13,7 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/widget_couple_art.dart';
+import 'doing_service.dart';
 import 'pb_data_service.dart';
 import 'pb_media_service.dart';
 import 'pocketbase_service.dart';
@@ -685,6 +686,11 @@ class HomeWidgetService {
   /// виджет), чтобы не дублировать iOS App Group мост.
   Future<String> appGroupReadablePath(String localPath, String name) =>
       _toWidgetReadablePath(localPath, name);
+
+  /// Фото по ссылке в файле, который видит виджет: ужатое и закэшированное.
+  /// Открыто для служб отдельных виджетов (`DoingService`).
+  Future<String> cacheWidgetPhoto(String url, String key, {int maxSide = 400}) =>
+      _cachePhotoFromUrl(url, key, maxSide: maxSide);
 
   /// Удаляет из контейнера App Group файлы виджет-медиа с именем на [prefix]
   /// (iOS). Нужно, чтобы старые фото не копились и WidgetKit не держал картинку
@@ -2266,6 +2272,10 @@ class HomeWidgetService {
       final uid = PocketBaseService().userId ?? '';
       if (uid.isEmpty) return;
       final records = await PbDataService().loadWidgetsForGroup(groupId);
+      // «Чем заняты» читает те же записи: отдаём их, чтобы не ходить на
+      // сервер второй раз. Заметка синхронизируется и в приложении, и в фоне,
+      // поэтому виджет занятий обновляется там же.
+      unawaited(DoingService.instance.sync(groupId, records: records));
       final note = latestNote(records.map((r) => r.data));
       final me = PbAuthService().currentProfile();
       var myName = (me?['displayName'] as String?) ?? '';

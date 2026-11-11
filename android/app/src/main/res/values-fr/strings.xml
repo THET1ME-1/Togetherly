@@ -6,6 +6,7 @@
     <string name="tg_desc_together_4x2">Jours ensemble et progression vers la date ronde</string>
     <string name="tg_desc_together_4x4">Jours ensemble et vos prochaines dates</string>
     <string name="tg_desc_note_2x2">Note commune : l’un écrit, l’autre voit</string>
+    <string name="tg_desc_doing_4x2">Ce que chacun fait en ce moment, montré par Tu</string>
     <string name="tg_desc_note_4x2">Note commune à deux, quelques lignes</string>
     <string name="tg_desc_note_4x4">Note commune à deux, toute une liste</string>
     <string name="tg_note_empty">Touchez pour écrire</string>

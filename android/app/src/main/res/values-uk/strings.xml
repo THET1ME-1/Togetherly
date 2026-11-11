@@ -7,6 +7,7 @@
     <string name="tg_desc_together_4x2">Дні разом і прогрес до круглої дати</string>
     <string name="tg_desc_together_4x4">Дні разом і найближчі дати пари</string>
     <string name="tg_desc_note_2x2">Спільна нотатка: пише один — бачить другий</string>
+    <string name="tg_desc_doing_4x2">Чим зараз зайнятий кожен із вас: Ту показує сам</string>
     <string name="tg_desc_note_4x2">Спільна нотатка на двох, кілька рядків</string>
     <string name="tg_desc_note_4x4">Спільна нотатка на двох, цілий список</string>
     <string name="tg_note_empty">Натисніть, щоб написати</string>

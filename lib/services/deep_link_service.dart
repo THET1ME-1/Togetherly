@@ -47,7 +47,7 @@ class DeepLinkService {
   // не доезжает — приложение просто открывалось, а настроение не ставилось.
   // Поэтому раздаём такие ссылки отсюда, из единственного места, куда они
   // приходят наверняка.
-  static const _widgetHosts = {'mood', 'miss', 'note', 'memories', 'widgets', 'map'};
+  static const _widgetHosts = {'mood', 'miss', 'note', 'memories', 'widgets', 'map', 'doing'};
 
   /// Ссылка с виджета рабочего стола, а не приглашение и не письмо.
   static bool isWidgetAction(Uri uri) =>
