@@ -65,6 +65,7 @@ import '../models/pair_data.dart';
 import '../models/user_data.dart';
 import '../widgets/common/coin_reward_toast.dart';
 import '../widgets/common/ad_banner.dart';
+import '../widgets/common/filter_tag.dart';
 import '../services/network/server_route.dart';
 import '../services/pb_media_service.dart';
 import '../services/screen_awake.dart';
@@ -1538,46 +1539,21 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   }
 
   /// Чип фильтра: один вид на все — иконка и подпись, выбранный залит
-  /// акцентом. Прежний круглый значок «Избранное» выбивался из ряда.
+  /// акцентом. Прежний круглый значок «Избранное» выбивался из ряда. Тот же
+  /// чип стоит над каталогом виджетов ([FilterTag]).
   Widget _filterTag({
     required String label,
     required bool selected,
     required VoidCallback onTap,
     IconData? icon,
-  }) {
-    final t = widget.theme;
-    final bg = selected ? t.fillColor : t.cardSurface;
-    final fg = selected
-        ? AppThemes.onColor(t.fillColor, mode: t.brightness)
-        : t.textPrimary;
-    final iconColor = selected ? fg : t.textSecondary;
-    return Material(
-      color: bg,
-      borderRadius: BorderRadius.circular(20),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
+  }) =>
+      FilterTag(
+        theme: widget.theme,
+        label: label,
+        selected: selected,
         onTap: onTap,
-        child: Container(
-          height: 40,
-          alignment: Alignment.center,
-          padding: EdgeInsets.only(left: icon == null ? 14 : 11, right: 14),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (icon != null) ...[
-                Icon(icon, size: 18, color: iconColor),
-                const SizedBox(width: 6),
-              ],
-              Text(
-                label,
-                style: AppFonts.onest(size: 14, weight: 600, color: fg),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+        icon: icon,
+      );
 
   /// Пустое состояние при активном фильтре (тег не дал результатов).
   SliverToBoxAdapter _buildFilteredEmpty() {

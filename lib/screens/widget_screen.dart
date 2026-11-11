@@ -27,6 +27,8 @@ import '../models/countdown_widget.dart';
 import '../models/note_preview.dart';
 import '../models/together_milestones.dart';
 import '../models/widget_panels.dart';
+import '../models/widget_catalog_query.dart';
+import '../widgets/widget_catalog/catalog_toolbar.dart';
 import '../widgets/miss_widget_card.dart';
 import '../widgets/together_track_card.dart';
 import '../services/widget_theme_sync.dart';
@@ -328,6 +330,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     _mascotService.resyncStreakWidget();
     _loadAllInitialPrefs();
     _loadPanels();
+    unawaited(_loadOnScreen());
 
     // Открыты по тапу на парный виджет → сразу разворачиваем его настройки.
     if (widget.openPairEditorOnStart) {
@@ -569,6 +572,29 @@ class _WidgetScreenState extends State<WidgetScreen>
     // стол) — обновляем список виджетов, чтобы новый виджет появился сразу.
     if (state == AppLifecycleState.resumed) {
       _loadPhotoDayWidgets();
+      unawaited(_loadOnScreen());
+    }
+  }
+
+  /// Поиск, фильтры и порядок над каталогом. Живут, пока открыт экран.
+  CatalogQuery _catalogQuery = const CatalogQuery();
+
+  /// Классы наших виджетов, что стоят на рабочем столе (только Android: на
+  /// iPhone система отдаёт пустой список и при стоящем виджете).
+  Set<String> _onScreen = const {};
+
+  Future<void> _loadOnScreen() async {
+    if (!Platform.isAndroid) return;
+    try {
+      final installed = await HomeWidget.getInstalledWidgets();
+      final names = {
+        for (final w in installed)
+          if ((w.androidClassName ?? '').isNotEmpty) w.androidClassName!,
+      };
+      if (!mounted || setEquals(names, _onScreen)) return;
+      setState(() => _onScreen = names);
+    } catch (e) {
+      debugPrint('WidgetScreen: не узнали, какие виджеты на столе — $e');
     }
   }
 
@@ -1876,52 +1902,270 @@ class _WidgetScreenState extends State<WidgetScreen>
   /// список по возрасту кода: человеку это ничего не говорит, а «Где мы»
   /// вовсе лежал сбоку от обоих. Теперь виджеты разложены по смыслу, а
   /// платные помечены замком внутри своего раздела.
-  List<_CatalogCard> _catalogCards(bool isPaired, List<Widget> halfTiles) {
+  List<_CatalogCard> _catalogCards(bool isPaired) {
     // На iPhone у некупившего Togetherly+ платных карточек не видно вовсе:
     // вести на оплату мимо Apple запрещает 3.1.1.
     final plusShown = PlusService.instance.visible;
     final locked = !PlusService.instance.active;
     final photoOwner = isPaired || _pair.isSolo;
-    _CatalogCard plus(String section, Widget Function(bool) build) =>
-        _CatalogCard(section, () => build(locked));
+    final s = _s;
+
+    // Карточка и всё, что о ней знает поиск. [added] — день, когда виджет
+    // появился в приложении (по истории кода): для «Сначала новые».
+    _CatalogCard card(
+      String id,
+      String section,
+      String title,
+      String subtitle,
+      List<String> providers,
+      String added,
+      Widget Function() build, {
+      bool plus = false,
+      bool half = false,
+    }) =>
+        _CatalogCard(
+          CatalogEntry(
+            id: id,
+            section: section,
+            title: title,
+            subtitle: subtitle,
+            plus: plus,
+            providers: providers,
+            added: DateTime.parse(added),
+          ),
+          build,
+          half: half,
+        );
+
+    const pair = WidgetPanels.sectionPair;
+    const time = WidgetPanels.sectionTime;
+    const photos = WidgetPanels.sectionPhotos;
+    const mood = WidgetPanels.sectionMood;
+    const notes = WidgetPanels.sectionNotes;
+    // Имена провайдеров выписаны целиком: сторож сверяет каждое с манифестом
+    // (test/screens/widget_catalog_search_test.dart).
+    const noteProviders = ['NoteWidget2x2Provider', 'NoteWidget4x2Provider', 'NoteWidget4x4Provider'];
+
     return [
       // ── Вы вдвоём ──
-      if (isPaired) _CatalogCard(WidgetPanels.sectionPair, _cardPair),
-      if (isPaired && plusShown) plus(WidgetPanels.sectionPair, _cardTogether),
-      if (isPaired && plusShown) plus(WidgetPanels.sectionPair, _cardMiss),
-      if (isPaired) _CatalogCard(WidgetPanels.sectionPair, _cardMap),
-      if (isPaired) _CatalogCard(WidgetPanels.sectionPair, _cardStats),
-      if (isPaired) _CatalogCard(WidgetPanels.sectionPair, _cardMascot),
+      if (isPaired)
+        card('pair', pair, s.pairWidgetTitle, s.pairWidgetSubtitle,
+            ['LoveWidgetProvider'], '2026-07-19', _cardPair),
+      if (isPaired && plusShown)
+        card('together', pair, s.tgTogetherTitle, s.tgTogetherSubtitle,
+            const ['TogetherWidget2x2Provider', 'TogetherWidget4x2Provider', 'TogetherWidget4x4Provider'],
+            '2026-07-25',
+            () => _cardTogether(locked), plus: true),
+      if (isPaired && plusShown)
+        card('miss', pair, s.tgMissTitle, s.tgMissSubtitle,
+            const ['MissWidget2x2Provider', 'MissWidget4x2Provider', 'MissWidget4x1Provider'],
+            '2026-07-25',
+            () => _cardMiss(locked), plus: true),
+      if (isPaired)
+        card('map', pair, s.liveMapTitle, s.mapWidgetCatalogSub,
+            PairMapWidgetService.androidProviders.values.toList(), '2026-09-19', _cardMap),
+      if (isPaired)
+        card('relationship_stats', pair, s.relationshipStats, s.relationshipStatsSubtitle,
+            ['RelationshipStatsWidgetProvider'], '2026-07-19', _cardStats),
+      if (isPaired)
+        card('mascot', pair, s.mascotWidgetTitle, s.mascotWidgetSubtitle,
+            const [
+              'MascotWidget4x1Provider',
+              'MascotWidget2x2Provider',
+              'MascotWidget4x2Provider',
+              'MascotWidget4x4Provider',
+            ],
+            '2026-09-20', _cardMascot),
       // «Чем заняты» открыт всем: виджет парный, и под замком он был бы
       // наполовину пустым у пары, где Togetherly+ только у одного.
-      if (isPaired) _CatalogCard(WidgetPanels.sectionPair, _cardDoing),
-      if (isPaired) _CatalogCard(WidgetPanels.sectionPhotos, _cardCanvas),
+      if (isPaired)
+        card('doing', pair, trKey('doing.title'), trKey('doing.subtitle'),
+            ['DoingWidgetProvider'], '2026-11-11', _cardDoing),
+      if (isPaired)
+        card('canvas', photos, s.canvasWidgetTitle, s.canvasWidgetSubtitle,
+            const ['CanvasWidget2x2Provider', 'CanvasWidget2x3Provider', 'CanvasWidget4x4Provider'],
+            '2026-09-21', _cardCanvas),
 
       // ── Дни и таймеры ──
-      if (isPaired) _CatalogCard(WidgetPanels.sectionTime, _cardDaysCounter),
-      if (halfTiles.isNotEmpty)
-        _CatalogCard(WidgetPanels.sectionTime, () => _halfGrid(halfTiles),
-            count: halfTiles.length),
-      _CatalogCard(WidgetPanels.sectionTime, _cardPetalTimer),
-      if (isPaired && plusShown) plus(WidgetPanels.sectionTime, _cardCountdown),
-      if (isPaired && plusShown) plus(WidgetPanels.sectionTime, _cardYearRing),
-      if (isPaired && plusShown) plus(WidgetPanels.sectionTime, _cardYearGrid),
+      if (isPaired)
+        card('days_counter', time, s.daysTogetherStat, s.daysCounterSubtitle,
+            ['DaysCounterWidgetProvider'], '2026-07-19', _cardDaysCounter),
+      // Простые виджеты — компактными плитками по два в ряд (бенто).
+      if (isPaired)
+        card('streak', time, s.widgetStreakTitle, '', ['StreakWidgetProvider'],
+            '2026-07-19', _halfStreak, half: true),
+      card('timer', time, s.timerWidgetTitle, '', ['TimerWidgetProvider'],
+          '2026-07-19', _halfTimer, half: true),
+      card('petal_timer', time, s.widgetPetalTimerTitle, s.widgetPetalTimerSubtitle,
+          ['PetalTimerWidgetProvider'], '2026-07-19', _cardPetalTimer),
+      if (isPaired && plusShown)
+        card('countdown', time, s.tgCountdownTitle, s.tgCountdownSubtitle,
+            const ['CountdownWidget2x2Provider', 'CountdownWidget4x2Provider'], '2026-07-25',
+            () => _cardCountdown(locked), plus: true),
+      if (isPaired && plusShown)
+        card('year_ring', time, s.tgRingTitle, s.tgRingSubtitle,
+            const ['YearRingWidget2x2Provider', 'YearRingWidget4x2Provider'], '2026-07-27',
+            () => _cardYearRing(locked), plus: true),
+      if (isPaired && plusShown)
+        card('year_grid', time, s.tgGridTitle, s.tgGridSubtitle,
+            const ['YearGridWidget2x2Provider', 'YearGridWidget4x2Provider'], '2026-07-27',
+            () => _cardYearGrid(locked), plus: true),
 
       // ── Фотографии ──
-      if (photoOwner) _CatalogCard(WidgetPanels.sectionPhotos, _cardSelfPhoto),
-      if (isPaired) _CatalogCard(WidgetPanels.sectionPhotos, _cardPartnerPhoto),
-      if (isPaired) _CatalogCard(WidgetPanels.sectionPhotos, _cardPhotoGrid),
+      if (photoOwner)
+        card('photo_day_self', photos, s.widgetPhotoTitle, s.widgetPhotoSubtitle,
+            ['SelfPhotoWidgetProvider'], '2026-07-19', _cardSelfPhoto),
+      if (isPaired)
+        card('photo_day_partner', photos, s.widgetModePartner, s.photoDayPartnerSubtitle,
+            ['PartnerPhotoWidgetProvider'], '2026-07-19', _cardPartnerPhoto),
+      if (isPaired)
+        card('photo_grid', photos, s.photoGridWidget, s.photoGridWidgetSubtitle,
+            ['PhotoGridWidgetProvider'], '2026-07-19', _cardPhotoGrid),
 
       // ── Настроение ──
-      if (isPaired) _CatalogCard(WidgetPanels.sectionMood, _cardMood),
-      if (isPaired && plusShown) plus(WidgetPanels.sectionMood, _cardMoodTiles),
       if (isPaired)
-        _CatalogCard(WidgetPanels.sectionMood, _buildLockScreenMoodCard),
+        card('mood', mood, s.mood, s.moodWidgetSubtitle, ['MoodWidgetProvider'],
+            '2026-07-19', _cardMood),
+      if (isPaired && plusShown)
+        card('mood_tiles', mood, s.tgMoodTitle, s.tgMoodSubtitle,
+            const ['MoodTilesWidget2x2Provider', 'MoodTilesWidget4x2Provider'], '2026-07-25',
+            () => _cardMoodTiles(locked), plus: true),
+      if (isPaired)
+        card('lock_mood', mood, s.lockScreenMood, '', const [], '2026-07-19',
+            _buildLockScreenMoodCard),
 
       // ── Заметки ──
-      if (isPaired && plusShown) plus(WidgetPanels.sectionNotes, _cardNote),
-      if (isPaired && plusShown) plus(WidgetPanels.sectionNotes, _cardNotePaper),
+      if (isPaired && plusShown)
+        card('note', notes, s.tgNoteTitle, s.tgNoteSubtitle, noteProviders,
+            '2026-07-26', () => _cardNote(locked), plus: true),
+      // Листок и бумажка — один и тот же виджет на столе, разный только вид:
+      // «На столе» показывает оба.
+      if (isPaired && plusShown)
+        card('note_paper', notes, s.tgNotePaperTitle, s.tgNotePaperSubtitle,
+            noteProviders, '2026-07-26', () => _cardNotePaper(locked), plus: true),
     ];
+  }
+
+  /// Порядок разделов в каталоге.
+  static const List<String> _sectionOrder = [
+    WidgetPanels.sectionPair,
+    WidgetPanels.sectionTime,
+    WidgetPanels.sectionPhotos,
+    WidgetPanels.sectionMood,
+    WidgetPanels.sectionNotes,
+  ];
+
+  /// Карточки подряд; соседние маленькие плитки — по две в ряд.
+  List<Widget> _cardColumn(List<_CatalogCard> cards) {
+    final out = <Widget>[];
+    var i = 0;
+    while (i < cards.length) {
+      if (out.isNotEmpty) out.add(const SizedBox(height: 16));
+      if (cards[i].half) {
+        final tiles = <Widget>[];
+        while (i < cards.length && cards[i].half) {
+          tiles.add(cards[i].build());
+          i++;
+        }
+        out.add(_halfGrid(tiles));
+      } else {
+        out.add(cards[i].build());
+        i++;
+      }
+    }
+    return out;
+  }
+
+  /// Выдача по поиску и фильтрам: число найденного, карточки, а при порядке
+  /// «по разделам» — короткие заголовки разделов между ними. Разделы здесь
+  /// не сворачиваются: человек уже сузил список сам.
+  List<Widget> _catalogResults(List<_CatalogCard> cards) {
+    final byId = {for (final c in cards) c.entry.id: c};
+    final found = [
+      for (final e in applyCatalogQuery(
+        [for (final c in cards) c.entry],
+        _catalogQuery,
+        onScreen: _onScreen,
+        sectionOrder: _sectionOrder,
+        sectionTitles: {for (final key in _sectionOrder) key: _sectionHead(key).$1},
+      ))
+        byId[e.id]!,
+    ];
+    if (found.isEmpty) return [_catalogNothingFound()];
+
+    final out = <Widget>[
+      Padding(
+        padding: const EdgeInsets.only(left: 4, bottom: 12),
+        child: Text(
+          trKey('catalog.found').replaceAll('{n}', '${found.length}'),
+          key: const ValueKey('catalog-found'),
+          style: AppFonts.onest(size: 13, weight: 600, color: _cs.onSurfaceVariant),
+        ),
+      ),
+    ];
+    if (_catalogQuery.sort != CatalogSort.sections) {
+      out.addAll(_cardColumn(found));
+      return out;
+    }
+    for (final key in _sectionOrder) {
+      final here = [for (final c in found) if (c.section == key) c];
+      if (here.isEmpty) continue;
+      final (title, _, icon) = _sectionHead(key);
+      out.add(Padding(
+        padding: EdgeInsets.only(left: 4, bottom: 10, top: out.length > 1 ? 20 : 0),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: _cs.onSurfaceVariant),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontFamily: 'Unbounded',
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  fontVariations: const [FontVariation('wght', 700)],
+                  letterSpacing: -0.3,
+                  color: _cs.onSurface,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ));
+      out.addAll(_cardColumn(here));
+    }
+    return out;
+  }
+
+  /// Пусто по запросу: что случилось и кнопка вернуть весь каталог.
+  Widget _catalogNothingFound() {
+    return Padding(
+      key: const ValueKey('catalog-nothing'),
+      padding: const EdgeInsets.fromLTRB(16, 36, 16, 24),
+      child: Column(
+        children: [
+          Icon(Icons.search_off_rounded, size: 48, color: _cs.onSurfaceVariant.withOpacity(0.6)),
+          const SizedBox(height: 12),
+          Text(
+            trKey('catalog.nothing'),
+            textAlign: TextAlign.center,
+            style: AppFonts.onest(size: 17, weight: 700, color: _cs.onSurface),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            trKey('catalog.nothingHint'),
+            textAlign: TextAlign.center,
+            style: AppFonts.onest(size: 14, color: _cs.onSurfaceVariant),
+          ),
+          const SizedBox(height: 16),
+          FilledButton.tonal(
+            onPressed: () => setState(() => _catalogQuery = _catalogQuery.reset()),
+            child: Text(trKey('catalog.reset')),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Заголовок, подпись и значок раздела.
@@ -1958,13 +2202,8 @@ class _WidgetScreenState extends State<WidgetScreen>
       icon: icon,
       expanded: _expandedPanels.contains(key),
       onToggle: () => setState(() => _togglePanel(key)),
-      count: here.fold(0, (n, c) => n + c.count),
-      itemsBuilder: () => [
-        for (var i = 0; i < here.length; i++) ...[
-          here[i].build(),
-          if (i != here.length - 1) const SizedBox(height: 16),
-        ],
-      ],
+      count: here.length,
+      itemsBuilder: () => _cardColumn(here),
     );
   }
 
@@ -2684,28 +2923,27 @@ class _WidgetScreenState extends State<WidgetScreen>
         ],
       );
 
-  Widget _buildWidgetGallery() {
-    final isPaired = _pair.isPaired;
+  /// Плитка «Огонёк пары» для бенто.
+  Widget _halfStreak() => _buildHalfItem(
+        title: LocaleService.current.widgetStreakTitle,
+        qualifiedName: 'com.togetherly.love.StreakWidgetProvider',
+        widgetType: 'streak',
+        preview: _streakCompact(),
+      );
 
-    // Простые виджеты — компактными плитками по два в ряд (бенто).
-    final halfTiles = <Widget>[
-      if (isPaired)
-        _buildHalfItem(
-          title: LocaleService.current.widgetStreakTitle,
-          qualifiedName: 'com.togetherly.love.StreakWidgetProvider',
-          widgetType: 'streak',
-          preview: _streakCompact(),
-        ),
-      _buildHalfItem(
+  /// Плитка «Таймер» для бенто.
+  Widget _halfTimer() => _buildHalfItem(
         title: LocaleService.current.timerWidgetTitle,
         qualifiedName: 'com.togetherly.love.TimerWidgetProvider',
         widgetType: 'timer',
         preview: _timerCompact(),
         onPreviewTap: _openTimerSelectorSheet,
-      ),
-    ];
+      );
 
-    final cards = _catalogCards(isPaired, halfTiles);
+  Widget _buildWidgetGallery() {
+    final isPaired = _pair.isPaired;
+    final cards = _catalogCards(isPaired);
+    final filtering = !_catalogQuery.isDefault;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2752,7 +2990,20 @@ class _WidgetScreenState extends State<WidgetScreen>
           const SizedBox(height: 16),
         ],
 
-        ..._sections(cards, isPaired),
+        // Искать и делить есть что, только когда виджетов больше горстки:
+        // у человека без пары их два-три.
+        if (cards.length > 4) ...[
+          CatalogToolbar(
+            theme: _t,
+            query: _catalogQuery,
+            onChanged: (next) => setState(() => _catalogQuery = next),
+            showPlus: cards.any((c) => c.entry.plus),
+            onScreenCount: countOnScreen([for (final c in cards) c.entry], _onScreen),
+          ),
+          const SizedBox(height: 16),
+        ],
+
+        if (filtering) ..._catalogResults(cards) else ..._sections(cards, isPaired),
       ],
     );
   }
@@ -9128,15 +9379,18 @@ class _WidgetSizeOption {
 ///
 /// Строится лениво — свёрнутый раздел не должен собирать превью.
 class _CatalogCard {
-  const _CatalogCard(this.section, this.build, {this.count = 1});
+  const _CatalogCard(this.entry, this.build, {this.half = false});
+
+  /// Что о виджете знает поиск: название, раздел, цена, классы на столе.
+  final CatalogEntry entry;
 
   /// Ключ раздела из [WidgetPanels].
-  final String section;
+  String get section => entry.section;
+
   final Widget Function() build;
 
-  /// Сколько виджетов стоит за карточкой: у сетки мелких плиток их два, и
-  /// бейдж раздела обязан считать виджеты, а не карточки.
-  final int count;
+  /// Маленькая плитка: соседние такие встают по две в ряд (бенто).
+  final bool half;
 }
 
 class _CollapsibleWidgetSection extends StatelessWidget {

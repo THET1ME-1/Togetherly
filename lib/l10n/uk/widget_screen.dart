@@ -203,4 +203,17 @@ const Map<String, String> widgetScreenUk = {
   'partnerTaskPhotosTitle': 'Фото із завдань дня',
   'partnerTaskPhotosHint':
       'Знімки, які {name} викладає в завданнях дня, теж з’являться у віджеті',
+  'catalog.search': 'Знайти віджет',
+  'catalog.all': 'Усі',
+  'catalog.free': 'Безкоштовні',
+  'catalog.plus': 'З Togetherly+',
+  'catalog.onScreen': 'На екрані · {n}',
+  'catalog.sortTitle': 'Порядок',
+  'catalog.sortSections': 'За розділами',
+  'catalog.sortName': 'За назвою',
+  'catalog.sortNewest': 'Спершу нові',
+  'catalog.found': 'Знайшлося: {n}',
+  'catalog.nothing': 'Нічого не знайшлося',
+  'catalog.nothingHint': 'Спробуйте інше слово або зніміть фільтри',
+  'catalog.reset': 'Скинути',
 };
