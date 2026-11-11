@@ -54,6 +54,8 @@ class FcmService : FirebaseMessagingService() {
             PushArrivedBridge.arrived("widgets")
             return
         }
+        // Виджетов на столе нет — обновлять нечего, Dart не будим (TOG-90).
+        if (!WidgetsOnScreen.any(applicationContext)) return
         WidgetRefreshWake.enqueue(applicationContext, WidgetRefreshWake.TASK_ALL)
     }
 

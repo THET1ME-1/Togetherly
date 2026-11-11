@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:workmanager/workmanager.dart';
 
+import 'background_refresh_gate.dart';
 import 'home_widget_service.dart';
 import 'locale_service.dart';
 import 'map/pair_map_widget_service.dart';
@@ -38,7 +39,9 @@ class WidgetBackgroundRefreshService {
   static final WidgetBackgroundRefreshService instance =
       WidgetBackgroundRefreshService._();
 
-  static const String _taskUnique = 'togetherly_widget_refresh';
+  /// Имя задачи раз в 15 минут: по нему её снимает и сам фоновый проход.
+  static const String periodicName = 'togetherly_widget_refresh';
+  static const String _taskUnique = periodicName;
   static const String _taskName = 'widgetRefresh';
 
   /// Разовая задача «перерисуй только карту» — её ставит нативный провайдер
@@ -128,6 +131,13 @@ class WidgetBackgroundRefreshService {
 
   Future<void> _schedule() async {
     if (!_wanted) return;
+    // Виджетов на столе нет — будить телефон раз в 15 минут незачем (TOG-90).
+    // Поставят виджет — задача встанет при следующем сворачивании, а до того
+    // его обновляет тихий пуш.
+    if (!await _refreshWanted()) {
+      await _unschedule();
+      return;
+    }
     try {
       await Workmanager().registerPeriodicTask(
         _taskUnique,
@@ -158,6 +168,18 @@ class WidgetBackgroundRefreshService {
   }
 }
 
+/// Стоит ли на рабочем столе хоть один наш виджет: без них фоновое
+/// обновление не нужно (правило — [backgroundRefreshWanted]).
+Future<bool> _refreshWanted() async {
+  int? count;
+  try {
+    count = (await HomeWidget.getInstalledWidgets()).length;
+  } catch (e) {
+    debugPrint('WidgetBackgroundRefreshService: число виджетов не узнали — $e');
+  }
+  return backgroundRefreshWanted(widgetsOnScreen: count);
+}
+
 /// Точка входа фонового изолята WorkManager. ДОЛЖНА быть top-level +
 /// vm:entry-point (её адрес передаётся нативной части при initialize).
 @pragma('vm:entry-point')
@@ -171,6 +193,14 @@ void widgetRefreshDispatcher() {
       await ServerRoute.install();
       // На Android no-op, но home_widget требует до первого saveWidgetData.
       await HomeWidget.setAppGroupId('group.com.togetherly.love');
+
+      // Виджетов на столе нет — обновлять нечего. Задачу раз в 15 минут могла
+      // поставить прежняя сборка или человек убрал последний виджет: снимаем
+      // её здесь же, до сессии и сети (TOG-90).
+      if (task != WidgetBackgroundRefreshService.mapTaskName && !await _refreshWanted()) {
+        await Workmanager().cancelByUniqueName(WidgetBackgroundRefreshService.periodicName);
+        return true;
+      }
 
       // Восстанавливаем PB-сессию с диска (widget_data protected — нужен токен).
       await PocketBaseService().init();

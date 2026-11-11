@@ -2293,15 +2293,22 @@ class PbDataService {
   /// Нужны заметке на двоих: она общая, и свежую версию выбираем из записей
   /// обоих, а не только своей.
   Future<List<RecordModel>> loadWidgetsForGroup(String groupId) async {
-    if (groupId.isEmpty) return const [];
     try {
-      return await _pb.collection('widget_data').getFullList(
-            filter: _pb.filter('group_id = {:g}', {'g': groupId}),
-          );
+      return await loadWidgetsForGroupOrThrow(groupId);
     } catch (e) {
       debugPrint('PbData.loadWidgetsForGroup($groupId) failed: $e');
       return const [];
     }
+  }
+
+  /// Как [loadWidgetsForGroup], но «не дозвонились» — исключение, а не пустой
+  /// список. Нужно фоновому проходу виджетов: по пустому ответу без связи он
+  /// стёр бы с рабочего стола заметку и настроение.
+  Future<List<RecordModel>> loadWidgetsForGroupOrThrow(String groupId) async {
+    if (groupId.isEmpty) return const [];
+    return _pb.collection('widget_data').getFullList(
+          filter: _pb.filter('group_id = {:g}', {'g': groupId}),
+        );
   }
 
   // ══════════════════════════════════════════════ CANVAS

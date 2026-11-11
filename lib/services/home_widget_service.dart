@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:pocketbase/pocketbase.dart' show RecordModel;
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -21,6 +22,7 @@ import 'widget_owner.dart';
 import '../utils/couple_days.dart';
 import 'widget_photo_cache.dart';
 import 'widget_photo_store.dart';
+import 'widget_rows_pass.dart';
 import 'widget_image_limit.dart';
 import 'pair_widget_payload.dart';
 import '../theme/app_theme.dart';
@@ -98,9 +100,24 @@ class HomeWidgetService {
     String userUid,
   ) async {
     if (groupId.isEmpty || userUid.isEmpty) return null;
-    final rec = await PbDataService().loadWidget(groupId, userUid);
+    final rec = await _widgetRowOf(groupId, userUid);
     return rec == null ? null : WidgetData.fromPb(rec);
   }
+
+  /// Записи виджетов на время фонового прохода; вне прохода `null`.
+  ///
+  /// Проход обновляет парный виджет, настроение, заметку и фото подряд, и
+  /// каждая часть читала `widget_data` пары сама: около пяти одинаковых
+  /// запросов со спящего телефона (TOG-90). В проходе запрос один на пару.
+  WidgetRowsPass? _pass;
+
+  /// Записи виджетов обоих участников: в проходе общие, иначе с сервера.
+  Future<List<RecordModel>> _widgetRows(String groupId) =>
+      _pass?.rows(groupId) ?? PbDataService().loadWidgetsForGroup(groupId);
+
+  /// Запись виджетов одного участника: в проходе из общих, иначе с сервера.
+  Future<RecordModel?> _widgetRowOf(String groupId, String uid) =>
+      _pass?.rowOf(groupId, uid) ?? PbDataService().loadWidget(groupId, uid);
 
   /// Резолвит (uid, name) партнёра из участников группы (PocketBase pair-map).
   /// Возвращает null при ошибке/отсутствии группы; uid='' если партнёр не
@@ -289,6 +306,25 @@ class HomeWidgetService {
     await LocaleService.instance.init();
     // В фоне нужны СВЕЖИЕ данные на каждое событие — сбрасываем TTL-кэш.
     invalidateWidgetDataCache();
+    // Записи виджетов пары читаем один раз на весь проход.
+    final pass = WidgetRowsPass(PbDataService().loadWidgetsForGroupOrThrow);
+    _pass = pass;
+    try {
+      await _refreshAllParts(groupId, myUid, partnerUid, refreshPhotos);
+    } finally {
+      // Проход, начатый следом, уже поставил свои записи: их не трогаем.
+      if (identical(_pass, pass)) _pass = null;
+    }
+  }
+
+  /// Части фонового прохода по очереди, каждая в своём try: сбой одного
+  /// виджета не срывает остальные.
+  Future<void> _refreshAllParts(
+    String groupId,
+    String myUid,
+    String partnerUid,
+    bool refreshPhotos,
+  ) async {
     // Парный виджет — по ВСЕМ связям человека, а не только по открытой в
     // приложении. Пока фон брал единственную пару из `love_widget_group_id`,
     // виджет второй связи застывал до переключения (правило и предел —
@@ -379,10 +415,10 @@ class HomeWidgetService {
       return out;
     }
 
-    final myRec = await PbDataService().loadWidget(groupId, myUid);
+    final myRec = await _widgetRowOf(groupId, myUid);
     final partnerRec = partnerUid.isEmpty
         ? null
-        : await PbDataService().loadWidget(groupId, partnerUid);
+        : await _widgetRowOf(groupId, partnerUid);
     final mine = myRec == null ? null : WidgetData.fromPb(myRec);
     final theirs = partnerRec == null ? null : WidgetData.fromPb(partnerRec);
 
@@ -411,7 +447,7 @@ class HomeWidgetService {
     // `love_widget_partner_uid`. Тот ключ пуст у всех, кто собрал пару до его
     // появления, и по нему фон не обновлял половину партнёра вовсе. Заодно это
     // один запрос вместо двух, а фону идти по всем связям человека.
-    final rows = await PbDataService().loadWidgetsForGroup(groupId);
+    final rows = await _widgetRows(groupId);
     WidgetData? my;
     WidgetData? partner;
     for (final rec in rows) {
@@ -2272,7 +2308,7 @@ class HomeWidgetService {
     try {
       final uid = PocketBaseService().userId ?? '';
       if (uid.isEmpty) return;
-      final records = await PbDataService().loadWidgetsForGroup(groupId);
+      final records = await _widgetRows(groupId);
       // «Чем заняты» читает те же записи: отдаём их, чтобы не ходить на
       // сервер второй раз. Заметка синхронизируется и в приложении, и в фоне,
       // поэтому виджет занятий обновляется там же. Идёт рядом с заметкой, а

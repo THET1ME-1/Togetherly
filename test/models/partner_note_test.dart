@@ -40,7 +40,10 @@ void main() {
 
   test('фоновое обновление виджетов обновляет и листик заметки', () {
     final src = File('lib/services/home_widget_service.dart').readAsStringSync();
-    final start = src.indexOf('Future<void> backgroundRefreshAll({');
+    // Проход открывает общие записи и зовёт части по очереди из _refreshAllParts.
+    final pass = src.indexOf('Future<void> backgroundRefreshAll({');
+    expect(src.substring(pass, src.indexOf('\n  }\n', pass)), contains('_refreshAllParts('));
+    final start = src.indexOf('Future<void> _refreshAllParts(');
     final body = src.substring(start, src.indexOf('\n  }\n', start));
     expect(body, contains('_syncNoteFromCloud('));
   });
