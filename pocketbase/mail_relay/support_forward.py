@@ -7,8 +7,10 @@
 через его API (messages.import): отправитель, тема и вложения остаются
 прежними, и ответ из Gmail уходит человеку.
 
-Один запуск — один проход: взять из «Входящих» письма без метки, положить
-каждое в Gmail, поставить метку. Копия письма в ящике остаётся.
+Проход: взять из «Входящих» письма без метки, положить каждое в Gmail,
+поставить метку. Копия письма в ящике остаётся. С аргументом `watch` служба
+живёт постоянно: проход идёт сразу, как почтовый сервер сообщил о новом
+письме, а в тишине — раз в минуту на случай пропущенной вести.
 
 Окружение: SUPPORT_JMAP_BASIC (готовая строка «Basic …» ящика support@),
 GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_READ_REFRESH_TOKEN (ключ с правом
@@ -17,6 +19,7 @@ gmail.modify), SUPPORT_FORWARD_SINCE (письма старше этого вр�
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -40,6 +43,10 @@ REFUSED = "gmail_refused"
 OWN_ROBOTS = ("mailer-daemon@togetherly.day", "postmaster@togetherly.day")
 
 BATCH = 20
+
+# Сервер сам сообщает о новом письме и кладёт трубку; молчит — проход раз в минуту.
+NEWS_URL = "http://127.0.0.1:8080/jmap/eventsource/?types=Email&closeafter=state&ping=0"
+QUIET_SECONDS = 60
 
 
 def worth_copying(email):
@@ -96,7 +103,7 @@ def mark_request(account_id, email_id, mark):
 
 # ------------------------------------------------------------------ сеть
 def jmap_headers():
-    return {"Authorization": os.environ["SUPPORT_JMAP_BASIC"], "Content-Type": "application/json"}
+    return {"Authorization": os.environ.get("SUPPORT_JMAP_BASIC", ""), "Content-Type": "application/json"}
 
 
 def jmap_call(calls):
@@ -168,9 +175,33 @@ def run_once():
     return copied
 
 
-if __name__ == "__main__":
+def wait_for_news(open_url=urllib.request.urlopen, nap=time.sleep):
+    """Ждёт, пока сервер скажет о перемене в письмах. Правда — весть пришла."""
+    request = urllib.request.Request(NEWS_URL, headers=jmap_headers())
     try:
-        run_once()
-    except Exception as error:  # проход повторится через минуту
-        print(f"проход сорвался: {error!r}", flush=True)
-        sys.exit(1)
+        open_url(request, timeout=QUIET_SECONDS).read()
+        return True
+    except TimeoutError:
+        return False
+    except Exception as error:
+        if isinstance(getattr(error, "reason", None), TimeoutError):
+            return False
+
+        # Сервер не отвечает вовсе: пауза, чтобы не крутить цикл вхолостую.
+        nap(QUIET_SECONDS)
+        return False
+
+
+def watch():
+    while True:
+        try:
+            run_once()
+        except Exception as error:
+            print(f"проход сорвался: {error!r}", flush=True)
+        wait_for_news()
+
+
+if __name__ == "__main__":
+    if sys.argv[1:] == ["watch"]:
+        watch()
+    run_once()

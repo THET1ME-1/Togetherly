@@ -83,5 +83,29 @@ class MarkRequest(unittest.TestCase):
         self.assertEqual(calls[0][1]["update"], {"m1": {"keywords/" + forward.COPIED: True}})
 
 
+class WaitForNews(unittest.TestCase):
+    def test_listens_only_to_letters_and_hangs_up_after_the_first_news(self):
+        self.assertIn("types=Email", forward.NEWS_URL)
+        self.assertIn("closeafter=state", forward.NEWS_URL)
+
+    def test_news_from_the_server_ends_the_wait(self):
+        class Answer:
+            def read(self):
+                return b'event: state\ndata: {"changed": {}}\n\n'
+        self.assertTrue(forward.wait_for_news(open_url=lambda request, timeout: Answer()))
+
+    def test_silence_ends_the_wait_without_an_error(self):
+        def silent(request, timeout):
+            raise TimeoutError("timed out")
+        self.assertFalse(forward.wait_for_news(open_url=silent))
+
+    def test_broken_server_does_not_spin_the_loop(self):
+        naps = []
+        def broken(request, timeout):
+            raise ConnectionRefusedError()
+        self.assertFalse(forward.wait_for_news(open_url=broken, nap=naps.append))
+        self.assertEqual(naps, [forward.QUIET_SECONDS])
+
+
 if __name__ == "__main__":
     unittest.main()

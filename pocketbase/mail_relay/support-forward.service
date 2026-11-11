@@ -3,7 +3,11 @@ Description=Togetherly: письма support@ во входящие Gmail вла
 After=stalwart.service network-online.target
 
 [Service]
-Type=oneshot
 EnvironmentFile=/etc/gmail-relay.env
 EnvironmentFile=/etc/support-forward.env
-ExecStart=/usr/bin/python3 /opt/support-forward/support_forward.py
+ExecStart=/usr/bin/python3 /opt/support-forward/support_forward.py watch
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
