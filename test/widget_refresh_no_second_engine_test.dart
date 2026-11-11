@@ -27,9 +27,14 @@ void main() {
   });
 
   test('пачка пушей склеивается в один запуск фоновой задачи', () {
+    // Пауза стала параметром: у пуша она прежняя, без неё идёт только
+    // запасная задача раз в 15 минут (TOG-90).
     final wake = _read('$kotlin/WidgetRefreshWake.kt');
-    expect(wake, contains('setInitialDelay(GATHER_SEC'));
+    expect(wake, contains('gatherSeconds: Long = GATHER_SEC'));
+    expect(wake, contains('setInitialDelay(gatherSeconds'));
     expect(wake, contains('waitingUntil'));
+    expect(_read('$kotlin/FcmService.kt'), isNot(contains('gatherSeconds')),
+        reason: 'пуш обязан ждать соседей, свою паузу ему не задают');
   });
 
   test('приложение слушает сигнал «виджеты» и обновляет их само', () {
@@ -42,7 +47,15 @@ void main() {
     final service = _read('lib/services/widget_background_refresh_service.dart');
     expect(service, contains('onShow: () => unawaited(_unschedule())'));
     expect(service, contains('onHide: () => unawaited(_schedule())'));
-    expect(service, contains('initialDelay: const Duration(minutes: 15)'));
+    // С 1.43 задача нативная (TOG-90): первый запуск через 15 минут после
+    // ухода с экрана, а если её не успели снять, при открытом приложении она
+    // Dart не будит.
+    final tick = _read('$kotlin/WidgetRefreshTick.kt');
+    expect(tick, contains('.setInitialDelay(15, TimeUnit.MINUTES)'));
+    final work = tick.substring(tick.indexOf('override fun doWork()'));
+    final onScreen = work.indexOf('PushArrivedBridge.onScreen && PushArrivedBridge.attached');
+    expect(onScreen, greaterThan(0));
+    expect(onScreen, lessThan(work.indexOf('WidgetRefreshWake.enqueue(')));
   });
 
   test('фоновое обновление будит плитки «Настроение» на Android', () {

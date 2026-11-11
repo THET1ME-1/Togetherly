@@ -14,6 +14,7 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/widget_couple_art.dart';
+import 'background_refresh_gate.dart';
 import 'doing_service.dart';
 import 'pb_data_service.dart';
 import 'pb_media_service.dart';
@@ -311,9 +312,25 @@ class HomeWidgetService {
     _pass = pass;
     try {
       await _refreshAllParts(groupId, myUid, partnerUid, refreshPhotos);
+      await _markRefreshed(pass, groupId);
     } finally {
       // Проход, начатый следом, уже поставил свои записи: их не трогаем.
       if (identical(_pass, pass)) _pass = null;
+    }
+  }
+
+  /// Отметка «виджеты обновлены»: по ней запасная задача Android решает,
+  /// пора ли будить Dart снова (`WidgetRefreshTick.kt`). Не дозвонились до
+  /// записей пары — прохода, считай, не было, отметку не ставим.
+  Future<void> _markRefreshed(WidgetRowsPass pass, String groupId) async {
+    try {
+      await pass.rows(groupId);
+      await HomeWidget.saveWidgetData<String>(
+        kWidgetsRefreshedAtKey,
+        '${DateTime.now().millisecondsSinceEpoch}',
+      );
+    } catch (e) {
+      debugPrint('HomeWidgetService: отметку обновления не поставили — $e');
     }
   }
 

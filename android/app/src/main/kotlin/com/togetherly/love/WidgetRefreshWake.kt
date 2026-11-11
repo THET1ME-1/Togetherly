@@ -48,7 +48,13 @@ object WidgetRefreshWake {
     /** До какого момента (мс) уже ждёт поставленная задача каждого вида. */
     private val waitingUntil = HashMap<String, Long>()
 
-    fun enqueue(context: Context, task: String) {
+    /**
+     * [gatherSeconds] — сколько ждать соседей. Пушу нужна пауза, запасной
+     * задаче раз в 15 минут (WidgetRefreshTick) нет: она приходит одна, а при
+     * выключенном экране телефон засыпает раньше, чем пауза кончится, и
+     * обновление ждало бы следующего пробуждения.
+     */
+    fun enqueue(context: Context, task: String, gatherSeconds: Long = GATHER_SEC) {
         try {
             val wm = WorkManager.getInstance(context.applicationContext)
             val name = "togetherly_wake_$task"
@@ -58,10 +64,10 @@ object WidgetRefreshWake {
             val now = System.currentTimeMillis()
             synchronized(waitingUntil) {
                 if (now < (waitingUntil[task] ?: 0L)) return
-                waitingUntil[task] = now + GATHER_SEC * 1000
+                waitingUntil[task] = now + gatherSeconds * 1000
             }
             val request = OneTimeWorkRequestBuilder<BackgroundWorker>()
-                .setInitialDelay(GATHER_SEC, TimeUnit.SECONDS)
+                .setInitialDelay(gatherSeconds, TimeUnit.SECONDS)
                 .setInputData(Data.Builder().putString(BackgroundWorker.DART_TASK_KEY, task).build())
                 .setConstraints(
                     Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build(),

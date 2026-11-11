@@ -1022,25 +1022,76 @@ def _mark_woke(uid: str, now_ms: int) -> None:
         pass  # отметка не критична: в худшем случае разбудим раньше
 
 
-async def _wake_group(group_id: str, author_uid: str, kind: str = "widgets") -> None:
+# Догоняющий тихий пуш (TOG-90, 11.11.2026). Правку, пришедшую раньше 15 минут
+# после прошлого пуша, сервер молча выбрасывал: человек сменил статус дважды
+# за пять минут, и виджет у второго стоял с первым статусом до третьей правки.
+# Теперь выброшенная правка ставит один отложенный пуш на конец окна. Частота
+# прежняя: не чаще раза в 15 минут на телефон.
+#
+# Кого ждёт догоняющий пуш: uid → таймер. У каждого рабочего процесса список
+# свой, поэтому догоняющий заново читает отметку прошлого пуша и молчит, если
+# телефон уже разбудил сосед. Перезапуск hotpath список теряет.
+_pending_catch_up: dict = {}
+_catch_up_count = [0]
+
+# Запас после конца окна, секунды: от и до. Разброс разводит рабочие процессы.
+CATCH_UP_SLACK_SECONDS = (2.0, 5.0)
+
+
+def _catch_up_delay_seconds(bg_ms: int, now_ms: int) -> float:
+    """Через сколько секунд телефон можно будить снова."""
+    until_gap_ends = max(0.0, (bg_ms + MIN_WAKE_GAP_MS - now_ms) / 1000.0)
+    return until_gap_ends + random.uniform(*CATCH_UP_SLACK_SECONDS)
+
+
+def _schedule_catch_up(uid: str, delay_seconds: float, wake_again) -> None:
+    """Один отложенный пуш на человека; [wake_again] заново собирает адресатов."""
+    if uid in _pending_catch_up:
+        return
+
+    def fire() -> None:
+        _pending_catch_up.pop(uid, None)
+        asyncio.ensure_future(wake_again())
+
+    _pending_catch_up[uid] = asyncio.get_running_loop().call_later(delay_seconds, fire)
+    # В журнал — каждая сотая постановка: видно, что догоняющие идут, без шума
+    _catch_up_count[0] += 1
+    if _catch_up_count[0] % 100 == 1:
+        log.info("догоняющий пуш: поставлено %d, ждут %d",
+                 _catch_up_count[0], len(_pending_catch_up))
+
+
+async def _wake_group(group_id: str, author_uid: str, kind: str = "widgets",
+                      catch_up: bool = False) -> None:
     """Тихий пуш «проснись и обнови виджеты» — перенос wakeGroup/wakeUp из
     apns_push.js. Apple лимитирует такие пуши, поэтому будим не чаще раза в
-    15 минут на устройство и только тех, кто сейчас не на связи."""
+    15 минут на устройство и только тех, кто сейчас не на связи.
+
+    [catch_up] — это сам догоняющий пуш: он нового догоняющего не ставит."""
     try:
         targets = await _push_targets(group_id, author_uid)
     except Exception as e:
         log.warning("wake targets %s: %s", group_id, e)
         return
-    await _wake_targets(targets, kind)
+    wake_again = None
+    if not catch_up:
+        wake_again = lambda: _wake_group(group_id, author_uid, kind, catch_up=True)
+    await _wake_targets(targets, kind, wake_again)
 
 
-async def _wake_targets(targets: list[dict], kind: str = "widgets") -> None:
-    """Тихий пуш каждому из [targets], кого не будили последние 15 минут."""
+async def _wake_targets(targets: list[dict], kind: str = "widgets",
+                        wake_again=None) -> None:
+    """Тихий пуш каждому из [targets], кого не будили последние 15 минут.
+
+    Кого будили недавно, тому [wake_again] ставится на конец окна."""
     now_ms = int(time.time() * 1000)
     for t in targets:
         if not t["apns"] and not t["fcm"]:
             continue
         if t["bg_ms"] and now_ms - t["bg_ms"] < MIN_WAKE_GAP_MS:
+            if wake_again is not None:
+                _schedule_catch_up(
+                    t["uid"], _catch_up_delay_seconds(t["bg_ms"], now_ms), wake_again)
             continue
         woke = False
         if t["apns"]:
@@ -1085,12 +1136,13 @@ def _второй_из_канала(канал: str, автор: str) -> str:
     return части[1] if части[0] == автор else части[0]
 
 
-async def _wake_channel(channel: str, author_uid: str) -> None:
+async def _wake_channel(channel: str, author_uid: str, catch_up: bool = False) -> None:
     """Точка на карте сдвинулась — будим второго из пары: виджет «Где мы» у
     него перерисуется (19.09.2026). На iPhone другого способа поднять
     приложение в фоне нет, на Android тот же пуш запускает обновление
     виджетов. Частота — как у `_wake_group`: не чаще раза в 15 минут на
-    устройство и только тем, кто сейчас не в приложении."""
+    устройство и только тем, кто сейчас не в приложении. Точка, пришедшая
+    раньше, доезжает догоняющим пушем в конце окна ([catch_up] — он сам)."""
     uid = _второй_из_канала(channel or "", author_uid or "")
     if not uid:
         return
@@ -1101,7 +1153,10 @@ async def _wake_channel(channel: str, author_uid: str) -> None:
     except Exception as e:
         log.warning("wake channel %s: %s", channel, e)
         return
-    await _wake_targets(targets, "widgets")
+    wake_again = None
+    if not catch_up:
+        wake_again = lambda: _wake_channel(channel, author_uid, catch_up=True)
+    await _wake_targets(targets, "widgets", wake_again)
 
 
 # Вид уведомления → колонка выключателя в users. Пустое поле означает

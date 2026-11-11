@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:workmanager/workmanager.dart';
@@ -14,6 +15,11 @@ import 'pocketbase_service.dart';
 import 'push_arrivals.dart';
 
 /// Периодический фоновый ФОЛБЭК обновления виджетов через WorkManager (Android).
+///
+/// С 1.43 задачу раз в 15 минут ведёт нативный `WidgetRefreshTick.kt`: он
+/// решает, пора ли обновлять, до подъёма движка Flutter (TOG-90). Отсюда её
+/// только ставят и снимают, а сам проход идёт в [widgetRefreshDispatcher].
+/// Ниже — зачем этот запасной путь нужен вообще.
 ///
 /// Мгновенное обновление виджетов при закрытом приложении держит
 /// [PushBackgroundService] — foreground-сервис с Centrifugo-сокетом в отдельном
@@ -39,10 +45,9 @@ class WidgetBackgroundRefreshService {
   static final WidgetBackgroundRefreshService instance =
       WidgetBackgroundRefreshService._();
 
-  /// Имя задачи раз в 15 минут: по нему её снимает и сам фоновый проход.
+  /// Имя прежней задачи пакета workmanager: по нему её снимает и приложение,
+  /// и сам фоновый проход.
   static const String periodicName = 'togetherly_widget_refresh';
-  static const String _taskUnique = periodicName;
-  static const String _taskName = 'widgetRefresh';
 
   /// Разовая задача «перерисуй только карту» — её ставит нативный провайдер
   /// виджета «Где мы» (WidgetRefreshWake.kt), когда сменилась ячейка или
@@ -121,9 +126,25 @@ class WidgetBackgroundRefreshService {
     }
   }
 
-  Future<void> _unschedule() async {
+  /// Канал виджетов в MainActivity: там ставится и снимается нативная
+  /// запасная задача (`WidgetRefreshTick.kt`).
+  static const MethodChannel _native = MethodChannel('love_app/widgets');
+
+  /// Задачу раз в 15 минут до 1.43 ставил пакет workmanager, и каждый её
+  /// запуск поднимал движок Flutter (TOG-90). Она переживает обновление
+  /// приложения, поэтому снимаем её при каждом случае.
+  Future<void> _cancelPluginTask() async {
     try {
-      await Workmanager().cancelByUniqueName(_taskUnique);
+      await Workmanager().cancelByUniqueName(periodicName);
+    } catch (e) {
+      debugPrint('WidgetBackgroundRefreshService: прежняя задача не снялась — $e');
+    }
+  }
+
+  Future<void> _unschedule() async {
+    await _cancelPluginTask();
+    try {
+      await _native.invokeMethod<bool>('cancelWidgetTick');
     } catch (e) {
       debugPrint('WidgetBackgroundRefreshService._unschedule failed: $e');
     }
@@ -138,19 +159,16 @@ class WidgetBackgroundRefreshService {
       await _unschedule();
       return;
     }
+    await _cancelPluginTask();
     try {
-      await Workmanager().registerPeriodicTask(
-        _taskUnique,
-        _taskName,
-        frequency: const Duration(minutes: 15), // минимум, разрешённый WorkManager
-        // Первый запуск — через четверть часа после сворачивания: только что
-        // приложение само обновило виджеты.
-        initialDelay: const Duration(minutes: 15),
-        constraints: Constraints(networkType: NetworkType.connected),
-        existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
-        backoffPolicy: BackoffPolicy.linear,
-        backoffPolicyDelay: const Duration(minutes: 1),
+      // Пока приложение было на экране, виджеты обновляло оно само: отметка
+      // свежая, и запасная задача не станет будить Dart сразу после ухода.
+      await HomeWidget.saveWidgetData<String>(
+        kWidgetsRefreshedAtKey,
+        '${DateTime.now().millisecondsSinceEpoch}',
       );
+      // Нативная задача раз в 15 минут сама решает, пора ли будить Dart.
+      await _native.invokeMethod<bool>('scheduleWidgetTick');
     } catch (e) {
       debugPrint('WidgetBackgroundRefreshService._schedule failed: $e');
     }
@@ -160,11 +178,7 @@ class WidgetBackgroundRefreshService {
   Future<void> cancel() async {
     if (!Platform.isAndroid) return;
     _wanted = false;
-    try {
-      await Workmanager().cancelByUniqueName(_taskUnique);
-    } catch (e) {
-      debugPrint('WidgetBackgroundRefreshService.cancel failed: $e');
-    }
+    await _unschedule();
   }
 }
 

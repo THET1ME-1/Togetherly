@@ -184,6 +184,18 @@ class MainActivity : FlutterActivity() {
             "love_app/widgets"
         ).setMethodCallHandler { call, result ->
             when (call.method) {
+                // Запасное обновление виджетов раз в 15 минут: приложение
+                // ставит его, когда уходит с экрана, и снимает, когда вернулось.
+                "scheduleWidgetTick" -> {
+                    WidgetRefreshTick.schedule(applicationContext)
+                    result.success(true)
+                }
+
+                "cancelWidgetTick" -> {
+                    WidgetRefreshTick.cancel(applicationContext)
+                    result.success(true)
+                }
+
                 // Кнопка «Добавить на виджет» в галерее рисунков: система сама
                 // спросит, куда положить, и откроет выбор холста
                 // (`CanvasPickActivity`) — там нужный уже отмечен.
