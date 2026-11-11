@@ -34,6 +34,11 @@ on:
         options:
           - all
           - arm64
+      play_hold:
+        description: 'Google Play: залить релиз, но на проверку не отправлять (changesNotSentForReview). Нужно, когда прошлое изменение отклонено: Play тогда отказывает в автоотправке, а отправить можно только кнопкой в консоли («Обзор публикации»)'
+        type: boolean
+        required: false
+        default: false
       ios_submit:
         description: 'Отправлять iOS-сборку на ревью сразу. Выключите, чтобы билд лёг только в TestFlight — тот же самый потом уходит в App Store воркфлоу «iOS → App Store review», пересобирать не нужно'
         type: boolean
@@ -377,6 +382,7 @@ jobs:
           # у Play жёсткий лимит 500 символов, а RuStore/попап берут полный текст
           # из distribution/whatsnew (без лимита).
           whatsNewDirectory: distribution/whatsnew-play
+          changesNotSentForReview: ${{ inputs.play_hold == true }}
           releaseName: ${{ steps.ver.outputs.name }} (build ${{ steps.ver.outputs.code }})
 
   # ── Гейт: публикуем в RuStore только если задан ключ API ────────────────────
