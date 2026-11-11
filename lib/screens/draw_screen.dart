@@ -19,6 +19,7 @@ import '../services/coloring_upload_queue.dart';
 import '../services/pb_media_service.dart';
 import '../utils/canvas_clear.dart';
 import '../utils/canvas_image_cache.dart';
+import '../utils/coloring_adopted.dart';
 import '../utils/single_exit.dart';
 import '../utils/stroke_layer_cache.dart';
 import '../utils/stroke_save_scheduler.dart';
@@ -3525,6 +3526,17 @@ class _DrawScreenState extends State<DrawScreen>
         .map((i) =>
             ColoringPicture.own(id: i.id, title: i.title, ratio: i.ratio))
         .toList();
+    // Картинку партнёра очередь не знает: её контур скачан раньше и лежит
+    // на диске. Без этого лист при повторном заходе открывался пустым.
+    if (!own.any((p) => p.id == id)) {
+      final dir = await getApplicationDocumentsDirectory();
+      final adopted = adoptedColoring(
+        File('${dir.path}/coloring/$id.png'),
+        id: id,
+        title: LocaleService.current.coloringOwnDefaultName,
+      );
+      if (adopted != null) own.add(adopted);
+    }
     if (!mounted || own.isEmpty) return;
     setState(() => _ownColorings = own);
   }
