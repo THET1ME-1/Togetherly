@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../dict_strings.dart' show trKey;
+import '../models/miss_you_batch.dart';
 import '../models/miss_you_event.dart';
 import '../models/miss_you_pending.dart';
 import '../models/miss_you_state.dart';
@@ -79,8 +80,22 @@ class MissYouScreen extends StatefulWidget {
 }
 
 class _MissYouScreenState extends State<MissYouScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   final MissYouRepository _repo = MissYouRepository();
+
+  /// Нажатия на сердце копятся и уходят одним запросом с числом, как с кнопки
+  /// на главной. Запрос на каждое нажатие упирался в ограничитель, отправки
+  /// срывались, и число на глазах откатывалось назад (обращение 632).
+  final MissYouBatch _batch = MissYouBatch();
+  Timer? _flushTimer;
+
+  /// Пачка уходит не позже чем через это время после первого нажатия в ней:
+  /// сердце жмут подряд по многу секунд, а неподтверждённое нажатие живёт
+  /// только [OptimisticCount.ttl].
+  static const Duration _batchWindow = Duration(milliseconds: 600);
+
+  /// Повтор сорвавшейся пачки.
+  static const Duration _retryWindow = Duration(seconds: 3);
 
   MissYouState _state = MissYouState.empty;
   StreamSubscription<MissYouState>? _sub;
@@ -135,6 +150,7 @@ class _MissYouScreenState extends State<MissYouScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _pulse = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 520),
@@ -212,7 +228,20 @@ class _MissYouScreenState extends State<MissYouScreen>
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // Уходя в фон, отправляем накопленное: iOS выгружает процесс вместе с
+    // таймером пачки.
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      _flushEverything();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    // Экран закрыли посреди нажатий: накопленное всё равно уходит.
+    _flushEverything();
     _sub?.cancel();
     _staleTimer?.cancel();
     _confirmTimer?.cancel();
@@ -248,6 +277,13 @@ class _MissYouScreenState extends State<MissYouScreen>
     _spawnHearts();
     setState(() => _pending = _pending.tap('miss_you', DateTime.now()));
     _scheduleStaleSweep();
+    // Ответ на импульс из истории уходит сразу и сам по себе: он привязан к
+    // своему событию. Нажатия на сердце копятся в пачку.
+    if (replyTo == null) {
+      _batch.add();
+      _flushTimer ??= Timer(_batchWindow, _flushMissYou);
+      return;
+    }
     var ok = false;
     try {
       ok = await _repo.sendMissYou(widget.groupId, replyTo: replyTo);
@@ -259,6 +295,41 @@ class _MissYouScreenState extends State<MissYouScreen>
       _confirmSoon();
     } else {
       setState(() => _pending = _pending.failed('miss_you'));
+    }
+  }
+
+  Future<void> _flushMissYou() async {
+    _flushTimer = null;
+    final count = _batch.take();
+    if (count <= 0) return;
+    var ok = false;
+    try {
+      ok = await _repo.sendMissYou(widget.groupId, count: count);
+    } catch (_) {
+      ok = false;
+    }
+    if (!ok) {
+      // Нажатия не теряем: пачка вернётся в накопитель и уйдёт повтором.
+      _batch.giveBack(count);
+      if (!mounted) return;
+      _flushTimer?.cancel();
+      _flushTimer = Timer(_retryWindow, _flushMissYou);
+      return;
+    }
+    if (!mounted) return;
+    _confirmSoon();
+    // Пока шла отправка, человек мог нажать ещё: остаток досылаем следом.
+    if (_batch.pending > 0 && _flushTimer == null) {
+      unawaited(_flushMissYou());
+    }
+  }
+
+  /// Слить накопленное целиком: экран закрывается или приложение уходит в фон.
+  void _flushEverything() {
+    _flushTimer?.cancel();
+    _flushTimer = null;
+    for (final count in _batch.takeAllChunks()) {
+      unawaited(_repo.sendMissYou(widget.groupId, count: count));
     }
   }
 

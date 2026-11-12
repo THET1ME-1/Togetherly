@@ -25,7 +25,11 @@ void main() {
   late List<Map<String, dynamic>> rows;
   late List<String> calls;
 
+  /// Сколько нажатий принёс каждый запрос импульса.
+  late List<int> sent;
+
   setUp(() async {
+    sent = [];
     // Записи «Скучаю» идут через офлайн-кэш: без открытого хранилища подписка
     // так и ждала бы его и ничего не спрашивала у сервера.
     await LocalStore.instance.initWith(databaseFactoryMemory, 'miss_you_vibe.db');
@@ -74,10 +78,12 @@ void main() {
             return http.Response('{"ok":true,"events":[]}', 200, headers: {'content-type': 'application/json'});
           }
           final vibe = body['vibe'] as String;
+          final times = (body['count'] as int?) ?? 1;
+          sent.add(times);
           final me = rows.first;
-          me['count'] = (me['count'] as int) + 1;
+          me['count'] = (me['count'] as int) + times;
           final byVibe = Map<String, dynamic>.from(me['by_vibe'] as Map);
-          byVibe[vibe] = ((byVibe[vibe] as int?) ?? 0) + 1;
+          byVibe[vibe] = ((byVibe[vibe] as int?) ?? 0) + times;
           me['by_vibe'] = byVibe;
           return http.Response('{"ok":true,"count":${me['count']}}', 200, headers: {'content-type': 'application/json'});
         }
@@ -132,6 +138,36 @@ void main() {
     expect(find.text('11'), findsOneWidget);
     expect(calls.where((c) => c == 'GET /api/collections/miss_you/records').length, greaterThan(1),
         reason: 'после отправки экран не перечитал записи');
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(minutes: 1));
+  });
+
+  // Обращение 632 (12.11.2026, видео): человек часто жмёт сердце, число
+  // растёт с 7327 до 7340, а потом само откатывается. Экран слал запрос на
+  // каждое нажатие, и частые запросы с мобильного адреса упираются в
+  // ограничитель; нажатия должны уходить пачкой, как с кнопки на главной.
+  testWidgets('частые нажатия на сердце уходят пачкой, и число не откатывается', (tester) async {
+    await pumpScreen(tester);
+    expect(find.text('10'), findsOneWidget, reason: 'экран не прочитал счёт с сервера');
+
+    // Большое сердце — единственный значок размером 58.
+    final heart = find.byWidgetPredicate((w) => w is Icon && w.icon == Icons.favorite_rounded && w.size == 58);
+    expect(heart, findsOneWidget);
+    for (var i = 0; i < 13; i++) {
+      await tester.tap(heart, warnIfMissed: false);
+      await tester.pump(const Duration(milliseconds: 120));
+    }
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('23'), findsOneWidget, reason: 'нажатия не отозвались на счёте');
+
+    for (var i = 0; i < 150; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(sent.fold<int>(0, (a, b) => a + b), 13, reason: 'до сервера дошли не все нажатия');
+    // Нажатия идут 1,5 с, пачка уходит раз в 0,6 с: три запроса, а не тринадцать.
+    expect(sent.length, lessThanOrEqualTo(3), reason: 'запрос на каждое нажатие: $sent');
+    expect(find.text('23'), findsOneWidget, reason: 'число откатилось');
 
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(minutes: 1));
