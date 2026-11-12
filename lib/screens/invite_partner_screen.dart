@@ -97,9 +97,11 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
   Future<void> _runGuide() async {
     // Ту про «Ввести код» встаёт под кнопкой: там пусто, а над ней лежит код,
     // и пузырь закрывал бы его.
+    // Кольцо повторяет форму цели: у карточки кода углы 28, «Ввести код» —
+    // таблетка.
     final steps = [
-      (key: 'invite_code', target: _codeKey, text: _s.inviteCodeHint, below: null),
-      (key: 'invite_enter', target: _enterKey, text: _s.inviteEnterHint, below: true),
+      (key: 'invite_code', target: _codeKey, text: _s.inviteCodeHint, below: null, radius: _codeCardRadius),
+      (key: 'invite_enter', target: _enterKey, text: _s.inviteEnterHint, below: true, radius: null),
     ];
     for (final step in steps) {
       if (!_guideMayShow()) return;
@@ -113,6 +115,7 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
         gotIt: _s.gotIt,
         theme: widget.theme,
         below: step.below,
+        targetRadius: step.radius,
       );
       await Future<void>.delayed(const Duration(milliseconds: 600));
     }
@@ -540,6 +543,9 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
     return Color(Hct.from(accent.hue, accent.chroma, tone).toInt());
   }
 
+  /// Скругление карточки кода. По нему же обводит её подсказка Ту.
+  static const double _codeCardRadius = 28;
+
   /// Код приглашения крупно: его диктуют вслух и переписывают в мессенджер.
   Widget _codeCard(ColorScheme cs, String code) {
     final ready = code.isNotEmpty;
@@ -549,9 +555,9 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
       // страницы, а надпись на нём читалась с контрастом 2:1. Так же сделана
       // карточка кода на «Связи».
       color: cs.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(28),
+      borderRadius: BorderRadius.circular(_codeCardRadius),
       child: InkWell(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(_codeCardRadius),
         onTap: ready ? _copyCode : null,
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),

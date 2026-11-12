@@ -22,6 +22,7 @@ Future<void> showGuideHint(
   required AppTheme theme,
   Duration life = const Duration(seconds: 12),
   bool? below,
+  double? targetRadius,
 }) async {
   final targetContext = targetKey.currentContext;
   if (targetContext == null) return;
@@ -51,7 +52,7 @@ Future<void> showGuideHint(
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onTap: close,
-        child: _GuideHintView(layout: layout, target: target, targetKey: targetKey, text: text, gotIt: gotIt, scheme: cs, onClose: close),
+        child: _GuideHintView(layout: layout, target: target, targetKey: targetKey, text: text, gotIt: gotIt, scheme: cs, onClose: close, targetRadius: targetRadius),
       ),
     ),
   );
@@ -61,7 +62,12 @@ Future<void> showGuideHint(
 }
 
 class _GuideHintView extends StatefulWidget {
-  const _GuideHintView({required this.layout, required this.target, required this.targetKey, required this.text, required this.gotIt, required this.scheme, required this.onClose});
+  const _GuideHintView({required this.layout, required this.target, required this.targetKey, required this.text, required this.gotIt, required this.scheme, required this.onClose, this.targetRadius});
+
+  /// Скругление углов цели. Кольцо повторяет форму цели: у карточки углы
+  /// свои, и таблетка вокруг неё не совпадала с блоком (владелец 12.11.2026).
+  /// null — цель таблетка или круг, как кнопки.
+  final double? targetRadius;
 
   final GuideHintLayout layout;
   final Rect target;
@@ -114,7 +120,9 @@ class _GuideHintViewState extends State<_GuideHintView> with TickerProviderState
     final l = widget.layout, cs = widget.scheme;
     final fly = CurvedAnimation(parent: _in, curve: const Interval(0, 0.7, curve: Curves.easeOutBack));
     final pop = CurvedAnimation(parent: _in, curve: const Interval(0.45, 1, curve: Curves.easeOutCubic));
-    final ring = widget.target.inflate(5);
+    const ringGap = 5.0;
+    final ring = widget.target.inflate(ringGap);
+    final ringRadius = widget.targetRadius == null ? ring.shortestSide / 2 : widget.targetRadius! + ringGap;
     return Stack(
       children: [
         Positioned.fromRect(
@@ -124,7 +132,7 @@ class _GuideHintViewState extends State<_GuideHintView> with TickerProviderState
               scale: Tween(begin: 1.0, end: 1.06).animate(CurvedAnimation(parent: _ring, curve: Curves.easeInOut)),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(ring.shortestSide / 2),
+                  borderRadius: BorderRadius.circular(ringRadius),
                   border: Border.all(color: cs.primary, width: 3),
                 ),
               ),
