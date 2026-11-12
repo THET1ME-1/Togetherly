@@ -14,10 +14,14 @@ class InvitePromptCard extends StatelessWidget {
     super.key,
     required this.scheme,
     required this.onInvite,
+    this.buttonKey,
   });
 
   final ColorScheme scheme;
   final VoidCallback onInvite;
+
+  /// Ключ кнопки: на неё показывает подсказка Ту.
+  final Key? buttonKey;
 
   @override
   Widget build(BuildContext context) {
@@ -79,6 +83,7 @@ class InvitePromptCard extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           SizedBox(
+            key: buttonKey,
             width: double.infinity,
             child: FilledButton(
               onPressed: onInvite,

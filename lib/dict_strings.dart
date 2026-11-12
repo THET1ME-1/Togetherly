@@ -1501,6 +1501,10 @@ abstract class DictStrings extends AppStrings {
   String get haveCode => _t('haveCode');
   @override
   String get staySolo => _t('staySolo');
+  String get inviteCodeHint => _t('inviteCodeHint');
+  String get inviteEnterHint => _t('inviteEnterHint');
+  String get soloInviteHint => _t('soloInviteHint');
+  String get newInviteCode => _t('newInviteCode');
   @override
   String get later => _t('later');
   @override

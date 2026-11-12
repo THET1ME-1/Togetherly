@@ -9,10 +9,12 @@ import 'package:share_plus/share_plus.dart';
 
 import '../models/pair_data.dart';
 import '../services/locale_service.dart';
+import '../services/ui_prefs.dart';
 import '../theme/app_theme.dart';
 import '../theme/profile_theme.dart';
 import '../utils/share_origin.dart';
 import '../widgets/app_sheet.dart';
+import '../widgets/common/guide_hint.dart';
 import '../widgets/common/m3_loading.dart';
 
 /// Первый экран после регистрации: позвать свою половину.
@@ -45,6 +47,19 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
 
   bool _joining = false;
 
+  /// Новый код выпускается: кнопка крутится и не жмётся второй раз.
+  bool _regenerating = false;
+
+  /// Куда показывает Ту: на свой код и на ввод чужого.
+  final GlobalKey _codeKey = GlobalKey();
+  final GlobalKey _enterKey = GlobalKey();
+
+  /// Подсказки Ту уже пошли в этом заходе.
+  bool _guideStarted = false;
+
+  /// Пауза перед первой подсказкой: человек сперва видит экран целиком.
+  static const Duration _guideDelay = Duration(milliseconds: 1200);
+
   /// Следующая сверка, пока сервер не выдал рабочий код.
   Timer? _retry;
   int _attempt = 0;
@@ -62,6 +77,56 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
     if (!_pair.isPaired && _pair.inviteCodeState != InviteCodeState.ready) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _checkCode());
     }
+    _startGuideWhenReady();
+  }
+
+  /// Ту объясняет экран, когда код уже на месте: показывать на крутилку
+  /// бессмысленно. Пока кода нет, ждём оповещения модели пары.
+  void _startGuideWhenReady() {
+    if (_guideStarted || _pair.isPaired || _pair.shareableInviteCode.isEmpty) return;
+    _guideStarted = true;
+    _guideTimer = Timer(_guideDelay, _runGuide);
+  }
+
+  /// Отложенный старт подсказок: экран закрыли раньше — подсказки не будет.
+  Timer? _guideTimer;
+
+  /// Подсказки Ту по одной (владелец 12.11.2026: «люди не знают, как и куда
+  /// вписывать код»). Первая — на свой код, вторая — на «Ввести код». Каждая
+  /// одноразовая: отметка пишется перед показом, как в очереди подсказок.
+  Future<void> _runGuide() async {
+    final steps = [
+      (key: 'invite_code', target: _codeKey, text: _s.inviteCodeHint),
+      (key: 'invite_enter', target: _enterKey, text: _s.inviteEnterHint),
+    ];
+    for (final step in steps) {
+      if (!_guideMayShow()) return;
+      if (await UiPrefs.hintSeen(step.key)) continue;
+      await UiPrefs.markHintSeen(step.key);
+      if (!_guideMayShow()) return;
+      await showGuideHint(
+        context,
+        targetKey: step.target,
+        text: step.text,
+        gotIt: _s.gotIt,
+        theme: widget.theme,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+    }
+  }
+
+  /// Экран на месте и поверх него ничего не открыто (лист ввода кода, QR).
+  bool _guideMayShow() =>
+      mounted && !_pair.isPaired && (ModalRoute.of(context)?.isCurrent ?? true);
+
+  Future<void> _newCode() async {
+    if (_regenerating) return;
+    setState(() => _regenerating = true);
+    await _pair.regenerateCode();
+    if (!mounted) return;
+    setState(() => _regenerating = false);
+    // Сервер не выдал код — хвалиться нечем (так же на экране связи).
+    if (_pair.shareableInviteCode.isNotEmpty) _toast(_s.newCodeGenerated);
   }
 
   /// Дольше одной попытки не ждём. У клиента сервера сроков нет, и на
@@ -94,6 +159,7 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
   @override
   void dispose() {
     _retry?.cancel();
+    _guideTimer?.cancel();
     _pair.removeListener(_onPairChanged);
     super.dispose();
   }
@@ -106,6 +172,7 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
       return;
     }
     setState(() {});
+    _startGuideWhenReady();
   }
 
   Future<void> _share() async {
@@ -363,8 +430,31 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
                         ),
                       ),
                       const SizedBox(height: 24),
-                      _codeCard(cs, code),
-                      const SizedBox(height: 20),
+                      KeyedSubtree(key: _codeKey, child: _codeCard(cs, code)),
+                      // Код можно сменить: старый перестаёт работать, если
+                      // его отправили не тому человеку.
+                      Center(
+                        child: TextButton.icon(
+                          onPressed: code.isEmpty || _regenerating || _joining ? null : _newCode,
+                          icon: _regenerating
+                              ? SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: cs.onSurfaceVariant),
+                                )
+                              : const Icon(Icons.refresh_rounded, size: 18),
+                          label: Text(
+                            _s.newInviteCode,
+                            style: const TextStyle(
+                              fontFamily: ProfileTheme.bodyFont,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          style: TextButton.styleFrom(foregroundColor: cs.onSurfaceVariant),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton.icon(
@@ -397,6 +487,7 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
                           ),
                           const SizedBox(width: 10),
                           Expanded(
+                            key: _enterKey,
                             child: _tonalButton(
                               cs,
                               icon: Icons.keyboard_rounded,

@@ -944,6 +944,10 @@ abstract class AppStrings {
   String get sendInvitation;
   String get haveCode;
   String get staySolo;
+  String get inviteCodeHint;
+  String get inviteEnterHint;
+  String get soloInviteHint;
+  String get newInviteCode;
   String get later;
   String get tapToCopy;
   String get inviteCodeLoading;

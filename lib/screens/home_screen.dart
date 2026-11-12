@@ -250,6 +250,9 @@ class _HomeScreenState extends State<HomeScreen> {
   final GlobalKey _calendarBtnKey = GlobalKey();
   final GlobalKey _mascotKey = GlobalKey();
 
+  /// Кнопка «Пригласить партнёра» у одиночки: на неё показывает Ту.
+  final GlobalKey _inviteBtnKey = GlobalKey();
+
   /// Сезонный фон под главной (призрак за стеклом): ему нажатия в пустое место.
   final _backdropKey = GlobalKey<SeasonBackdropLayerState>();
 
@@ -1934,8 +1937,30 @@ class _HomeScreenState extends State<HomeScreen> {
   /// боковая кнопка (она старше всех), потом запись ролика, потом экран
   /// «Скучаю».
   Future<void> _queueHints() async {
-    if (!mounted || !_pairData.isPaired || _selectedNavIndex != 0) return;
+    if (!mounted || _selectedNavIndex != 0) return;
     final s = LocaleService.current;
+    // Одиночке Ту показывает одно: где код и куда вписать код партнёра.
+    // Остальные подсказки про то, чего без пары на главной нет (владелец
+    // 12.11.2026: «люди не знают, как и куда вписывать код»).
+    if (!_pairData.isPaired) {
+      bool soloOnHome() =>
+          mounted &&
+          !_pairData.isPaired &&
+          _selectedNavIndex == 0 &&
+          (ModalRoute.of(context)?.isCurrent ?? true);
+      HintCalm.instance.homeShown();
+      HintQueue.instance.enqueue(
+        context: context,
+        key: 'solo_invite',
+        targetKey: _inviteBtnKey,
+        text: s.soloInviteHint,
+        gotIt: s.gotIt,
+        icon: Icons.favorite_rounded,
+        theme: _t,
+        ready: soloOnHome,
+      );
+      return;
+    }
     // Главная должна быть верхним экраном: поверх неё не открыт экран Плюса,
     // лист или диалог. Окна считает HintCalm, сам экран — isCurrent.
     bool onHome() =>
@@ -3962,12 +3987,17 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!_pairData.isPaired) {
       return InvitePromptCard(
         scheme: cs,
-        onInvite: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => InvitePartnerScreen(pairData: _pairData, theme: _t),
-            settings: const RouteSettings(name: '/invite_partner'),
-          ),
-        ),
+        buttonKey: _inviteBtnKey,
+        onInvite: () {
+          // Кнопку нашли сами — подсказка про неё больше не нужна.
+          unawaited(HintQueue.instance.markSeen('solo_invite'));
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => InvitePartnerScreen(pairData: _pairData, theme: _t),
+              settings: const RouteSettings(name: '/invite_partner'),
+            ),
+          );
+        },
       );
     }
 
