@@ -253,6 +253,11 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Кнопка «Пригласить партнёра» у одиночки: на неё показывает Ту.
   final GlobalKey _inviteBtnKey = GlobalKey();
 
+  /// Кнопки нижнего меню по номеру вкладки: Ту обходит их по очереди.
+  final Map<int, GlobalKey> _navKeys = {
+    for (final i in HomeBottomNav.defaultOrder) i: GlobalKey(debugLabel: 'nav$i'),
+  };
+
   /// Сезонный фон под главной (призрак за стеклом): ему нажатия в пустое место.
   final _backdropKey = GlobalKey<SeasonBackdropLayerState>();
 
@@ -1679,6 +1684,7 @@ class _HomeScreenState extends State<HomeScreen> {
               showWidgets: _navTabShown(1),
               showWatch: _navTabShown(4),
               order: HomeLayoutService.instance.current.navOrder,
+              itemKeys: _navKeys,
               onTap: (i) {
                 setState(() => _selectedNavIndex = i);
                 // Возврат на главную — освежаем режим боковой кнопки (мог
@@ -1939,9 +1945,37 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _queueHints() async {
     if (!mounted || _selectedNavIndex != 0) return;
     final s = LocaleService.current;
-    // Одиночке Ту показывает одно: где код и куда вписать код партнёра.
-    // Остальные подсказки про то, чего без пары на главной нет (владелец
-    // 12.11.2026: «люди не знают, как и куда вписывать код»).
+    // Обход нижнего меню: что делает каждая кнопка (владелец 12.11.2026:
+    // «где подсказки на главном меню, куда зайти, что делать»). Тексты верны
+    // и для пары, и для одиночки, ключи общие: кто прошёл обход одиночкой,
+    // в паре его не увидит.
+    void navTour(bool Function() ready) {
+      final texts = {
+        0: s.navHintHome,
+        1: s.navHintWidgets,
+        4: s.navHintWatch,
+        2: s.navHintConnect,
+        3: s.navHintProfile,
+      };
+      for (final i in HomeLayoutService.instance.current.navOrder) {
+        final text = texts[i];
+        if (text == null) continue;
+        HintQueue.instance.enqueue(
+          context: context,
+          key: 'nav_tab_$i',
+          targetKey: _navKeys[i]!,
+          text: text,
+          gotIt: s.gotIt,
+          icon: Icons.touch_app_rounded,
+          theme: _t,
+          ready: () => ready() && _navTabShown(i),
+        );
+      }
+    }
+
+    // Одиночке Ту показывает меню, а в конце — где код и куда вписать код
+    // партнёра. Остальные подсказки про то, чего без пары на главной нет
+    // (владелец 12.11.2026: «люди не знают, как и куда вписывать код»).
     if (!_pairData.isPaired) {
       bool soloOnHome() =>
           mounted &&
@@ -1949,6 +1983,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _selectedNavIndex == 0 &&
           (ModalRoute.of(context)?.isCurrent ?? true);
       HintCalm.instance.homeShown();
+      navTour(soloOnHome);
       HintQueue.instance.enqueue(
         context: context,
         key: 'solo_invite',
@@ -2046,6 +2081,9 @@ class _HomeScreenState extends State<HomeScreen> {
       theme: _t,
       ready: () => onHome() && _mascotService.activeMascot?.id == kCloudMascotId,
     );
+    // Меню — после подсказок про таймер и кнопки главной: кто вошёл сразу
+    // парой (ввёл код партнёра), обхода одиночкой не видел.
+    navTour(onHome);
   }
 
 

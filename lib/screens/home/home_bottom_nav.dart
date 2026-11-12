@@ -56,6 +56,9 @@ class HomeBottomNav extends StatelessWidget {
   final List<int> order;
   static const List<int> defaultOrder = [0, 1, 4, 2, 3];
 
+  /// Ключи кнопок по номеру вкладки: на них показывает Ту, объясняя меню.
+  final Map<int, Key>? itemKeys;
+
   const HomeBottomNav({
     super.key,
     required this.selectedIndex,
@@ -65,6 +68,7 @@ class HomeBottomNav extends StatelessWidget {
     this.showWidgets = true,
     this.showWatch = true,
     this.order = defaultOrder,
+    this.itemKeys,
     this.onCreatePin,
     this.sideIsArrow = false,
     this.onSideLongPress,
@@ -132,6 +136,7 @@ class HomeBottomNav extends StatelessWidget {
                 for (final i in order)
                   if ((i != 1 || showWidgets) && (i != 4 || showWatch))
                     NavBarItem(
+                      key: itemKeys?[i],
                       svgIcon: switch (i) {
                         0 => _homeIcon,
                         1 => _widgetsIcon,

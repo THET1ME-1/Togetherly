@@ -948,6 +948,11 @@ abstract class AppStrings {
   String get inviteEnterHint;
   String get soloInviteHint;
   String get newInviteCode;
+  String get navHintHome;
+  String get navHintWidgets;
+  String get navHintWatch;
+  String get navHintConnect;
+  String get navHintProfile;
   String get later;
   String get tapToCopy;
   String get inviteCodeLoading;

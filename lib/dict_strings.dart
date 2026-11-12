@@ -1505,6 +1505,11 @@ abstract class DictStrings extends AppStrings {
   String get inviteEnterHint => _t('inviteEnterHint');
   String get soloInviteHint => _t('soloInviteHint');
   String get newInviteCode => _t('newInviteCode');
+  String get navHintHome => _t('navHintHome');
+  String get navHintWidgets => _t('navHintWidgets');
+  String get navHintWatch => _t('navHintWatch');
+  String get navHintConnect => _t('navHintConnect');
+  String get navHintProfile => _t('navHintProfile');
   @override
   String get later => _t('later');
   @override

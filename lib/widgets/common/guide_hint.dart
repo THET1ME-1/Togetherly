@@ -144,7 +144,8 @@ class _GuideHintViewState extends State<_GuideHintView> with TickerProviderState
         ),
         Positioned(
           left: l.bubbleLeft,
-          top: l.bubbleTop,
+          top: l.bubbleBottom == null ? l.bubbleTop : null,
+          bottom: l.bubbleBottom == null ? null : MediaQuery.sizeOf(context).height - l.bubbleBottom!,
           width: l.bubbleWidth,
           child: ScaleTransition(
             scale: pop,
