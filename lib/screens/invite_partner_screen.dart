@@ -95,9 +95,11 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
   /// вписывать код»). Первая — на свой код, вторая — на «Ввести код». Каждая
   /// одноразовая: отметка пишется перед показом, как в очереди подсказок.
   Future<void> _runGuide() async {
+    // Ту про «Ввести код» встаёт под кнопкой: там пусто, а над ней лежит код,
+    // и пузырь закрывал бы его.
     final steps = [
-      (key: 'invite_code', target: _codeKey, text: _s.inviteCodeHint),
-      (key: 'invite_enter', target: _enterKey, text: _s.inviteEnterHint),
+      (key: 'invite_code', target: _codeKey, text: _s.inviteCodeHint, below: null),
+      (key: 'invite_enter', target: _enterKey, text: _s.inviteEnterHint, below: true),
     ];
     for (final step in steps) {
       if (!_guideMayShow()) return;
@@ -110,6 +112,7 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
         text: step.text,
         gotIt: _s.gotIt,
         theme: widget.theme,
+        below: step.below,
       );
       await Future<void>.delayed(const Duration(milliseconds: 600));
     }

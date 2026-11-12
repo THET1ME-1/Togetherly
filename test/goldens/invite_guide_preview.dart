@@ -9,6 +9,7 @@ import 'package:love_app/models/pair_data.dart';
 import 'package:love_app/screens/invite_partner_screen.dart';
 import 'package:love_app/services/locale_service.dart';
 import 'package:love_app/theme/app_palettes.dart';
+import 'package:love_app/widgets/common/guide_hint_layout.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Подсказки Ту на экране «Позовите свою половинку» — на глаз:
@@ -80,9 +81,21 @@ void main() {
       });
     }
 
+    // Где встаёт облачко: рисунок Ту в тесте не грузится (он из сети), и
+    // кадр из мастерской (`out_guide/<имя>/still.png`) накладывается на
+    // снимок по этим числам: имя, левый край, верх, сторона.
+    void place(String name, Finder target, {bool? below}) {
+      final l = guideHintLayout(target: tester.getRect(target), screen: const Size(393, 852), below: below);
+      File('build/invite-guide/$name.cloud').writeAsStringSync(
+          '${l.art} ${l.cloud.left} ${l.cloud.top} ${l.cloud.width}');
+    }
+
     for (var i = 0; i < 40; i++) {
       await tester.pump(const Duration(milliseconds: 100));
     }
+    Directory('build/invite-guide').createSync(recursive: true);
+    place('1-code', find.ancestor(of: find.text('LAS9X5'), matching: find.byType(Material)).first);
+    place('2-enter', find.ancestor(of: find.text(LocaleService.current.haveCode), matching: find.byType(Expanded)).first, below: true);
     await shot('1-code');
     await tester.tap(find.text(LocaleService.current.gotIt));
     for (var i = 0; i < 40; i++) {

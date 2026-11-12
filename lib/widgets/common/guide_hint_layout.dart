@@ -25,10 +25,13 @@ const double guideHintCloud = 104;
 /// Высота пузыря, под которую оставляется место, когда сбоку не помещается.
 const double guideHintBubbleHeight = 96;
 
-GuideHintLayout guideHintLayout({required Rect target, required Size screen}) {
+/// [below] ставит облачко под кнопкой (true) или над ней (false) явно, когда
+/// экран знает, где у него пусто: на экране приглашения под «Ввести код»
+/// свободно, а над ней лежит сам код, и пузырь закрывал бы его.
+GuideHintLayout guideHintLayout({required Rect target, required Size screen, bool? below}) {
   const c = guideHintCloud, gap = 8.0, edge = 8.0;
   final tx = target.center.dx, ty = target.center.dy;
-  final below = ty < screen.height / 2;
+  below ??= ty < screen.height / 2;
   final top = below ? target.bottom + gap : target.top - gap - c;
   final right = tx > screen.width / 2;
   final left = (right ? tx - c * 0.95 : tx - c * 0.05).clamp(edge, screen.width - edge - c);

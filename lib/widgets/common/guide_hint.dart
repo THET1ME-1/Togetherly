@@ -21,6 +21,7 @@ Future<void> showGuideHint(
   required String gotIt,
   required AppTheme theme,
   Duration life = const Duration(seconds: 12),
+  bool? below,
 }) async {
   final targetContext = targetKey.currentContext;
   if (targetContext == null) return;
@@ -31,7 +32,7 @@ Future<void> showGuideHint(
 
   final target = box.localToGlobal(Offset.zero) & box.size;
   final screen = MediaQuery.sizeOf(context);
-  final layout = guideHintLayout(target: target, screen: screen);
+  final layout = guideHintLayout(target: target, screen: screen, below: below);
   final cs = ProfileTheme.schemeFor(theme);
 
   final done = Completer<void>();
