@@ -63,6 +63,16 @@ jobs:
           [ -f /tmp/verdict/chrono_verdict.py ] || cp tool/chrono_verdict.py /tmp/verdict/
           [ -f /tmp/verdict/ips_report.py ] || cp tool/ips_report.py /tmp/verdict/
 
+      - name: Самый свежий Xcode
+        # Как в релизной сборке: по умолчанию на раннере выбран не самый новый
+        # Xcode, а connectivity_plus требует SDK iOS 26.
+        run: |
+          set -euo pipefail
+          NEWEST=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1 || true)
+          [ -z "$NEWEST" ] && NEWEST=/Applications/Xcode.app
+          sudo xcode-select -s "$NEWEST"
+          xcodebuild -version
+
       - name: Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -80,6 +90,10 @@ jobs:
 
       - name: Зависимости
         run: |
+          # Как в релизной сборке: через Swift Package Manager зависимости не
+          # сходятся (tocropviewcontroller у image_cropper и
+          # dkimagepickercontroller), сборка идёт подами.
+          flutter config --no-enable-swift-package-manager
           flutter pub get
           # Поды ставит сама сборка: отдельный `pod install` идёт раньше, чем
           # Flutter разложит симлинки плагинов, и не находит их подспеки.
@@ -144,16 +158,21 @@ jobs:
           set -euo pipefail
           DEVICE=$(xcrun simctl list devices available -j | python3 -c "
           import json,sys
+          import re
           d=json.load(sys.stdin)['devices']
+          # Самая новая iOS: жалобы приходят с iOS 26, порядок словаря не гарантирует ничего.
+          def ver(runtime):
+              return tuple(int(x) for x in re.findall(r'\d+', runtime.split('iOS-')[-1]))
           best=None
           for runtime, devs in d.items():
               if 'iOS' not in runtime: continue
               for dev in devs:
-                  if 'iPhone' in dev['name']:
+                  if 'iPhone' in dev['name'] and (best is None or ver(runtime) > ver(best[0])):
                       best=(runtime, dev['udid'], dev['name'])
           print(best[1] if best else '')
           ")
           echo "симулятор: $DEVICE"
+          xcrun simctl list devices | grep "$DEVICE" || true
           xcrun simctl boot "$DEVICE" || true
           xcrun simctl bootstatus "$DEVICE" -b || true
           echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"
