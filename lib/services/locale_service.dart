@@ -3815,7 +3815,8 @@ class _EnStrings extends DictStrings {
   @override
   String failedAddWidget(String e) => 'Failed to add widget: $e';
   @override
-  String yearsAlready(int years) => '$years years already ❤️';
+  String yearsAlready(int years) =>
+      '$years ${years == 1 ? 'year' : 'years'} already ❤️';
   @override
   String monthsAlready(int months) =>
       '$months ${months == 1 ? 'month' : 'months'} already ❤️';

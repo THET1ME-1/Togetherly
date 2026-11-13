@@ -40,6 +40,14 @@ void main() {
     expect(togetherAlreadyCaption(p, ru), '1 год уже ❤️');
   });
 
+  test('по-английски один год в единственном числе', () {
+    // Снимок виджета для Google Play 13.11.2026 показал «1 years already».
+    expect(togetherAlreadyCaption(progress('2025-08-04', '2026-11-13'), en),
+        '1 year already ❤️');
+    expect(togetherAlreadyCaption(progress('2024-08-04', '2026-11-13'), en),
+        '2 years already ❤️');
+  });
+
   test('в первый месяц строки нет вовсе', () {
     // Число дней и так стоит крупно в середине виджета: «0 месяцев уже»
     // читалось бы такой же поломкой, как «0 лет уже».
