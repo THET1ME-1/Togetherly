@@ -52,8 +52,13 @@ LivePoint _p(double lat, double lng, {int agoMin = 2}) => LivePoint(
     );
 
 void main() {
+  // PREVIEW_LANG=en — те же картинки по-английски (для английской страницы магазина),
+  // кладутся в build/map-widget-preview-en/
+  final english = Platform.environment['PREVIEW_LANG'] == 'en';
+  final outDir = english ? 'build/map-widget-preview-en' : 'build/map-widget-preview';
+
   setUpAll(() async {
-    SharedPreferences.setMockInitialValues({'app_language': 'ru'});
+    SharedPreferences.setMockInitialValues({'app_language': english ? 'en' : 'ru'});
     await LocaleService.instance.init();
     await _font('Onest', 'assets/fonts/Onest.ttf');
     await _font('Unbounded', 'assets/fonts/Unbounded.ttf');
@@ -84,22 +89,22 @@ void main() {
               paired: e.value.$3,
               me: e.value.$1,
               partner: e.value.$2,
-              myName: 'Саша',
-              partnerName: 'Аня',
+              myName: english ? 'Mike' : 'Саша',
+              partnerName: english ? 'Anna' : 'Аня',
               myAvatar: await _fakeAvatar(const Color(0xFFFFB38A), const Color(0xFFFF7E8B)),
               partnerAvatar: await _fakeAvatar(const Color(0xFF8FB6FF), const Color(0xFF6A4C93)),
               scheme: ProfileTheme.themeFor(t).colorScheme,
               fill: t.fillColor,
               sizes: {for (final k in MapWidgetSize.values) k: k.size},
               nowMs: DateTime(2026, 9, 19, 20, 0).millisecondsSinceEpoch,
-              myPlace: 'Центр',
-              partnerPlace: 'Ботаника',
+              myPlace: english ? 'Downtown' : 'Центр',
+              partnerPlace: english ? 'Botanica' : 'Ботаника',
             ),
             tiles: _tile,
           );
-          Directory('build/map-widget-preview').createSync(recursive: true);
+          Directory(outDir).createSync(recursive: true);
           for (final img in images.entries) {
-            File('build/map-widget-preview/${name}_${img.key.id}.png').writeAsBytesSync(img.value);
+            File('$outDir/${name}_${img.key.id}.png').writeAsBytesSync(img.value);
           }
           expect(images.length, 3);
         });
