@@ -55,10 +55,18 @@ FG_DENSITIES = {
 }
 
 
-def square(img, center=False):
+def square(img, center=False, whole=False):
     """Квадрат по нижнему краю: фигура стоит на дне кадра, верх — фон.
-    [center] берёт середину — для рисунка, где сверху есть что терять."""
+    [center] берёт середину — для рисунка, где сверху есть что терять.
+    [whole] ничего не срезает: узкий рисунок дополняется слева цветом неба,
+    и маскот остаётся того же размера, что на исходнике (владелец, 13.11.2026:
+    «почему нельзя ТОЛЬКО края скруглить»)."""
     w, h = img.size
+    if whole and h > w:
+        sky = img.crop((0, 0, w // 20, h // 20)).resize((1, 1)).getpixel((0, 0))
+        out = Image.new("RGB", (h, h), sky)
+        out.paste(img, (h - w, 0))
+        return out
     side = min(w, h)
     top = (h - side) // 2 if center else h - side
     return img.crop((0, top, w, top + side))
@@ -87,7 +95,7 @@ def round_crop(img):
 def main():
     paths = [a for a in sys.argv[1:] if not a.startswith("--")]
     master = square(Image.open(paths[0] if paths else SRC).convert("RGB"),
-                    center="--center" in sys.argv)
+                    center="--center" in sys.argv, whole="--whole" in sys.argv)
     icon512 = master.resize((512, 512), Image.LANCZOS)
     icon512.save(STORE)
     icon512.save(ASSET, "WEBP", quality=92, method=6)
