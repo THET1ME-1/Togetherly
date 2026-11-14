@@ -67,11 +67,10 @@ class DoingWidgetProvider : HomeWidgetProvider() {
     private fun render(context: Context, manager: AppWidgetManager, widgetId: Int, data: SharedPreferences) {
         val group = WidgetGroupHelper.getOrBind(context, "doing", widgetId)
         val theme = WidgetTheme.from(data)
-        val now = System.currentTimeMillis()
         val dark = data.getString("wtheme_dark", null) == "1"
 
-        val my = Half.read(data, group, "my", theme.primaryContainer, theme.avatarMine, now)
-        val partner = Half.read(data, group, "partner", theme.tertiaryContainer, theme.avatarPartner, now)
+        val my = Half.read(data, group, "my", theme.primaryContainer, theme.avatarMine)
+        val partner = Half.read(data, group, "partner", theme.tertiaryContainer, theme.avatarPartner)
 
         // Размер холста — настоящий размер виджета, но не больше 960 точек по
         // ширине: картинка едет через Binder, а он держит немного. Пару берёт
@@ -125,7 +124,6 @@ class DoingWidgetProvider : HomeWidgetProvider() {
                 side: String,
                 themeWall: Int,
                 avatarColor: Int,
-                now: Long,
             ): Half {
                 val prefix = "doing_${group}_${side}"
                 val id = data.getString("${prefix}_id", null).orEmpty()
@@ -134,8 +132,8 @@ class DoingWidgetProvider : HomeWidgetProvider() {
                 val avatar = data.getString("${prefix}_avatar", null).orEmpty()
                 val wall = parseColor(data.getString("${prefix}_wall", null)) ?: themeWall
 
-                // Занятие старше трёх часов гаснет: Ту в покое, плашек нет.
-                val alive = id.isNotEmpty() && now - at < FADES_MS
+                // Срока нет: занятие держится, пока человек его не сменит.
+                val alive = id.isNotEmpty()
                 val label = when {
                     !alive -> ""
                     id == "own" -> text
@@ -308,9 +306,6 @@ class DoingWidgetProvider : HomeWidgetProvider() {
     }
 
     companion object {
-        /** Три часа до покоя. То же число в `kDoingFades` (Dart) и в Swift. */
-        private const val FADES_MS = 10_800_000L
-
         private fun parseColor(hex: String?): Int? {
             if (hex.isNullOrEmpty()) return null
             return try {

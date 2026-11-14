@@ -107,10 +107,9 @@ void main() {
   });
 
   group('превью «Комнатки»', () {
-    DoingRooms rooms({Doing my = const Doing.none(), Doing partner = const Doing.none(), DateTime? now}) => DoingRooms(
+    DoingRooms rooms({Doing my = const Doing.none(), Doing partner = const Doing.none()}) => DoingRooms(
           my: DoingRoomLook(wall: const Color(0xFFFFD9DE), doing: my),
           partner: DoingRoomLook(wall: const Color(0xFFFFDCBB), doing: partner),
-          now: now ?? noon,
         );
 
     testWidgets('у занятия видны название и время, имён нет', (tester) async {
@@ -120,10 +119,11 @@ void main() {
       expect(find.text('12:00'), findsNWidgets(2));
     });
 
-    testWidgets('погасшее занятие не показывается', (tester) async {
-      await tester.pumpWidget(host(Center(child: SizedBox(width: 338, child: rooms(my: Doing.of('shower', noon), now: noon.add(const Duration(hours: 4)))))));
-      expect(find.text(trKey('doing.shower')), findsNothing);
-      expect(find.text('12:00'), findsNothing);
+    testWidgets('занятие держится, сколько бы времени ни прошло', (tester) async {
+      // Срока нет с 14.11.2026: сон и работа гасли через три часа (обращение 480).
+      final longAgo = noon.subtract(const Duration(hours: 10));
+      await tester.pumpWidget(host(Center(child: SizedBox(width: 338, child: rooms(my: Doing.of('sleep', longAgo))))));
+      expect(find.text(trKey('doing.sleep')), findsOneWidget);
     });
 
     testWidgets('самое длинное название не ломает узкий виджет', (tester) async {

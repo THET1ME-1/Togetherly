@@ -71,7 +71,6 @@ void main() {
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: DoingRooms(
-              now: at,
               my: DoingRoomLook(wall: myWall ?? scheme.primaryContainer, doing: Doing.of('gym', at)),
               partner: DoingRoomLook(wall: partnerWall ?? scheme.tertiaryContainer, doing: Doing.of('movie', at)),
             ),

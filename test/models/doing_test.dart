@@ -41,22 +41,6 @@ void main() {
     });
   });
 
-  group('занятие гаснет само', () {
-    final doing = Doing.of('cook', noon);
-
-    test('живо меньше трёх часов', () {
-      expect(doing.shownAt(noon.add(const Duration(hours: 2, minutes: 59))).id, 'cook');
-    });
-
-    test('через три часа Ту возвращается в покой', () {
-      expect(doing.shownAt(noon.add(const Duration(hours: 3))).isNone, isTrue);
-    });
-
-    test('часы телефона отстают от часов партнёра — занятие всё равно видно', () {
-      expect(doing.shownAt(noon.subtract(const Duration(minutes: 5))).id, 'cook');
-    });
-  });
-
   group('запись в поле data', () {
     test('соседние ключи остаются на месте', () {
       final data = withDoing({'note': {'text': 'привет'}, 'room': '#cfe3fb'}, Doing.of('gym', noon));

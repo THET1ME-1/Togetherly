@@ -31,18 +31,14 @@ const Color _pen = Color(0xFF4B2A31);
 const Color _heart = Color(0xFFE8556F);
 
 class DoingRooms extends StatelessWidget {
-  const DoingRooms({super.key, required this.my, required this.partner, this.now});
+  const DoingRooms({super.key, required this.my, required this.partner});
 
   final DoingRoomLook my;
   final DoingRoomLook partner;
 
-  /// Момент показа: занятие старше трёх часов уже погасло. В тесте задаётся.
-  final DateTime? now;
-
   @override
   Widget build(BuildContext context) {
     final paper = Theme.of(context).brightness == Brightness.dark ? _paperDark : _paperLight;
-    final when = now ?? DateTime.now();
 
     return AspectRatio(
       aspectRatio: 338 / 158,
@@ -58,9 +54,9 @@ class DoingRooms extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Expanded(child: _Room(look: my, mine: true, paper: paper, u: u, now: when)),
+                      Expanded(child: _Room(look: my, mine: true, paper: paper, u: u)),
                       SizedBox(width: 1.1 * u),
-                      Expanded(child: _Room(look: partner, mine: false, paper: paper, u: u, now: when)),
+                      Expanded(child: _Room(look: partner, mine: false, paper: paper, u: u)),
                     ],
                   ),
                   // Сердце на стыке половин.
@@ -84,17 +80,16 @@ class DoingRooms extends StatelessWidget {
 }
 
 class _Room extends StatelessWidget {
-  const _Room({required this.look, required this.mine, required this.paper, required this.u, required this.now});
+  const _Room({required this.look, required this.mine, required this.paper, required this.u});
 
   final DoingRoomLook look;
   final bool mine;
   final Color paper;
   final double u;
-  final DateTime now;
 
   @override
   Widget build(BuildContext context) {
-    final doing = look.doing.shownAt(now);
+    final doing = look.doing;
     final label = doing.isNone ? '' : (doing.isOwn ? doing.text : trKey('doing.${doing.id}'));
     final time = doing.isNone ? '' : doingTime(doing.atMs);
     final inner = Radius.circular(2.6 * u);

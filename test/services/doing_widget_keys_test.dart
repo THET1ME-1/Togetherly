@@ -68,7 +68,7 @@ void main() {
       });
     }
 
-    test('справочник и срок', () {
+    test('справочник, и занятие без срока', () {
       for (final source in [kotlin, swift]) {
         expect(source, contains('doing_name_'));
         expect(source, contains('doing_art_'));
@@ -77,10 +77,10 @@ void main() {
       // читает его сам, на Android — через общий помощник привязки.
       expect(swift, contains('doing_latest_group'));
       expect(kotlin, contains('getOrBind(context, "doing"'));
-      // Три часа до покоя — одно число на Dart, Kotlin и Swift.
-      expect(kDoingFades.inMilliseconds, 10800000);
-      expect(kotlin, contains('10_800_000'));
-      expect(swift, contains('10_800_000'));
+      // Срока нет ни в приложении, ни на рабочем столе (14.11.2026, обращение
+      // 480): виджет не должен гасить занятие сам.
+      expect(kotlin, isNot(contains('10_800_000')));
+      expect(swift, isNot(contains('10_800_000')));
     });
   });
 }

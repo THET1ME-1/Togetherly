@@ -35,8 +35,9 @@ const String kDoingOwn = 'own';
 /// Длина своего слова: больше в плашку виджета не помещается.
 const int kDoingTextMax = 24;
 
-/// Через сколько занятие гаснет само. Иначе «в душе» висело бы полночи.
-const Duration kDoingFades = Duration(hours: 3);
+// Срока у занятия нет (14.11.2026): оно держится, пока человек сам его не
+// сменит. До этого оно гасло через три часа, и сон с работой слетали посреди
+// (обращение 480). Владелец: «Убери срок».
 
 class Doing {
   /// Что из [kDoingIds], [kDoingOwn] или пусто — занятия нет.
@@ -84,13 +85,6 @@ class Doing {
 
   /// Ключ сцены в каталоге. У своего слова и у покоя сцены нет.
   String? get artKey => isNone || isOwn ? null : 'act_$id';
-
-  /// Что показывать в момент [now]: само занятие или уже покой.
-  Doing shownAt(DateTime now) {
-    if (isNone) return this;
-    final age = now.millisecondsSinceEpoch - atMs;
-    return age >= kDoingFades.inMilliseconds ? const Doing.none() : this;
-  }
 
   Map<String, dynamic> toJson() => {'id': id, 'text': text, 'at': atMs};
 }

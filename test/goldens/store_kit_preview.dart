@@ -132,7 +132,6 @@ void main() {
       SizedBox(
         width: 377,
         child: DoingRooms(
-          now: now,
           my: DoingRoomLook(wall: theme.colorScheme.primaryContainer, doing: Doing.of('sleep', now)),
           partner: DoingRoomLook(wall: theme.colorScheme.secondaryContainer, doing: Doing.of('movie', now)),
         ),

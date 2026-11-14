@@ -8,13 +8,9 @@ import WidgetKit
 // `_text`, `_at`, `_wall`, `_avatar` и то же с `partner`; справочник кадров
 // `doing_art_<id>` и подписей `doing_name_<id>`.
 //
-// Виджет неподвижен: двигаться WidgetKit не даёт. Занятие старше трёх часов
-// гаснет здесь же, без приложения: Ту возвращается в покой, плашка с
-// названием пропадает. Тап уводит в приложение по `loveapp://doing`, где
-// открывается выбор занятия.
-
-/// Три часа до покоя. То же число в `kDoingFades` (Dart) и в Kotlin.
-private let doingFadesMs: Double = 10_800_000
+// Виджет неподвижен: двигаться WidgetKit не даёт. Срока у занятия нет: оно
+// держится, пока человек его не сменит. Тап уводит в приложение по
+// `loveapp://doing`, где открывается выбор занятия.
 
 private let doingPaper = Color(hex: 0xFFFDFC)
 private let doingPaperDark = Color(hex: 0xFFF1F3)
@@ -67,8 +63,7 @@ private func loadDoingHalf(_ s: Store, group: String, side: String, themeRole: S
     let at = Double(s.string("\(prefix)_at")) ?? 0
     let wall = doingHex(s.string("\(prefix)_wall")) ?? doingHex(s.string("wtheme_\(themeRole)")) ?? themeFallback
 
-    // Занятие старше трёх часов гаснет: Ту в покое, названия и времени нет.
-    let alive = !id.isEmpty && now - at < doingFadesMs
+    let alive = !id.isEmpty
     var label = ""
     if alive { label = id == "own" ? text : s.string("doing_name_\(id)") }
 
