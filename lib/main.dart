@@ -509,9 +509,12 @@ void main() async {
     unawaited(WidgetBackgroundRefreshService.instance.init());
     // Пуш про виджеты при открытом приложении обновляет их здесь, без фоновой задачи.
     WidgetBackgroundRefreshService.instance.listenInApp();
-    // Часы в приложении для званий: считаются, пока приложение на экране.
-    unawaited(AppTimeService.instance.start());
   }
+
+  // Часы в приложении для званий: считаются, пока приложение на экране. На обеих
+  // платформах — в ветке Android счёт стоял до 14.11.2026, и у всех на iPhone
+  // звание было «Искра · 0 мин» (обращение 482).
+  unawaited(AppTimeService.instance.start());
 
   // Аналитика отключена (firebase_analytics убран при уходе с Firebase) —
   // AnalyticsService теперь no-op shell. Привязку userId оставляем как заглушку
