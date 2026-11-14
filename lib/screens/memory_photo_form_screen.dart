@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 import 'package:exif/exif.dart';
 import 'package:flutter/material.dart';
@@ -276,7 +277,16 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
   }
 
   Future<void> _tryExifGps(String path) async {
-    final coords = await _extractExifGps(path);
+    // Файл целиком и разбор EXIF — в отдельном изоляте: на главном потоке
+    // снимок в 10 МБ подвешивал экран сразу после выбора (TOG-91). Читаем
+    // весь файл, а не начало: у HEIC блок с координатами бывает в конце.
+    (double, double)? found;
+    try {
+      found = await Isolate.run(() => _extractExifGps(path));
+    } catch (_) {
+      found = null;
+    }
+    final coords = found;
     if (coords == null || !mounted) return;
     final addr = await _reverseGeocode(coords.$1, coords.$2);
     if (!mounted) return;
@@ -561,16 +571,19 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
                 ),
         );
       }
+      // Кадр декодируется под размер на экране, а не целиком: снимок 12 Мп —
+      // 48 МБ в памяти, и десяток таких в плёнке душил слабые телефоны
+      // (TOG-91). Обложке — как у залитых кадров (1000), плёнке хватит 300.
       return cover
           ? AspectCover(
               url: file.path,
-              provider: FileImage(File(file.path)),
+              provider: ResizeImage(FileImage(File(file.path)), width: 1000, height: 1000, policy: ResizeImagePolicy.fit),
               radius: 22,
               maxHeight: 400,
             )
           : FilmFrame(
               url: file.path,
-              provider: FileImage(File(file.path)),
+              provider: ResizeImage(FileImage(File(file.path)), width: 300, height: 300, policy: ResizeImagePolicy.fit),
               height: height,
               onTap: () => _makeCover(i),
               onLongPress: () => _removeAt(i),

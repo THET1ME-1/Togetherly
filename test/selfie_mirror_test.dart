@@ -49,6 +49,18 @@ void main() {
     expect(readExifOrientation(shot(0)), 0, reason: 'пометки нет вовсе');
   });
 
+  test('пометка читается по началу файла, весь кадр в память не нужен', () async {
+    // TOG-91: при выборе каждый файл, видео тоже, читался целиком ради одной
+    // пометки. Теперь — первые [kExifHeadBytes], хвост файла не нужен.
+    final dir = await Directory.systemTemp.createTemp('head');
+    final file = File('${dir.path}/big.jpg');
+    await file.writeAsBytes([...shot(2), ...List.filled(2 * 1024 * 1024, 0)]);
+    final head = await readFileHead(file.path);
+    expect(head.length, kExifHeadBytes);
+    expect(readExifOrientation(head), 2);
+    await dir.delete(recursive: true);
+  });
+
   test('зеркальными считаются ровно четыре ориентации', () {
     for (final o in [2, 4, 5, 7]) {
       expect(orientationIsMirrored(o), isTrue, reason: 'ориентация $o');

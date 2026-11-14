@@ -19,6 +19,21 @@ import 'package:image/image.dart' as img;
 /// Функции здесь — чистый Dart, без платформы: их можно проверить обычным
 /// тестом (`test/selfie_mirror_test.dart`), не поднимая телефон.
 
+/// Сколько байт с начала файла читать ради EXIF. Блок EXIF у JPEG стоит
+/// сразу за заголовком и не длиннее 64 КБ; запас — на соседние блоки APPn.
+const int kExifHeadBytes = 256 * 1024;
+
+/// Начало файла: этого хватает, чтобы прочитать EXIF, не таща в память весь
+/// кадр или видео (TOG-91: при выборе десяти видео приложение читало их
+/// целиком, по 40 МБ, одно за другим, ради одной пометки ориентации).
+Future<Uint8List> readFileHead(String path, [int bytes = kExifHeadBytes]) async {
+  final builder = BytesBuilder(copy: false);
+  await for (final chunk in File(path).openRead(0, bytes)) {
+    builder.add(chunk);
+  }
+  return builder.takeBytes();
+}
+
 /// Ориентация из EXIF: 1..8, либо 0 — пометки нет или файл не разобрался.
 int readExifOrientation(Uint8List jpeg) {
   try {
@@ -75,10 +90,13 @@ Future<String?> uprightPhotoFile(String path) async {
     // Снимок в память влезает, панорама на сотню мегабайт — нет.
     if (await file.length() > 40 * 1024 * 1024) return null;
 
-    final bytes = await file.readAsBytes();
-    if (!orientationIsMirrored(readExifOrientation(bytes))) return null;
+    // Пометку ищем в начале файла: почти все снимки не отражены, и читать их
+    // целиком незачем, а у видео EXIF нет вовсе.
+    final head = await readFileHead(path);
+    if (!orientationIsMirrored(readExifOrientation(head))) return null;
 
     // Целый кадр в памяти — работа не для главного потока.
+    final bytes = await file.readAsBytes();
     final baked = await compute(bakeExifOrientation, bytes);
     if (baked == null) return null;
 
