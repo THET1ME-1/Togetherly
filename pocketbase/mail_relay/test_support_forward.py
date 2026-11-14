@@ -73,8 +73,39 @@ class ImportRequest(unittest.TestCase):
         _, body = forward.import_request(raw, boundary="edge")
         self.assertIn(b"\r\n\r\n" + raw + b"\r\n--edge--", body)
 
+    def test_letter_gets_the_support_label(self):
+        _, body = forward.import_request(b"From: a@b.c\r\n\r\nhello", "Label_7", boundary="edge")
+        first = body.split(b"--edge\r\n")[1]
+        labels = json.loads(first.split(b"\r\n\r\n", 1)[1])
+        self.assertEqual(labels, {"labelIds": ["INBOX", "UNREAD", "Label_7"]})
+
     def test_spam_filter_of_gmail_cannot_hide_the_letter(self):
         self.assertIn("neverMarkSpam=true", forward.IMPORT_URL)
+
+
+class LabelSearch(unittest.TestCase):
+    def test_finds_letters_to_support_without_the_label(self):
+        self.assertIn("to:support@togetherly.day", forward.LABEL_SEARCH)
+        self.assertIn("-label:" + forward.LABEL_NAME, forward.LABEL_SEARCH)
+
+    def test_marking_stops_when_nothing_is_left(self):
+        pages = [[{"id": "1"}, {"id": "2"}], []]
+        marked_ids = []
+
+        def fake_call(token, path, body=None):
+            if path.startswith("messages?"):
+                return {"messages": pages.pop(0)}
+            marked_ids.extend(body["ids"])
+            self.assertEqual(body["addLabelIds"], ["Label_7"])
+            return {}
+
+        original = forward.gmail_call
+        forward.gmail_call = fake_call
+        try:
+            self.assertEqual(forward.label_support_letters("t", "Label_7"), 2)
+        finally:
+            forward.gmail_call = original
+        self.assertEqual(marked_ids, ["1", "2"])
 
 
 class MarkRequest(unittest.TestCase):
