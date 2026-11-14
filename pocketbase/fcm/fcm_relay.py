@@ -30,12 +30,15 @@ RS256, чего JSVM внутри PocketBase не умеет, отсюда от�
 EMUI такие пуши глушат, и половина пар осталась бы без уведомлений вовсе.
 """
 
+import collections
+import http.client
 import json
 import os
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import jwt
@@ -133,20 +136,53 @@ def build_message(req: dict, token: str) -> dict:
     return message
 
 
+FCM_HOST = "fcm.googleapis.com"
+SEND_TIMEOUT = 20
+
+# Своё соединение у каждого рабочего потока, живёт между пушами. Раньше каждый
+# пуш открывал новое: TCP и TLS до Google из Москвы — от 0,15 до 2 с, и очередь
+# стояла на рукопожатиях (TOG-90).
+_local = threading.local()
+
+
+def _post(path: str, body: bytes, headers: dict):
+    """POST в FCM по соединению потока. Отдаёт (код, тело ответа).
+
+    Соединение, которое Google успел закрыть, ломается на первом же запросе:
+    тогда открываем новое и повторяем один раз. Повтор только для старого
+    соединения: на свежем ошибка — уже настоящая, и пуш мог уйти.
+    """
+    for attempt in (1, 2):
+        conn = getattr(_local, "conn", None)
+        fresh = conn is None
+        if fresh:
+            conn = http.client.HTTPSConnection(FCM_HOST, timeout=SEND_TIMEOUT)
+            _local.conn = conn
+        try:
+            conn.request("POST", path, body=body, headers=headers)
+            resp = conn.getresponse()
+            return resp.status, resp.read()
+        except (http.client.HTTPException, OSError):
+            conn.close()
+            _local.conn = None
+            if fresh or attempt == 2:
+                raise
+    raise RuntimeError("unreachable")
+
+
 def send(token: str, req: dict):
     """Отдаёт (код ответа FCM, причина отказа)."""
     acc = account()
-    url = "https://fcm.googleapis.com/v1/projects/%s/messages:send" % acc["project"]
+    path = "/v1/projects/%s/messages:send" % acc["project"]
     payload = json.dumps({"message": build_message(req, token)}, ensure_ascii=False)
-    request = urllib.request.Request(url, data=payload.encode(), method="POST")
-    request.add_header("Authorization", "Bearer " + access_token())
-    request.add_header("Content-Type", "application/json; charset=utf-8")
-    try:
-        with urllib.request.urlopen(request, timeout=20) as r:
-            return r.status, ""
-    except urllib.error.HTTPError as e:
-        raw = e.read().decode(errors="replace")
-        return e.code, error_code(raw)
+    headers = {
+        "Authorization": "Bearer " + access_token(),
+        "Content-Type": "application/json; charset=utf-8",
+    }
+    code, raw = _post(path, payload.encode(), headers)
+    if code == 200:
+        return code, ""
+    return code, error_code(raw.decode(errors="replace"))
 
 
 def error_code(raw: str) -> str:
@@ -170,6 +206,132 @@ def token_is_gone(reason: str) -> bool:
     return reason in ("UNREGISTERED", "INVALID_ARGUMENT", "SENDER_ID_MISMATCH")
 
 
+
+# ── Отправка в фоне ────────────────────────────────────────────────────────────
+#
+# Хук PocketBase звал релей внутри пользовательского запроса и ждал ответа
+# Google. Ждал не сервер, а человек: сохранение сообщения или настроения стояло
+# ровно столько, сколько отвечал чужой сервис. Теперь запрос кладётся в очередь
+# и подтверждается сразу; проверочный пуш (`tag: "test"`) остаётся синхронным,
+# в нём ответ Google и есть весь смысл.
+#
+# Полос две (TOG-90, 14.11.2026). Пуш с баннером — подарок, сообщение,
+# «Скучаю» — человек ждёт глазами, тихий пуш виджетов не ждёт никто. В одной
+# очереди подарок стоял за пачкой тихих пушей: ночью, при одном пуше в секунду,
+# проба прождала 21 с, а днём пачки тихих идут тысячами, и при полной очереди
+# пуш с баннером выбрасывался вовсе — о подарке человек узнавал, открыв
+# приложение через несколько часов. Теперь баннерный пуш берётся первым и
+# своё место в очереди тихим не отдаёт.
+QUEUE_MAX = int(os.environ.get("FCM_QUEUE_MAX", "20000"))
+URGENT_MAX = int(os.environ.get("FCM_URGENT_MAX", "5000"))
+WORKERS = int(os.environ.get("FCM_WORKERS", "12"))
+STATS_EVERY = 600
+DEAD_TOKENS_FILE = os.environ.get(
+    "FCM_DEAD_TOKENS", "/opt/pocketbase/pb_data/.dead_tokens.jsonl")
+
+
+class Outbox:
+    """Очередь на две полосы: заметные пуши уходят раньше тихих."""
+
+    def __init__(self, bulk_max: int, urgent_max: int):
+        self._urgent = collections.deque()
+        self._bulk = collections.deque()
+        self._max = {True: urgent_max, False: bulk_max}
+        self._cond = threading.Condition()
+
+    def put(self, job: dict, urgent: bool) -> bool:
+        """Ставит пуш в свою полосу. Ложь — полоса полна."""
+        lane = self._urgent if urgent else self._bulk
+        with self._cond:
+            if len(lane) >= self._max[urgent]:
+                return False
+            job["at"] = time.monotonic()
+            lane.append(job)
+            self._cond.notify()
+            return True
+
+    def get(self):
+        """Следующий пуш и его полоса; ждёт, пока что-то появится."""
+        with self._cond:
+            while not self._urgent and not self._bulk:
+                self._cond.wait()
+            if self._urgent:
+                return self._urgent.popleft(), True
+            return self._bulk.popleft(), False
+
+    def sizes(self) -> dict:
+        with self._cond:
+            return {"urgent": len(self._urgent), "bulk": len(self._bulk)}
+
+
+def is_urgent(req: dict) -> bool:
+    """Пуш с баннером человек ждёт, тихий пуш виджетов — нет."""
+    return not req.get("silent")
+
+
+_outbox = Outbox(QUEUE_MAX, URGENT_MAX)
+_dead_lock = threading.Lock()
+_stats = {"queued": 0, "sent": 0, "failed": 0, "dropped": 0, "gone": 0,
+          "dropped_urgent": 0, "wait_urgent_max": 0.0, "wait_bulk_max": 0.0}
+
+
+def remember_dead_token(token: str, reason: str) -> None:
+    """Мёртвый токен складываем в файл — вычистит крон."""
+    try:
+        with _dead_lock:
+            with open(DEAD_TOKENS_FILE, "a", encoding="utf-8") as f:
+                f.write(json.dumps(
+                    {"token": token, "reason": reason, "kind": "fcm",
+                     "at": int(time.time())}, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+
+
+def _deliver(job: dict) -> None:
+    try:
+        code, reason = send(job["token"], job["req"])
+    except Exception as e:
+        _stats["failed"] += 1
+        print("fcm: не отправлено:", str(e)[:160], flush=True)
+        return
+    if code == 200:
+        _stats["sent"] += 1
+        return
+    _stats["failed"] += 1
+    if token_is_gone(reason):
+        _stats["gone"] += 1
+        remember_dead_token(job["token"], reason)
+
+
+def _worker() -> None:
+    while True:
+        job, urgent = _outbox.get()
+        # Сколько пуш простоял в очереди — главный признак задержки.
+        waited = time.monotonic() - job["at"]
+        key = "wait_urgent_max" if urgent else "wait_bulk_max"
+        if waited > _stats[key]:
+            _stats[key] = waited
+        _deliver(job)
+
+
+def _report() -> None:
+    """Раз в десять минут — сводка в журнал, максимумы ожидания с нуля."""
+    while True:
+        time.sleep(STATS_EVERY)
+        sizes = _outbox.sizes()
+        print("fcm: сводка", json.dumps({**_stats, **sizes,
+              "wait_urgent_max": round(_stats["wait_urgent_max"], 1),
+              "wait_bulk_max": round(_stats["wait_bulk_max"], 1)}, ensure_ascii=False), flush=True)
+        _stats["wait_urgent_max"] = 0.0
+        _stats["wait_bulk_max"] = 0.0
+
+
+def start_workers() -> None:
+    for _ in range(WORKERS):
+        threading.Thread(target=_worker, daemon=True).start()
+    threading.Thread(target=_report, daemon=True).start()
+
+
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
@@ -187,6 +349,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._reply(200, {"ok": True, "project": account()["project"]})
             except Exception as e:
                 return self._reply(500, {"ok": False, "reason": str(e)[:120]})
+        if self.path == "/stats":
+            return self._reply(200, {**_stats, **_outbox.sizes()})
         self._reply(404, {"ok": False, "reason": "NotFound"})
 
     def do_POST(self):
@@ -201,6 +365,18 @@ class Handler(BaseHTTPRequestHandler):
         token = str(req.get("token") or "").strip()
         if not token:
             return self._reply(400, {"ok": False, "reason": "NoDeviceToken"})
+
+        wants_answer = bool(req.get("sync")) or str(req.get("tag") or "") == "test"
+        if not wants_answer:
+            urgent = is_urgent(req)
+            if not _outbox.put({"token": token, "req": req}, urgent):
+                _stats["dropped"] += 1
+                if urgent:
+                    _stats["dropped_urgent"] += 1
+                    print("fcm: полоса баннеров полна, пуш выброшен", flush=True)
+                return self._reply(200, {"ok": False, "reason": "QueueFull"})
+            _stats["queued"] += 1
+            return self._reply(202, {"ok": True, "queued": True})
 
         try:
             code, reason = send(token, req)
@@ -221,4 +397,5 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    start_workers()
     ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()

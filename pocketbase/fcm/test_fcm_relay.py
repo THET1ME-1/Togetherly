@@ -79,5 +79,90 @@ class ErrorCode(unittest.TestCase):
         self.assertEqual(fcm_relay.error_code("<html>502</html>"), "<html>502</html>")
 
 
+class Outbox(unittest.TestCase):
+    """TOG-90: подарок стоял в общей очереди за тихими пушами виджетов."""
+
+    def test_пуш_с_баннером_уходит_раньше_тихих(self):
+        box = fcm_relay.Outbox(bulk_max=100, urgent_max=100)
+        for i in range(5):
+            box.put({"n": "тихий %d" % i}, urgent=False)
+        box.put({"n": "подарок"}, urgent=True)
+        job, urgent = box.get()
+        self.assertEqual(job["n"], "подарок")
+        self.assertTrue(urgent)
+        self.assertEqual(box.get()[0]["n"], "тихий 0")
+
+    def test_полные_тихие_не_вытесняют_баннер(self):
+        box = fcm_relay.Outbox(bulk_max=2, urgent_max=2)
+        self.assertTrue(box.put({}, urgent=False))
+        self.assertTrue(box.put({}, urgent=False))
+        self.assertFalse(box.put({}, urgent=False))
+        self.assertTrue(box.put({}, urgent=True))
+        self.assertEqual(box.sizes(), {"urgent": 1, "bulk": 2})
+
+    def test_тихий_пуш_не_срочный(self):
+        self.assertFalse(fcm_relay.is_urgent({"silent": True}))
+        self.assertTrue(fcm_relay.is_urgent({"title": "Аня", "body": "подарок"}))
+
+
+class FakeConn:
+    """Соединение, которое падает заданное число раз, потом отвечает 200."""
+
+    made = []
+
+    def __init__(self, host, timeout):
+        self.fails = FakeConn.fail_next.pop(0) if FakeConn.fail_next else 0
+        self.closed = False
+        FakeConn.made.append(self)
+
+    def request(self, method, path, body, headers):
+        if self.fails:
+            self.fails -= 1
+            raise ConnectionResetError("Google закрыл соединение")
+
+    def getresponse(self):
+        class R:
+            status = 200
+
+            def read(self):
+                return b"{}"
+        return R()
+
+    def close(self):
+        self.closed = True
+
+
+class KeepAlive(unittest.TestCase):
+    def setUp(self):
+        self._real = fcm_relay.http.client.HTTPSConnection
+        fcm_relay.http.client.HTTPSConnection = FakeConn
+        FakeConn.made = []
+        FakeConn.fail_next = []
+        fcm_relay._local.conn = None
+
+    def tearDown(self):
+        fcm_relay.http.client.HTTPSConnection = self._real
+        fcm_relay._local.conn = None
+
+    def test_соединение_живёт_между_пушами(self):
+        fcm_relay._post("/x", b"{}", {})
+        fcm_relay._post("/x", b"{}", {})
+        self.assertEqual(len(FakeConn.made), 1)
+
+    def test_закрытое_гуглом_соединение_открывается_заново(self):
+        fcm_relay._post("/x", b"{}", {})
+        fcm_relay._local.conn.fails = 1
+        code, _ = fcm_relay._post("/x", b"{}", {})
+        self.assertEqual(code, 200)
+        self.assertEqual(len(FakeConn.made), 2)
+
+    def test_свежее_соединение_не_повторяем(self):
+        # Ошибка на свежем соединении настоящая: повтор мог бы задвоить пуш.
+        FakeConn.fail_next = [1]
+        with self.assertRaises(ConnectionResetError):
+            fcm_relay._post("/x", b"{}", {})
+        self.assertEqual(len(FakeConn.made), 1)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
