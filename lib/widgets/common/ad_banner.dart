@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart' as admob;
 
 import '../../services/ad_platform.dart';
 import '../../services/analytics_service.dart';
@@ -24,11 +25,12 @@ bool bannerFailIsNetwork(String description) =>
 /// Демо-блок Яндекса для отладочной сборки, в релизе — наш блок.
 const String _demoYandexBannerUnit = 'demo-banner-yandex';
 
-/// Баннер Яндекса между содержимым: грузится один раз, сам себя убирает.
+/// Баннер между содержимым: грузится один раз, сам себя убирает.
 ///
-/// AdMob убран из приложения 28.09.2026: стоял первым в водопаде и за месяц
-/// приносил центы против сотен долларов у РСЯ, при этом забирал показы.
-/// Нет объявления — места под рекламу не держим.
+/// Водопад: сперва Яндекс, после его отказа AdMob. AdMob стоял первым до
+/// 28.09.2026 и забирал показы за центы; с 14.11.2026 он запасной — для тех,
+/// до кого Яндекс не достаёт (Украина), и на пустые ответы Яндекса.
+/// Нет объявления ни там, ни там — места под рекламу не держим.
 ///
 /// Реклама заказывается НЕ при создании виджета, а когда блок впервые попал на
 /// экран. Списки строят элементы заранее, за краем экрана, и прежде запрос
@@ -72,6 +74,15 @@ class _AdBannerState extends State<AdBanner> {
   /// После второго такого отказа баннеры до перезапуска не создаём вовсе.
   static int _networkFails = 0;
   static const int _maxNetworkFails = 2;
+
+  /// Отказы AdMob подряд за запуск: после третьего баннеры до перезапуска не
+  /// создаём — та же защита от вида, который рождается и тут же убирается.
+  static int _admobFails = 0;
+  static const int _maxAdmobFails = 3;
+
+  admob.BannerAd? _admobAd;
+  bool _admobReady = false;
+  bool _admobFailed = false;
 
   yandex.BannerAd? _yandexAd;
   StreamSubscription<yandex.BannerAdLoadState>? _yandexState;
@@ -131,18 +142,70 @@ class _AdBannerState extends State<AdBanner> {
     if (_yandexAnswered) {
       unawaited(_yandexAd?.destroy() ?? Future<void>.value());
     }
+    unawaited(_admobAd?.dispose() ?? Future<void>.value());
     super.dispose();
   }
 
   void _loadAd() => _loadYandex();
+
+  /// Яндекс отказал — баннер AdMob на то же место.
+  void _yandexGaveUp() {
+    if (!mounted) return;
+    setState(() => _yandexFailed = true);
+    _loadAdmob();
+  }
+
+  /// Запасной баннер AdMob: ставится, только когда Яндекс отказал.
+  void _loadAdmob() {
+    if (!mounted || _admobAd != null || _admobFailed) return;
+    if (!AdPlatform.supported || _admobFails >= _maxAdmobFails || !AdPlatform.admobTurn()) {
+      setState(() => _admobFailed = true);
+      return;
+    }
+    final unit = kDebugMode
+        ? AdUnits.admobTestBanner(ios: Platform.isIOS)
+        : AdUnits.admobBanner(ios: Platform.isIOS);
+    final width = (_slotWidth > 0
+            ? _slotWidth
+            : MediaQuery.of(context).size.width)
+        .truncate();
+    final banner = admob.BannerAd(
+      adUnitId: unit,
+      size: admob.AdSize.getInlineAdaptiveBannerAdSize(
+        width,
+        widget.height.truncate(),
+      ),
+      request: const admob.AdRequest(),
+      listener: admob.BannerAdListener(
+        onAdLoaded: (_) {
+          _admobFails = 0;
+          if (mounted) setState(() => _admobReady = true);
+        },
+        onAdFailedToLoad: (ad, error) {
+          debugPrint('AdMob banner failed: ${error.code} ${error.message}');
+          unawaited(ad.dispose());
+          _admobFails++;
+          _admobAd = null;
+          if (mounted) setState(() => _admobFailed = true);
+        },
+      ),
+    );
+    _admobAd = banner;
+    banner.load().catchError((Object e) {
+      debugPrint('AdMob banner load exception: $e');
+      _admobAd = null;
+      if (mounted) setState(() => _admobFailed = true);
+    });
+  }
 
   /// Баннер Яндекса. В SDK 8 `load` собирает платформенный вид, а запрос
   /// уходит, когда вид встал на экран; итог приходит потоком состояний.
   void _loadYandex() {
     if (!mounted || _yandexAd != null || _yandexFailed) return;
     if (!AdPlatform.supported) return;
+    // Яндекс дважды не дошёл по сети (так в Украине) — сразу AdMob.
     if (_networkFails >= _maxNetworkFails) {
-      setState(() => _yandexFailed = true);
+      _yandexGaveUp();
       return;
     }
 
@@ -168,7 +231,7 @@ class _AdBannerState extends State<AdBanner> {
       final error = state.error;
       debugPrint('Yandex banner failed: ${error.code} ${error.description}');
       if (bannerFailIsNetwork(error.description)) _networkFails++;
-      if (mounted) setState(() => _yandexFailed = true);
+      _yandexGaveUp();
     });
     unawaited(_startYandex(banner, unit));
   }
@@ -180,7 +243,7 @@ class _AdBannerState extends State<AdBanner> {
       await banner.load(yandex.AdRequest(adUnitId: unit));
     } catch (e) {
       debugPrint('Yandex banner load exception: $e');
-      if (mounted) setState(() => _yandexFailed = true);
+      _yandexGaveUp();
       return;
     }
     if (mounted) setState(() => _yandexReady = true);
@@ -209,8 +272,21 @@ class _AdBannerState extends State<AdBanner> {
         ),
       );
     }
-    // Сеть отказала — места под рекламу не держим.
-    if (_yandexFailed) return const SizedBox.shrink();
+    if (_admobAd != null && _admobReady) {
+      return _frame(
+        Container(
+          height: widget.height,
+          alignment: Alignment.center,
+          child: admob.AdWidget(ad: _admobAd!),
+        ),
+      );
+    }
+    if (_yandexFailed) {
+      // Обе сети отказали — места под рекламу не держим. Пока грузится
+      // запасной AdMob, место держим, чтобы содержимое не прыгало дважды.
+      if (_admobFailed) return const SizedBox.shrink();
+      return SizedBox(height: widget.height);
+    }
 
     // Ждём появления на экране. Место держим: у виджета нулевой высоты видимой
     // доли не бывает, и детектор не сработал бы никогда.

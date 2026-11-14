@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 
 import '../models/ad_show_finished.dart';
 import '../models/pair_jar.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart' as admob;
 import 'package:yandex_mobileads/mobile_ads.dart' as yandex;
 
 import '../config/ad_units.dart';
@@ -16,11 +17,13 @@ import 'ad_platform.dart';
 import 'pair_jar_service.dart';
 import 'pb_coins_service.dart';
 
-/// Загрузка и показ rewarded-видео Яндекса. AdMob убран 28.09.2026: стоял
-/// резервом и за месяц приносил центы. Нет объявления — фоновый повтор загрузки.
+/// Загрузка и показ rewarded-видео. Водопад: сперва Яндекс, после его отказа
+/// AdMob (вернулся 14.11.2026 запасным). Нет объявления ни там, ни там —
+/// фоновый повтор загрузки.
 ///
 /// Факт досмотра возвращается из [show] (`true`), награду начисляет сервер
-/// (`/api/coins/ad-reward`, с дневным лимитом) прямо в [_showYandex].
+/// (`/api/coins/ad-reward`, с дневным лимитом) прямо в [_showYandex] и
+/// [_showAdmob] — одним маршрутом для обеих сетей, SSV AdMob не нужен.
 class RewardedAdService {
   RewardedAdService({this.chest = false, this.wardrobe = false});
 
@@ -35,6 +38,7 @@ class RewardedAdService {
 
   yandex.RewardedAd? _yandexAd;
   yandex.RewardedAdLoader? _yandexLoader;
+  admob.RewardedAd? _admobAd;
   bool _isLoading = false;
   // Идёт показ ролика. Защита от «реклама показывается дважды»: двойной тап по
   // кнопке (она тапабельна в зазоре между тапом и появлением полноэкранной
@@ -64,8 +68,16 @@ class RewardedAdService {
               ? AdUnits.yandexRewardedWardrobe(ios: Platform.isIOS)
               : AdUnits.yandexRewarded(ios: Platform.isIOS);
 
+  String get _admobAdUnitId => kDebugMode
+      ? AdUnits.admobTestRewarded(ios: Platform.isIOS)
+      : chest
+          ? AdUnits.admobRewardedChest(ios: Platform.isIOS)
+          : wardrobe
+              ? AdUnits.admobRewardedWardrobe(ios: Platform.isIOS)
+              : AdUnits.admobRewarded(ios: Platform.isIOS);
+
   /// Готова реклама хоть из одной сети.
-  bool get isReady => _yandexAd != null;
+  bool get isReady => _yandexAd != null || _admobAd != null;
 
   /// True, если показанная реклама была из Яндекса (нет Google-SSV → награду
   /// начисляет серверный callable `grantAdReward`, авторитетно).
@@ -151,14 +163,60 @@ class RewardedAdService {
       _retryCount = 0; // успех — сбрасываем backoff
     } on yandex.AdRequestError catch (error) {
       debugPrint('Yandex rewarded failed: ${error.code} ${error.description}'
-          ' → retry');
+          ' → AdMob');
       _yandexAd = null;
       _reportLoadFailure('${error.code}', error.description);
-      _scheduleRetry();
+      await _fallBackToAdmob();
     } catch (e) {
-      debugPrint('Yandex rewarded load exception: $e → retry');
+      debugPrint('Yandex rewarded load exception: $e → AdMob');
       _reportLoadFailure('exception', '$e');
-      _scheduleRetry();
+      await _fallBackToAdmob();
+    }
+  }
+
+  /// Яндекс отказал — пробуем AdMob; не дал и он — фоновый повтор каскада.
+  Future<void> _fallBackToAdmob() async {
+    if (_disposed) return;
+    await _loadAdmob();
+    if (_disposed) return;
+    if (_admobAd != null) {
+      _isLoading = false;
+      _retryCount = 0;
+      return;
+    }
+    _scheduleRetry();
+  }
+
+  /// Запасной AdMob: грузится, только когда Яндекс отказал.
+  Future<void> _loadAdmob() async {
+    if (!AdPlatform.admobTurn()) return;
+    final answered = Completer<void>();
+    try {
+      await admob.RewardedAd.load(
+        adUnitId: _admobAdUnitId,
+        request: const admob.AdRequest(),
+        rewardedAdLoadCallback: admob.RewardedAdLoadCallback(
+          onAdLoaded: (ad) {
+            if (_disposed) {
+              unawaited(ad.dispose());
+            } else {
+              _admobAd = ad;
+            }
+            if (!answered.isCompleted) answered.complete();
+          },
+          onAdFailedToLoad: (error) {
+            debugPrint('AdMob rewarded failed: ${error.code} ${error.message}');
+            Sentry.addBreadcrumb(Breadcrumb(
+              message: 'AdMob rewarded load failed: ${error.code} ${error.message}',
+              level: SentryLevel.info,
+            ));
+            if (!answered.isCompleted) answered.complete();
+          },
+        ),
+      );
+      await answered.future.timeout(const Duration(seconds: 30), onTimeout: () {});
+    } catch (e) {
+      debugPrint('AdMob rewarded load exception: $e');
     }
   }
 
@@ -221,6 +279,10 @@ class RewardedAdService {
       if (_yandexAd != null) {
         _lastShowWasYandex = true;
         return await _showYandex(_yandexAd!, onEarned);
+      }
+      if (_admobAd != null) {
+        _lastShowWasYandex = false;
+        return await _showAdmob(_admobAd!, onEarned);
       }
       return false;
     } finally {
@@ -427,6 +489,58 @@ class RewardedAdService {
     return earned;
   }
 
+  /// Ролик AdMob. Награда — тем же серверным маршрутом, что у Яндекса, прямо
+  /// в `onUserEarnedReward`; закрытие ждём тем же [_awaitAdClosed].
+  Future<bool> _showAdmob(admob.RewardedAd ad, VoidCallback? onEarned) async {
+    _admobAd = null; // одноразовая
+    bool earned = false;
+    bool shown = false;
+    Future<void>? grantFuture;
+    final dismissed = Completer<void>();
+    void finish() {
+      if (!dismissed.isCompleted) dismissed.complete();
+    }
+
+    ad.fullScreenContentCallback = admob.FullScreenContentCallback(
+      onAdShowedFullScreenContent: (_) => shown = true,
+      onAdDismissedFullScreenContent: (ad) {
+        unawaited(ad.dispose());
+        finish();
+      },
+      onAdFailedToShowFullScreenContent: (ad, error) {
+        debugPrint('AdMob rewarded show failed: ${error.message}');
+        unawaited(ad.dispose());
+        finish();
+      },
+    );
+    try {
+      await ad.show(onUserEarnedReward: (_, _) {
+        if (earned) return; // защита от повторного события
+        earned = true;
+        try {
+          onEarned?.call();
+        } catch (e) {
+          debugPrint('AdMob rewarded: onEarned бросил — $e');
+        }
+        grantFuture = _grantAdReward();
+      }).timeout(kAdShowStart, onTimeout: () {});
+    } catch (e) {
+      debugPrint('AdMob rewarded show() бросил — $e');
+      unawaited(ad.dispose());
+      finish();
+    }
+    final watch = await _awaitAdClosed(dismissed, 'AdMob rewarded', shown: () => shown);
+    _lastSecondsAway = watch.away.inSeconds;
+    // Награда может прийти вплотную к закрытию — даём ей долететь.
+    if (!earned) {
+      await Future<void>.delayed(const Duration(milliseconds: 800));
+    }
+    if (grantFuture != null) {
+      await grantFuture!.timeout(kAdGrantWait, onTimeout: () => _lastGrantTimedOut = true);
+    }
+    return earned;
+  }
+
   /// Серверное начисление за rewarded-показ авторитетным роутом
   /// `/api/coins/ad-reward`, зовётся из onRewarded. С дневным лимитом на сервере. Результат — в
   /// [lastServerCoins]/[lastRewardGranted]/[lastRateLimited]: вызывающий
@@ -496,6 +610,8 @@ class RewardedAdService {
     _retryTimer?.cancel();
     _retryTimer = null;
     // Загруженный и не показанный ролик освобождаем у натива.
+    unawaited(_admobAd?.dispose() ?? Future<void>.value());
+    _admobAd = null;
     unawaited(_yandexAd?.destroy() ?? Future<void>.value());
     _yandexAd = null;
     _yandexLoader?.destroy();

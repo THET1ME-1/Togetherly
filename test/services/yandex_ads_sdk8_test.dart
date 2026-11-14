@@ -168,7 +168,14 @@ Future<void> _settle(WidgetTester tester) async {
 
 _FakeYandexNative _install(WidgetTester tester) {
   AdPlatform.debugOverride = true;
-  addTearDown(() => AdPlatform.debugOverride = null);
+  // Запасной AdMob на ноутбуке не отвечает: здесь проверяется путь Яндекса,
+  // а до AdMob каскад только считается.
+  AdPlatform.admobOff = true;
+  AdPlatform.admobAttempts = 0;
+  addTearDown(() {
+    AdPlatform.debugOverride = null;
+    AdPlatform.admobOff = false;
+  });
   return _FakeYandexNative(tester.binding.defaultBinaryMessenger)..install();
 }
 
@@ -202,9 +209,10 @@ void main() {
     final request = native.loads.single;
     expect(request['adUnitId'], 'demo-rewarded-yandex');
     expect(_atLeast86((request['parameters'] as Map)['plugin_version'] as String), isTrue);
+    expect(AdPlatform.admobAttempts, 0, reason: 'Яндекс дал ролик — AdMob не трогаем');
   });
 
-  testWidgets('отказ загрузки ролика повторяется через три секунды',
+  testWidgets('отказ загрузки ролика: сперва AdMob, потом повтор через три секунды',
       (tester) async {
     final native = _install(tester)..failWith = _noAds;
     final ads = RewardedAdService();
@@ -214,6 +222,7 @@ void main() {
     await _settle(tester);
     expect(ads.isReady, isFalse);
     expect(native.loads, hasLength(1));
+    expect(AdPlatform.admobAttempts, 1, reason: 'после отказа Яндекса — запасной AdMob');
 
     native.failWith = null;
     await tester.pump(const Duration(seconds: 3));
@@ -239,6 +248,17 @@ void main() {
     expect(native.calls, containsAllInOrder(['interstitialAd:show', 'interstitialAd:destroy']));
     // Следующий ролик заказывается сразу после показа.
     expect(native.loads, hasLength(2));
+    expect(AdPlatform.admobAttempts, 0, reason: 'Яндекс дал ролик — AdMob не трогаем');
+  });
+
+  testWidgets('межстраничный: Яндекс отказал — каскад идёт в AdMob', (tester) async {
+    _install(tester).failWith = _noAds;
+    final ads = InterstitialAdService();
+    addTearDown(ads.dispose);
+
+    await ads.load();
+    expect(AdPlatform.admobAttempts, 1);
+    expect(ads.isReady, isFalse);
   });
 
   group('баннер', () {
@@ -277,12 +297,13 @@ void main() {
       expect(native.calls, contains('bannerAd:destroy'));
     });
 
-    testWidgets('без объявления места не держит', (tester) async {
+    testWidgets('без объявления обеих сетей места не держит', (tester) async {
       _install(tester).failWith = _noAds;
       await tester.pumpWidget(slot());
       await _settle(tester);
 
       expect(find.byType(yandex.AdWidget), findsNothing);
+      expect(AdPlatform.admobAttempts, 1, reason: 'после отказа Яндекса — запасной AdMob');
       expect(tester.getSize(find.byType(AdBanner)).height, 0);
     });
   });

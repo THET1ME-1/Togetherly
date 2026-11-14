@@ -75,12 +75,13 @@ import 'widgets/chest/jar_toast.dart';
 // Так снят реджект 2.1: ATT-попап всё равно не мог показаться на устройстве
 // ревьюера с выключенным системным тумблером «Allow Apps to Request to Track».
 
-/// Запрашивает согласие GDPR (UMP), затем инициализирует рекламу Яндекса.
+/// Запрашивает согласие GDPR (UMP), затем инициализирует рекламу: Яндекс —
+/// основная сеть, AdMob — запасная (с 14.11.2026, грузится только после
+/// отказа Яндекса).
 ///
-/// AdMob убран 28.09.2026, но окно согласия Google (UMP) осталось: без него
-/// рекламу в ЕЭЗ показывать нельзя. UMP пишет стандартную строку согласия
-/// IAB TCF, её читает и SDK Яндекса. Инициализация — только ПОСЛЕ согласия,
-/// иначе на устройствах из ЕЭЗ SDK стартует без него.
+/// Без окна согласия рекламу в ЕЭЗ показывать нельзя. UMP пишет стандартную
+/// строку согласия IAB TCF, её читают оба SDK. Инициализация — только ПОСЛЕ
+/// согласия, иначе на устройствах из ЕЭЗ SDK стартует без него.
 Future<void> _initConsentAndAds() async {
   final params = ConsentRequestParameters(
     consentDebugSettings: kDebugMode
@@ -113,11 +114,17 @@ Future<void> _initConsentAndAds() async {
   // Таймаут 5 с — не блокируем запуск если UMP завис
   await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {});
 
-  // Реклама одна — Яндекс.
   try {
     await yandex.YandexAds.initialize();
   } catch (e) {
     debugPrint('Yandex Ads init failed: $e');
+  }
+  // Запасная сеть: закрывает тех, до кого Яндекс не достаёт (Украина), и его
+  // пустые ответы.
+  try {
+    await MobileAds.instance.initialize();
+  } catch (e) {
+    debugPrint('AdMob init failed: $e');
   }
 }
 
