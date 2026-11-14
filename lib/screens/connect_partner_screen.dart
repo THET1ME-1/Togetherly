@@ -36,6 +36,8 @@ import 'login_screen.dart';
 import 'home/widgets/relationship_type_dialog.dart';
 import '../widgets/app_sheet.dart';
 import '../models/widget_data.dart';
+import '../models/partner_clock.dart';
+import '../dict_strings.dart' show trKey;
 import '../widgets/common/plus_badge.dart';
 import '../widgets/common/stable_stream_builder.dart';
 import '../widgets/unfold/unfold_route.dart';
@@ -98,6 +100,12 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   /// правила `users` чужую запись не отдают, а флаг туда проставляет сервер
   /// (`widget_plus.pb.js`), поэтому подделать значок нельзя.
   final Map<String, bool> _partnerPlus = {};
+
+  /// Пояс и род партнёра из той же карточки виджета: вместо «Не в сети»
+  /// показываем его часы, когда пояса разные (TOG-48).
+  final Map<String, String?> _partnerZone = {};
+  final Map<String, String> _partnerGender = {};
+  Timer? _clockTick;
   final Set<String> _plusLoadedUids = {};
   final Map<String, String?> _partnerBadges = {};
   final Map<String, StreamSubscription<bool>> _presenceSubs = {};
@@ -199,8 +207,18 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
             .loadWidget(widget.pairData.pairId, member.uid)
             .then((rec) {
           if (!mounted || rec == null) return;
-          final has = WidgetData.fromPb(rec).plus;
-          if (has) setState(() => _partnerPlus[member.uid] = true);
+          final card = WidgetData.fromPb(rec);
+          setState(() {
+            if (card.plus) _partnerPlus[member.uid] = true;
+            _partnerZone[member.uid] = card.zone;
+            _partnerGender[member.uid] = card.gender;
+          });
+          // Часы партнёра идут: перерисовываем раз в минуту.
+          if (partnerClock(card.zone) != null) {
+            _clockTick ??= Timer.periodic(const Duration(minutes: 1), (_) {
+              if (mounted) setState(() {});
+            });
+          }
         });
       }
       // Бейдж — разово из профиля PB.
@@ -224,6 +242,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     for (final sub in _presenceSubs.values) {
       sub.cancel();
     }
+    _clockTick?.cancel();
     _presenceSubs.clear();
     _badgeLoadedUids.clear();
     super.dispose();
@@ -823,7 +842,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                                 shape: BoxShape.circle)),
                         text: online
                             ? LocaleService.current.online
-                            : LocaleService.current.offline,
+                            : _offlineLabel(partner?.uid),
                         bg: cs.surfaceContainerHigh,
                         fg: cs.onSurface,
                       ),
@@ -1040,6 +1059,16 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
         ],
       ),
     );
+  }
+
+  /// Партнёр не в сети: если он в другом поясе — его часы («У неё 02:14»),
+  /// иначе «Не в сети» (TOG-48, просьба владельца 14.11.2026).
+  String _offlineLabel(String? uid) {
+    final clock = uid == null ? null : partnerClock(_partnerZone[uid]);
+    if (clock == null) return LocaleService.current.offline;
+    final label = trKey(partnerClockKey(_partnerGender[uid] ?? ''))
+        .replaceAll('{t}', clock);
+    return label.isEmpty ? label : label[0].toUpperCase() + label.substring(1);
   }
 
   Widget _chipTile(ColorScheme cs,
