@@ -1,5 +1,6 @@
 import 'package:pocketbase/pocketbase.dart';
 import 'mood_entry.dart';
+import 'partner_clock.dart';
 
 /// Данные, которые пользователь делится через парный виджет.
 ///
@@ -34,6 +35,10 @@ class WidgetData {
   /// поэтому дорисовать себе значок нельзя.
   final bool plus;
 
+  /// Пояс владельца карточки `±HH:MM` из поля `data` (TOG-48). null — его
+  /// сборка пояс ещё не присылала.
+  final String? zone;
+
   WidgetData({
     required this.uid,
     this.displayName = '',
@@ -55,6 +60,7 @@ class WidgetData {
     this.gender = '',
     this.updatedAt,
     this.plus = false,
+    this.zone,
   });
 
   /// Сколько фото владелец карточки показывает партнёру.
@@ -117,6 +123,7 @@ class WidgetData {
       gender: (d['gender'] ?? '').toString(),
       updatedAt: DateTime.tryParse((d['updated_at'] ?? '').toString()),
       plus: d['plus'] == true || d['plus'] == 1,
+      zone: zoneFromData(d['data']),
     );
   }
 
@@ -175,6 +182,7 @@ class WidgetData {
       gender: str('gender', gender),
       updatedAt: DateTime.now(),
       plus: plus,
+      zone: zone,
     );
   }
 
@@ -218,6 +226,7 @@ class WidgetData {
       musicCoverUrl: musicCoverUrl ?? this.musicCoverUrl,
       gender: gender ?? this.gender,
       updatedAt: updatedAt ?? this.updatedAt,
+      zone: zone,
     );
   }
 }

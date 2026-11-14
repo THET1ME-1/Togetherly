@@ -76,6 +76,7 @@ import '../services/widget_background_refresh_service.dart';
 import '../services/background_reliability_service.dart';
 import '../services/pb_auth_service.dart';
 import '../services/presence_service.dart';
+import '../services/zone_share.dart';
 import '../services/centrifugo_service.dart';
 import '../services/locale_service.dart';
 import '../services/rate_limiter_service.dart';
@@ -412,6 +413,8 @@ class _HomeScreenState extends State<HomeScreen> {
     // каждые двенадцать секунд с каждого телефона — почти весь поток записи
     // сервера уходил на неё.
     PresenceService().start(groupId: _pairData.pairId);
+    // Свой пояс — партнёру, чтобы он видел моё время (TOG-48).
+    unawaited(ZoneShare.sync(_pairData.pairId));
 
     // Платформа последнего входа. Нужна поддержке: на iOS Togetherly+ не
     // существует, и человек с покупкой видит открытые фичи, ни разу не
@@ -800,6 +803,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // Пара появилась или сменилась — присутствию нужен её канал. Вызов
     // идемпотентный: тот же groupId ничего не перезапускает.
     PresenceService().start(groupId: _pairData.pairId);
+    unawaited(ZoneShare.sync(_pairData.pairId));
     unawaited(_handlePairChanged());
     // Появилась пара → можно показать одноразовую подсказку про боковую кнопку.
     unawaited(_queueHints());

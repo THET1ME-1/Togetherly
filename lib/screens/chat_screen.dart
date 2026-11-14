@@ -70,6 +70,8 @@ import '../widgets/storage_image.dart';
 import 'memory_lane_screen.dart';
 import '../widgets/common/m3_loading.dart';
 import '../models/widget_data.dart';
+import '../models/partner_clock.dart';
+import '../services/zone_share.dart';
 import '../widgets/common/plus_badge.dart';
 import '../widgets/plus/plus_promo_sheet.dart';
 import '../widgets/common/stable_stream_builder.dart';
@@ -177,6 +179,12 @@ class _ChatScreenState extends State<ChatScreen> {
   /// поэтому читаем его карточку `widget_data` — туда флаг проставляет сервер
   /// (`widget_plus.pb.js`), и дорисовать его себе нельзя.
   bool _partnerPlus = false;
+
+  /// Пояс и род партнёра из той же карточки: для подписи «у неё 02:14» в
+  /// шапке, когда пояса разные (TOG-48).
+  String? _partnerZone;
+  String _partnerGender = '';
+  Timer? _clockTick;
   // Личность из PocketBase: чат отличает свои сообщения по userId
   // (выравнивание/удаление).
   String get _myUid => PocketBaseService().userId ?? '';
@@ -364,8 +372,18 @@ class _ChatScreenState extends State<ChatScreen> {
     if (_groupId.isEmpty || uid.isEmpty) return;
     final rec = await PbDataService().loadWidget(_groupId, uid);
     if (!mounted || rec == null) return;
-    final has = WidgetData.fromPb(rec).plus;
-    if (has && !_partnerPlus) setState(() => _partnerPlus = true);
+    final card = WidgetData.fromPb(rec);
+    setState(() {
+      _partnerPlus = _partnerPlus || card.plus;
+      _partnerZone = card.zone;
+      _partnerGender = card.gender;
+    });
+    // Часы партнёра идут: перерисовываем шапку раз в минуту.
+    if (partnerClock(_partnerZone) != null) {
+      _clockTick ??= Timer.periodic(const Duration(minutes: 1), (_) {
+        if (mounted) setState(() {});
+      });
+    }
   }
 
   @override
@@ -374,6 +392,7 @@ class _ChatScreenState extends State<ChatScreen> {
     // Пока этот чат открыт — foreground-пуш о новом сообщении не дублируем.
     PbPushService.activeChatGroupId = _groupId;
     unawaited(_loadPartnerPlus());
+    unawaited(ZoneShare.sync(_groupId));
     _messagesStream = _chat.watchMessages(_groupId, limit: _limit);
     unawaited(_loadPins());
     _captureUnreadAnchor();
@@ -459,6 +478,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (PbPushService.activeChatGroupId == _groupId) {
       PbPushService.activeChatGroupId = null;
     }
+    _clockTick?.cancel();
     _readsSub?.cancel();
     _pinsSub?.cancel();
     _typingStopTimer?.cancel();
@@ -2519,7 +2539,9 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  _pillTrailing(s, cs, online: online, uid: uid),
+                  // Подпись с часами партнёра бывает длинной: делит место с
+                  // именем и обрезается многоточием, а не вылезает за пилюлю.
+                  Flexible(child: _pillTrailing(s, cs, online: online, uid: uid)),
                 ],
               );
             },
@@ -2537,6 +2559,15 @@ class _ChatScreenState extends State<ChatScreen> {
     required String uid,
   }) {
     final muted = cs.onPrimaryContainer.withValues(alpha: 0.7);
+    // «у неё 02:14», когда пояса разные: дописывается к «в сети» и к времени
+    // последнего визита (TOG-48).
+    final clock = partnerClock(_partnerZone);
+    final clockLabel = clock == null
+        ? ''
+        : trKey(partnerClockKey(_partnerGender)).replaceAll('{t}', clock);
+    String withClock(String label) => clockLabel.isEmpty
+        ? label
+        : (label.isEmpty ? clockLabel : '$label · $clockLabel');
     return StableStreamBuilder<bool>(
       create: () => _chat.watchTyping(_groupId),
       keys: [_groupId],
@@ -2550,7 +2581,9 @@ class _ChatScreenState extends State<ChatScreen> {
         }
         if (online) {
           return Text(
-            s.chatOnline,
+            withClock(s.chatOnline),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontFamily: ProfileTheme.bodyFont,
               fontSize: 11.5,
@@ -2563,10 +2596,12 @@ class _ChatScreenState extends State<ChatScreen> {
           create: () => PresenceService().watchLastSeen(uid),
           keys: [uid],
           builder: (context, seenSnap) {
-            final label = _lastSeenLabel(s, seenSnap.data);
+            final label = withClock(_lastSeenLabel(s, seenSnap.data));
             if (label.isEmpty) return const SizedBox.shrink();
             return Text(
               label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontFamily: ProfileTheme.bodyFont,
                 fontSize: 11.5,

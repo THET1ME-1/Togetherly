@@ -46,6 +46,8 @@ const _lowercaseOnPurpose = <String>{
   // Мелкие метки состояния у сообщения, аватара, карточки.
   'chatEdited', 'chatOnline', 'chatTypingShort', 'isListening', 'justNow',
   'liveLocationJustNow', 'dragHint', 'tgMoodNotSet',
+  // Часы партнёра в шапке чата: «в сети · у неё 02:14» (TOG-48).
+  'chatPartnerClockF', 'chatPartnerClockM', 'chatPartnerClockX',
   // Давность точки на виджете «Где мы»: «Аня · сейчас», как «12 мин. назад».
   'mapWidgetNow',
   // Форматы полей ввода — образец, а не фраза.
