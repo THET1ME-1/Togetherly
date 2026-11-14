@@ -66,6 +66,7 @@ import 'l10n/dict/watch_voice.dart';
 import 'l10n/dict/welcome.dart';
 import 'l10n/dict/widget_screen.dart';
 import 'l10n/dict/home_widgets.dart';
+import 'l10n/pt/inline.dart';
 import 'l10n/uk/inline.dart';
 import 'l10n/uk/uk.dart';
 import 'l10n/zh/inline.dart';
@@ -184,6 +185,7 @@ String ruEn(String ru, String en) => switch (LocaleService.instance.language) {
 String trEnglish(String en) => switch (LocaleService.instance.language) {
       AppLanguage.zh => _byEnglish(kZhByEnglish, en),
       AppLanguage.uk => _byEnglish(kUkByEnglish, en),
+      AppLanguage.pt => _byEnglish(kPtByEnglish, en),
       _ => en,
     };
 

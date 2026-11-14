@@ -154,7 +154,7 @@ class _TuWardrobeScreenState extends State<TuWardrobeScreen> {
                       const SizedBox(width: 6),
                       Flexible(
                         child: Text(
-                          ruEn('Примерка: ', 'Trying on: ') + (_ru ? trying.nameRu : trying.nameEn),
+                          ruEn('Примерка: ', 'Trying on: ') + ruEn(trying.nameRu, trying.nameEn),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: cs.onPrimaryContainer),
@@ -256,7 +256,7 @@ class _TuWardrobeScreenState extends State<TuWardrobeScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                _ru ? item.nameRu : item.nameEn,
+                ruEn(item.nameRu, item.nameEn),
                 maxLines: 2,
                 textAlign: TextAlign.center,
                 overflow: TextOverflow.ellipsis,
@@ -418,7 +418,7 @@ class _TuWardrobeScreenState extends State<TuWardrobeScreen> {
 
   Future<void> _buyCoins(TuWear item) async {
     if (_busy) return;
-    final name = _ru ? item.nameRu : item.nameEn;
+    final name = ruEn(item.nameRu, item.nameEn);
     final service = TuWearService.instance;
     setState(() => _busy = true);
     try {
@@ -426,7 +426,9 @@ class _TuWardrobeScreenState extends State<TuWardrobeScreen> {
       if (!mounted) return;
       if (error == null) _trying = null;
       _say(switch (error) {
-        null => ruEn('«$name» теперь ваше и уже надето', '“$name” is yours and already on'),
+        // Имя ставится после перевода: по образцу находится только строка с меткой.
+        null => ruEn('«$name» теперь ваше и уже надето', '“{0}” is yours and already on')
+            .replaceAll('{0}', name),
         'insufficient' => ruEn('Не хватает монет: нужно ${item.price}, у вас ${service.coins}',
             'Not enough coins: ${item.price} needed, you have ${service.coins}'),
         _ => ruEn('Не получилось, попробуйте ещё раз', 'Something went wrong, try again'),
@@ -441,7 +443,7 @@ class _TuWardrobeScreenState extends State<TuWardrobeScreen> {
   /// последний ролик — панель остаётся с «Ещё ролик · 1 из 3».
   Future<void> _watchAd(TuWear item) async {
     if (_busy) return;
-    final name = _ru ? item.nameRu : item.nameEn;
+    final name = ruEn(item.nameRu, item.nameEn);
     setState(() => _busy = true);
     try {
       if (!_plus) {
@@ -463,7 +465,9 @@ class _TuWardrobeScreenState extends State<TuWardrobeScreen> {
       final more = step.error == null && !step.granted;
       _say(switch (step.error) {
         null when more => ruEn('Ролик засчитан: ${step.progress} из ${item.adsNeeded}', 'Ad counted: ${step.progress} of ${item.adsNeeded}'),
-        null => ruEn('«$name» теперь ваше и уже надето', '“$name” is yours and already on'),
+        // Имя ставится после перевода: по образцу находится только строка с меткой.
+        null => ruEn('«$name» теперь ваше и уже надето', '“{0}” is yours and already on')
+            .replaceAll('{0}', name),
         'too_fast' => ruEn('Подождите пару секунд и смотрите следующий', 'Wait a few seconds before the next one'),
         _ => ruEn('Не получилось, попробуйте ещё раз', 'Something went wrong, try again'),
       });

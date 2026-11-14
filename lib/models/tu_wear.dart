@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import '../dict_strings.dart';
+
 /// Вещь гардероба Ту (маскота-облачка): запись каталога вида `wear`.
 ///
 /// Рисунок вещи не перерисовывается в приложении: мастерская (`bake_wear.py`)
@@ -162,14 +164,15 @@ Map<String, String> wearTryOn(Map<String, String> outfit, TuWear item) => {...ou
 /// шарфом, как в мастерской (`mascot.js`, слой `dress`).
 const List<String> kTuWearCats = ['outfit', 'glasses', 'face', 'neck', 'top', 'over', 'pet'];
 
+// Английская половина идёт через trEnglish: остальные языки берут перевод по ней.
 String tuWearCatName(String cat, {required bool ru}) => switch (cat) {
-      'outfit' => ru ? 'Одежда' : 'Clothes',
-      'glasses' => ru ? 'Очки' : 'Glasses',
-      'face' => ru ? 'Лицо' : 'Face',
-      'neck' => ru ? 'Шарфы и пледы' : 'Scarves',
-      'top' => ru ? 'Макушка' : 'Head',
-      'over' => ru ? 'Над головой' : 'Above',
-      'pet' => ru ? 'Друг рядом' : 'Buddy',
+      'outfit' => ru ? 'Одежда' : trEnglish('Clothes'),
+      'glasses' => ru ? 'Очки' : trEnglish('Glasses'),
+      'face' => ru ? 'Лицо' : trEnglish('Face'),
+      'neck' => ru ? 'Шарфы и пледы' : trEnglish('Scarves'),
+      'top' => ru ? 'Макушка' : trEnglish('Head'),
+      'over' => ru ? 'Над головой' : trEnglish('Above'),
+      'pet' => ru ? 'Друг рядом' : trEnglish('Buddy'),
       _ => cat,
     };
 

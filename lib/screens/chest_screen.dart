@@ -888,7 +888,8 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
   String _wearTitle(ChestPrize p) {
     final w = CatalogService.instance.wearItem(p.key);
     final name = w == null ? (p.wearKey ?? p.key) : ruEn(w.nameRu, w.nameEn);
-    return ruEn('Вещь Ту «$name»', 'Tu’s item “$name”');
+    // Имя ставится после перевода: по образцу находится только строка с меткой.
+    return ruEn('Вещь Ту «$name»', 'Tu’s item “{0}”').replaceAll('{0}', name);
   }
 
   String _wonText(ChestPrize p) => switch (p.kind) {

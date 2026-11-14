@@ -1,3 +1,4 @@
+import '../l10n/pt/gifts.dart';
 import '../l10n/uk/gifts.dart';
 import '../l10n/zh/gifts.dart';
 import '../services/catalog_service.dart';
@@ -222,6 +223,7 @@ class Gift {
         AppLanguage.ru => titleRu,
         AppLanguage.zh => kGiftTitlesZh[key] ?? titleEn,
         AppLanguage.uk => kGiftTitlesUk[key] ?? titleEn,
+        AppLanguage.pt => kGiftTitlesPt[key] ?? titleEn,
         _ => titleEn,
       };
 }

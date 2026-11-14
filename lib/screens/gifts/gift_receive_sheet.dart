@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../l10n/pt/gifts.dart';
 import '../../l10n/uk/gifts.dart';
 import '../../l10n/zh/gifts.dart';
 import '../../models/gift.dart';
@@ -192,6 +193,7 @@ class _GiftReceiveSheetState extends State<GiftReceiveSheet>
       AppLanguage.ru => letter ? 'Открой письмо' : actionHintRu(widget.gift.action),
       AppLanguage.zh => letter ? '打开信' : actionHintZh(widget.gift.action),
       AppLanguage.uk => letter ? 'Відкрий лист' : actionHintUk(widget.gift.action),
+      AppLanguage.pt => letter ? 'Abra a carta' : actionHintPt(widget.gift.action),
       _ => letter ? 'Open the letter' : actionHintEn(widget.gift.action),
     };
     final hasPhoto = widget.photo?.trim().isNotEmpty == true;

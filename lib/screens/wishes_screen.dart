@@ -861,8 +861,8 @@ class _WishTile extends StatelessWidget {
               if (onReserve != null && wish.isItem && !done)
                 IconButton(
                   tooltip: reserved
-                      ? (ru ? 'Я дарю' : "I'm gifting")
-                      : (ru ? 'Дарю' : 'Gift it'),
+                      ? (ru ? 'Я дарю' : trEnglish("I'm gifting"))
+                      : (ru ? 'Дарю' : trEnglish('Gift it')),
                   onPressed: onReserve,
                   icon: Icon(
                     reserved
@@ -876,7 +876,7 @@ class _WishTile extends StatelessWidget {
               // а желание обычно и приходит ссылкой.
               if (wish.url.isNotEmpty)
                 IconButton(
-                  tooltip: ru ? 'Открыть' : 'Open',
+                  tooltip: ru ? 'Открыть' : trEnglish('Open'),
                   onPressed: () async {
                     final uri = Uri.tryParse(wish.url);
                     if (uri == null) return;

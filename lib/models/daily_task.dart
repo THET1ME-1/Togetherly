@@ -1,3 +1,4 @@
+import '../l10n/pt/daily_tasks.dart';
 import '../l10n/uk/daily_tasks.dart';
 import '../l10n/zh/daily_tasks.dart';
 import '../services/locale_service.dart';
@@ -35,6 +36,7 @@ class DailyTask {
       AppLanguage.ru => _ru,
       AppLanguage.zh => kDailyTasksZh[id] ?? _en,
       AppLanguage.uk => kDailyTasksUk[id] ?? _en,
+      AppLanguage.pt => kDailyTasksPt[id] ?? _en,
       _ => _en,
     };
     return raw.replaceAll('{p}', p);
