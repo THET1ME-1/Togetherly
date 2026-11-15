@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
@@ -19,6 +20,34 @@ enum VoiceCallState {
 
   /// Соединение оборвалось, пробуем снова.
   failed,
+}
+
+/// Что делать в ответ на «voice-hello».
+enum HelloAction {
+  /// Сделать предложение соединения.
+  offer,
+
+  /// Позвать в ответ: собеседник включился позже нас и нашего первого зова
+  /// не слышал.
+  callBack,
+
+  /// Ничего.
+  none,
+}
+
+/// Ответ на зов. Предложение делает «невежливый» (uid больше), один раз.
+/// «Вежливый» отвечает своим зовом с пометкой `reply`: кто позвонил первым,
+/// звал в пустоту, и без ответного зова второй ждал бы предложения вечно —
+/// звонок висел на «Ждём ответа» (обращение 648, 15.11.2026).
+HelloAction helloAction({
+  required String me,
+  required String from,
+  required bool reply,
+  required bool offered,
+}) {
+  final polite = me.compareTo(from) < 0;
+  if (!polite) return offered ? HelloAction.none : HelloAction.offer;
+  return reply ? HelloAction.none : HelloAction.callBack;
 }
 
 /// Голос между двумя в комнате совместного просмотра.
@@ -44,8 +73,10 @@ class WatchVoiceService extends ChangeNotifier {
   MediaStream? _remote;
   final List<RTCIceCandidate> _pending = [];
   String _peer = '';
-  bool _polite = false;
   bool _negotiating = false;
+
+  /// Предложение уже ушло: ответный зов второй раз его не повторяет.
+  bool _offered = false;
 
   VoiceCallState _state = VoiceCallState.off;
   VoiceCallState get state => _state;
@@ -89,6 +120,7 @@ class WatchVoiceService extends ChangeNotifier {
     if (_state != VoiceCallState.off) return;
     _set(VoiceCallState.connecting);
     try {
+      await _shareSoundWithVideo();
       _local = await navigator.mediaDevices.getUserMedia({
         'audio': {
           'echoCancellation': true,
@@ -109,9 +141,46 @@ class WatchVoiceService extends ChangeNotifier {
     }
   }
 
+  /// Звонок рядом с видео, а не вместо него (обращение 648, 15.11.2026).
+  ///
+  /// По умолчанию WebRTC берёт звук телефона целиком. На Android это фокус
+  /// звука `AUDIOFOCUS_GAIN`: плеер в комнате теряет фокус и встаёт на паузу.
+  /// На iPhone — сессия `playAndRecord` без `mixWithOthers`, и видео тоже
+  /// замолкает. Поэтому звонок фокус не забирает, а сессию открывает
+  /// смешиваемой, с выводом на динамик, а не в ухо.
+  Future<void> _shareSoundWithVideo() async {
+    if (kIsWeb) return;
+    try {
+      if (Platform.isAndroid) {
+        await Helper.setAndroidAudioConfiguration(AndroidAudioConfiguration(
+          manageAudioFocus: false,
+          androidAudioMode: AndroidAudioMode.inCommunication,
+          androidAudioStreamType: AndroidAudioStreamType.voiceCall,
+          androidAudioAttributesUsageType: AndroidAudioAttributesUsageType.voiceCommunication,
+          androidAudioAttributesContentType: AndroidAudioAttributesContentType.speech,
+        ));
+      } else if (Platform.isIOS) {
+        await Helper.setAppleAudioConfiguration(AppleAudioConfiguration(
+          appleAudioCategory: AppleAudioCategory.playAndRecord,
+          appleAudioCategoryOptions: const {
+            AppleAudioCategoryOption.mixWithOthers,
+            AppleAudioCategoryOption.defaultToSpeaker,
+            AppleAudioCategoryOption.allowBluetooth,
+            AppleAudioCategoryOption.allowBluetoothA2DP,
+          },
+          appleAudioMode: AppleAudioMode.videoChat,
+        ));
+      }
+    } catch (e) {
+      // Не настроилось — звоним как раньше, лишь бы звонок был.
+      debugPrint('WatchVoice: звук не настроен: $e');
+    }
+  }
+
   /// Выключить микрофон и разорвать связь.
   Future<void> stop() async {
     _negotiating = false;
+    _offered = false;
     _pending.clear();
     try {
       await channel.send('voice-bye', extra: {'uid': me});
@@ -158,13 +227,19 @@ class WatchVoiceService extends ChangeNotifier {
         // нет, сообщение просто игнорируем: навязывать разговор нельзя.
         if (_state == VoiceCallState.off) return true;
         _peer = from;
-        _polite = me.compareTo(from) < 0;
-        if (!_polite) await _offer();
+        switch (helloAction(
+            me: me, from: from, reply: msg['reply'] == true, offered: _offered)) {
+          case HelloAction.offer:
+            await _offer();
+          case HelloAction.callBack:
+            await channel.send('voice-hello', extra: {'uid': me, 'reply': true});
+          case HelloAction.none:
+            break;
+        }
         break;
       case 'voice-offer':
         if (_state == VoiceCallState.off) return true;
         _peer = from;
-        _polite = me.compareTo(from) < 0;
         await _ensurePeer();
         await _pc!.setRemoteDescription(
             RTCSessionDescription(msg['sdp']?.toString(), 'offer'));
@@ -255,6 +330,7 @@ class WatchVoiceService extends ChangeNotifier {
       final offer = await _pc!.createOffer({'offerToReceiveAudio': 1});
       await _pc!.setLocalDescription(offer);
       await channel.send('voice-offer', extra: {'uid': me, 'sdp': offer.sdp});
+      _offered = true;
     } catch (e) {
       debugPrint('WatchVoice._offer failed: $e');
       _set(VoiceCallState.failed);
