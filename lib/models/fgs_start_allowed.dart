@@ -11,6 +11,14 @@
 library;
 
 import 'package:flutter/widgets.dart';
+import 'package:geolocator/geolocator.dart' show LocationPermission;
+
+/// Есть ли разрешение, без которого Android 14+ не поднимает службу
+/// геопозиции («… requires permissions ACCESS_COARSE/FINE_LOCATION»).
+/// «Только при использовании» на переднем плане хватает.
+bool locationPermissionGranted(LocationPermission permission) =>
+    permission == LocationPermission.always ||
+    permission == LocationPermission.whileInUse;
 
 /// [state] — состояние приложения (`WidgetsBinding.instance.lifecycleState`),
 /// `null` означает «первый кадр ещё не был». [android] — нужна ли проверка

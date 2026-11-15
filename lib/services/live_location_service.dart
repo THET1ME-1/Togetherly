@@ -220,6 +220,15 @@ class LiveLocationService with WidgetsBindingObserver {
       debugPrint('LiveLocationService: старт из фона пропущен (FGS запрещён)');
       return;
     }
+    // Без разрешения на местоположение Android 14+ не даёт поднять службу
+    // геопозиции: «Starting FGS with type location … requires permissions»
+    // (Bugsink, 1.43, ~30 раз за трое суток). Так бывает, когда «Где мы»
+    // включали раньше, а разрешение потом отозвали. Здесь только проверяем,
+    // а не спрашиваем: автозапуск на старте не должен бросать диалог в лицо.
+    if (!await _hasLocationPermission()) {
+      debugPrint('LiveLocationService: разрешения на местоположение нет, поток не поднимаем');
+      return;
+    }
     final channel = _channel(pairId, partnerUid);
     if (_activePairId == channel && _posSub != null) return;
 
@@ -316,6 +325,15 @@ class LiveLocationService with WidgetsBindingObserver {
         WidgetsBinding.instance.lifecycleState,
         android: Platform.isAndroid,
       );
+
+  /// Есть ли разрешение на местоположение сейчас. Не спрашивает.
+  Future<bool> _hasLocationPermission() async {
+    try {
+      return locationPermissionGranted(await Geolocator.checkPermission());
+    } catch (_) {
+      return false;
+    }
+  }
 
   Future<void> _pushCurrent(String pairId) async {
     try {

@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:geolocator/geolocator.dart' show LocationPermission;
 import 'package:love_app/models/fgs_start_allowed.dart';
 
 /// Можно ли поднимать location-сервис прямо сейчас.
@@ -54,5 +57,29 @@ void main() {
         isTrue,
       );
     });
+  });
+
+  group('locationPermissionGranted', () {
+    // Bugsink, 1.43: «Starting FGS with type location … requires permissions»
+    // — «Где мы» включали раньше, а разрешение потом отозвали.
+    test('без разрешения службу не поднимаем', () {
+      expect(locationPermissionGranted(LocationPermission.denied), isFalse);
+      expect(locationPermissionGranted(LocationPermission.deniedForever), isFalse);
+      expect(locationPermissionGranted(LocationPermission.unableToDetermine), isFalse);
+    });
+
+    test('«всегда» и «при использовании» годятся', () {
+      expect(locationPermissionGranted(LocationPermission.always), isTrue);
+      expect(locationPermissionGranted(LocationPermission.whileInUse), isTrue);
+    });
+  });
+
+  test('старт потока проверяет разрешение, а не только передний план', () {
+    final src = File('lib/services/live_location_service.dart').readAsStringSync();
+    final start = src.indexOf('Future<void> startSharing(');
+    final stream = src.indexOf('getPositionStream(', start);
+    final check = src.indexOf('_hasLocationPermission()', start);
+    expect(check, greaterThan(start));
+    expect(check, lessThan(stream), reason: 'проверка разрешения обязана стоять до запуска потока');
   });
 }
