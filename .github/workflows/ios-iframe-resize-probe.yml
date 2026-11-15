@@ -1,0 +1,78 @@
+name: iOS → проба «картинка замирает при сжатии кадра»
+
+# Обращение 649 (15.11.2026): в комнате просмотра на iPhone картинка видео
+# замирает, когда открывается клавиатура, а звук идёт дальше. Комната в этот
+# момент ужимает кадр. Прогон открывает в Safari симулятора страницу
+# tools/probe/iframe_resize.html (тот же кадр, сжимается сам каждые 6 с) и
+# пишет экран; в артефакте видео и кадры раз в секунду.
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Симулятор iPhone
+        id: sim
+        run: |
+          DEVICE=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys, re
+          data = json.load(sys.stdin)['devices']
+          best = None
+          for runtime, devs in data.items():
+              m = re.search(r'iOS-(\d+)-(\d+)', runtime)
+              if not m:
+                  continue
+              ver = (int(m.group(1)), int(m.group(2)))
+              for d in devs:
+                  name = d['name']
+                  if 'iPhone' not in name or 'Pro' not in name or 'Max' in name:
+                      continue
+                  key = (ver, name)
+                  if best is None or key > best[0]:
+                      best = (key, d['udid'], name)
+          print(best[1]); print(best[2], best[0][0], file=sys.stderr)
+          ")
+          echo "device=$DEVICE" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$DEVICE" || true
+          xcrun simctl bootstatus "$DEVICE" -b
+          open -a Simulator || true
+
+      - name: Страница и запись
+        env:
+          DEVICE: ${{ steps.sim.outputs.device }}
+        run: |
+          set +e
+          mkdir -p out
+          (cd tools/probe && python3 -m http.server 8765 >/dev/null 2>&1 &)
+          sleep 2
+          xcrun simctl openurl "$DEVICE" "http://localhost:8765/iframe_resize.html"
+          sleep 3
+          xcrun simctl io "$DEVICE" recordVideo --codec=h264 --force out/probe.mov &
+          REC=$!
+          sleep 75
+          kill -INT $REC
+          wait $REC
+          ls -la out
+
+      - name: Кадры
+        if: always()
+        run: |
+          brew install ffmpeg >/dev/null 2>&1 || true
+          if [ -f out/probe.mov ]; then
+            ffmpeg -y -loglevel error -i out/probe.mov -vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" \
+              -c:v libx264 -pix_fmt yuv420p out/probe.mp4
+            mkdir -p out/frames
+            ffmpeg -y -loglevel error -i out/probe.mov -vf "fps=1,scale=360:-1" out/frames/%03d.png
+          fi
+          ls out out/frames | head -100
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: iframe-resize-probe
+          path: out/
+          retention-days: 7

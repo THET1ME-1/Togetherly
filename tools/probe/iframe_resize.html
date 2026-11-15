@@ -1,0 +1,52 @@
+<!doctype html>
+<!--
+  Проба для обращения 649 (15.11.2026): на iPhone картинка видео в комнате
+  замирает, когда открывается клавиатура, звук идёт дальше. Комната в этот
+  момент ужимает кадр (`.room-body.typing .player`, max-height 42% → 28%).
+  Здесь тот же кадр, что в room.css, ужимается и разжимается сам каждые 6 с;
+  запись экрана симулятора показывает, идёт ли картинка после сжатия.
+  Первые 20 с кадр не трогается: видео успевает загрузиться.
+-->
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+  html, body { margin: 0; background: #1a0d10; color: #fff; font: 14px -apple-system, sans-serif; }
+  .wrap { padding: 12px; display: grid; gap: 10px; height: 100dvh; box-sizing: border-box; align-content: start; }
+  .player {
+    aspect-ratio: 16 / 9; width: 100%; border-radius: 18px; overflow: hidden;
+    max-height: calc(100dvh * 0.42); margin-inline: auto; background: #4a2028;
+    display: grid; place-items: center; transition: none;
+  }
+  body.typing .player { max-height: calc(100dvh * 0.28); }
+  .player iframe { width: 100%; height: 100%; border: 0; display: block; }
+  #clock { font-size: 22px; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="clock">0</div>
+  <div class="player" id="yt"></div>
+  <div class="player" id="vk"></div>
+</div>
+<script>
+  const yt = document.createElement('iframe');
+  yt.allow = 'autoplay; fullscreen; encrypted-media; picture-in-picture';
+  yt.src = 'https://www.youtube.com/embed/aqz-KE-bpKQ?autoplay=1&mute=1&playsinline=1&controls=0&rel=0';
+  document.getElementById('yt').appendChild(yt);
+  const vk = document.createElement('iframe');
+  vk.allow = 'autoplay; fullscreen; encrypted-media; picture-in-picture';
+  vk.src = 'https://vk.com/video_ext.php?oid=-27477591&id=456240708&hd=2&autoplay=1&js_api=1';
+  document.getElementById('vk').appendChild(vk);
+
+  const t0 = Date.now();
+  setInterval(() => {
+    const s = Math.floor((Date.now() - t0) / 1000);
+    const typing = s >= 20 && Math.floor((s - 20) / 6) % 2 === 0;
+    document.body.classList.toggle('typing', typing);
+    document.getElementById('clock').textContent = s + ' с · ' + (typing ? 'сжат' : 'полный');
+  }, 250);
+</script>
+</body>
+</html>
