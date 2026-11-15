@@ -31,6 +31,63 @@ final _memos = [
 void main() {
   setUp(() => LocaleService.instance.setLanguage(AppLanguage.ru));
 
+  // Пар бывает несколько, а полка «Что вам дарили» одна: подарки Даши
+  // подписывались именем Ивана, когда открыта пара с Иваном, и наоборот
+  // (жалоба 15.11.2026, четыре снимка одной полки).
+  group('имя отправителя — его собственное, а не партнёра открытой пары', () {
+    test('подарок от партнёра открытой пары — его имя', () {
+      expect(
+          giftSenderName(
+              senderUid: 'ivan', counterpartUid: 'ivan', counterpartName: 'Иван'),
+          'Иван');
+    });
+
+    test('подарок от другого человека не подписывается партнёром открытой пары',
+        () {
+      expect(
+          giftSenderName(
+              senderUid: 'dasha', counterpartUid: 'ivan', counterpartName: 'Иван'),
+          isNull);
+    });
+
+    test('известное имя отправителя сильнее имени партнёра', () {
+      expect(
+          giftSenderName(
+              senderUid: 'dasha',
+              counterpartUid: 'ivan',
+              counterpartName: 'Иван',
+              known: const {'dasha': '(Дашуля)'}),
+          '(Дашуля)');
+    });
+
+    test('номер партнёра неизвестен — подпись как раньше', () {
+      expect(giftSenderName(senderUid: 'sasha', counterpartName: 'Саша'), 'Саша');
+    });
+  });
+
+  testWidgets('в листе подарок другого человека не носит имя партнёра пары',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: GiftMemoList(
+          gift: _gift,
+          memos: _memos,
+          myUid: 'me',
+          shelfOwnerUid: 'me',
+          counterpartName: 'Иван',
+          counterpartUid: 'ivan',
+          senderNames: const {'sasha': 'Саша'},
+          scheme: ColorScheme.fromSeed(seedColor: const Color(0xFFFF7E8B)),
+          ru: true,
+          strings: LocaleService.current,
+        ),
+      ),
+    ));
+    await tester.pump();
+    expect(find.text('от Саша'), findsOneWidget);
+    expect(find.text('от Иван'), findsNothing);
+  });
+
   test('раз, раза, раз', () {
     expect(giftTimesLabel(1, ru: true), '1 раз');
     expect(giftTimesLabel(2, ru: true), '2 раза');

@@ -4,6 +4,8 @@ import '../../dict_strings.dart' show trEnglish;
 import '../../models/gift.dart';
 import '../../models/partner_profile.dart';
 import '../../services/locale_service.dart';
+import '../../services/nickname_service.dart';
+import '../../services/pb_data_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/fonts.dart';
 import '../../theme/profile_theme.dart';
@@ -30,6 +32,7 @@ Future<void> showGiftMemoSheet(
   required List<GiftMemo> memos,
   required String myUid,
   String? counterpartName,
+  String counterpartUid = '',
   String shelfOwnerUid = '',
 }) {
   // Тему и строки снимаем ДО открытия листа: он переживает экран, и обращение
@@ -37,6 +40,10 @@ Future<void> showGiftMemoSheet(
   final scheme = ProfileTheme.themeFor(theme).colorScheme;
   final ru = LocaleService.instance.isRussian;
   final s = LocaleService.current;
+  // Имена дарителей из других пар: лист открывается сразу, имя встаёт, когда
+  // карточка человека приехала, а до тех пор подпись обезличенная.
+  final names = _senderNamesOf(memos,
+      skip: {myUid, shelfOwnerUid, counterpartUid, kChestSenderUid});
 
   return showAppSheet<void>(
     context,
@@ -44,19 +51,53 @@ Future<void> showGiftMemoSheet(
     builder: (_) => Theme(
       data: ProfileTheme.data(scheme),
       child: SheetScaffold(
-        child: GiftMemoList(
-          gift: gift,
-          memos: memos,
-          myUid: myUid,
-          shelfOwnerUid: shelfOwnerUid,
-          counterpartName: counterpartName,
-          scheme: scheme,
-          ru: ru,
-          strings: s,
+        child: FutureBuilder<Map<String, String>>(
+          future: names,
+          initialData: const {},
+          builder: (_, snap) => GiftMemoList(
+            gift: gift,
+            memos: memos,
+            myUid: myUid,
+            shelfOwnerUid: shelfOwnerUid,
+            counterpartName: counterpartName,
+            counterpartUid: counterpartUid,
+            senderNames: snap.data ?? const {},
+            scheme: scheme,
+            ru: ru,
+            strings: s,
+          ),
         ),
       ),
     ),
   );
+}
+
+/// Имена дарителей на полке за сеанс: лист открывают снова и снова, а
+/// карточку человека хватит спросить один раз.
+final Map<String, String> _senderNameCache = {};
+
+/// Имена тех, кто дарил, кроме [skip]: псевдоним, если человек его задал,
+/// иначе имя из карточки. Карточку сервер отдаёт только тому, с кем у
+/// человека есть общая пара, — другим имени не будет, подпись останется
+/// «от партнёра».
+Future<Map<String, String>> _senderNamesOf(List<GiftMemo> memos,
+    {required Set<String> skip}) async {
+  final uids = {
+    for (final m in memos)
+      if (m.senderUid.isNotEmpty && !skip.contains(m.senderUid)) m.senderUid,
+  };
+  final out = <String, String>{};
+  for (final uid in uids) {
+    var name = _senderNameCache[uid] ?? '';
+    if (name.isEmpty) {
+      final card = await PbDataService().loadPartnerCard(uid);
+      name = (card?['displayName'] as String?)?.trim() ?? '';
+      if (name.isNotEmpty) _senderNameCache[uid] = name;
+    }
+    final shown = NicknameService.instance.resolve(uid, name).trim();
+    if (shown.isNotEmpty) out[uid] = shown;
+  }
+  return out;
 }
 
 /// «2 раза», «5 раз» — лист говорит по-русски и по-английски.
@@ -81,12 +122,20 @@ class GiftMemoList extends StatelessWidget {
     required this.myUid,
     this.shelfOwnerUid = '',
     required this.counterpartName,
+    this.counterpartUid = '',
+    this.senderNames = const {},
     required this.scheme,
     required this.ru,
     required this.strings,
   });
 
   final Gift gift;
+
+  /// Номер партнёра открытой пары: его имя ставится только на его подарки.
+  final String counterpartUid;
+
+  /// Имена дарителей по номеру — подарки из других пар подписаны ими.
+  final Map<String, String> senderNames;
   final List<GiftMemo> memos;
   final String myUid;
 
@@ -116,12 +165,19 @@ class GiftMemoList extends StatelessWidget {
   GiftSender _senderOf(String uid) =>
       giftSenderOf(senderUid: uid, myUid: myUid, shelfOwnerUid: shelfOwnerUid);
 
-  String _senderLabel(GiftSender who) {
+  String? _nameOf(String uid) => giftSenderName(
+        senderUid: uid,
+        counterpartUid: counterpartUid,
+        counterpartName: counterpartName,
+        known: senderNames,
+      );
+
+  String _senderLabel(GiftSender who, String uid) {
     switch (who) {
       case GiftSender.me:
         return _tr('от вас', 'from you');
       case GiftSender.counterpart:
-        final name = counterpartName?.trim();
+        final name = _nameOf(uid);
         if (name != null && name.isNotEmpty) {
           if (_zh) return '来自 $name';
           if (_uk) return 'від $name';
@@ -232,8 +288,8 @@ class GiftMemoList extends StatelessWidget {
                     ru: ru,
                     strings: strings,
                     dateLabel: _dateLabel(memos[i].sentAt),
-                    senderLabel: _senderLabel(who),
-                    counterpartName: counterpartName,
+                    senderLabel: _senderLabel(who, memos[i].senderUid),
+                    counterpartName: _nameOf(memos[i].senderUid),
                     sender: who,
                     replyIsMine: _replyIsMine,
                   );

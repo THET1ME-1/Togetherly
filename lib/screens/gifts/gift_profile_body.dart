@@ -34,6 +34,7 @@ class GiftProfileBody extends StatefulWidget {
     this.onAvatarTap,
     this.showHeader = true,
     this.counterpartName,
+    this.counterpartUid = '',
     this.showMissWeek = true,
     this.showGiftsTitle = true,
   });
@@ -57,6 +58,10 @@ class GiftProfileBody extends StatefulWidget {
   /// Имя второго в паре — им подписаны записки в листе подарка. Пусто —
   /// подпись станет обезличенной («от партнёра»), но лист всё равно откроется.
   final String? counterpartName;
+
+  /// Номер второго в паре: его имя ставится только на его подарки, подарки
+  /// из других пар подписаны своими дарителями.
+  final String counterpartUid;
 
   /// false — не рисовать столбики «Я скучаю». Нужно экрану одной полки, где
   /// кроме подарков не должно быть ничего.
@@ -121,6 +126,7 @@ class GiftProfileBodyState extends State<GiftProfileBody> {
       myUid: PocketBaseService().userId ?? '',
       shelfOwnerUid: widget.uid,
       counterpartName: widget.counterpartName,
+      counterpartUid: widget.counterpartUid,
     );
   }
 

@@ -225,6 +225,28 @@ enum GiftSender {
 /// Отправитель подарков из сундука (`chest.pb.js`).
 const String kChestSenderUid = 'chest';
 
+/// Чьим именем подписать подарок не от меня. null — имя неизвестно, подпись
+/// обезличенная («от партнёра»).
+///
+/// Пар бывает несколько, а полка одна: раньше любой чужой подарок носил имя
+/// партнёра ОТКРЫТОЙ пары, и подарки Даши подписывались Иваном, стоило
+/// переключиться на пару с ним (жалоба 15.11.2026). Имя партнёра годится
+/// только для его собственных подарков; [known] — имена, найденные по номеру
+/// отправителя. Номер партнёра неизвестен — проверить нечего, подпись прежняя.
+String? giftSenderName({
+  required String senderUid,
+  String counterpartUid = '',
+  String? counterpartName,
+  Map<String, String> known = const {},
+}) {
+  final found = known[senderUid]?.trim();
+  if (found != null && found.isNotEmpty) return found;
+  final name = counterpartName?.trim();
+  if (name == null || name.isEmpty) return null;
+  if (counterpartUid.isEmpty || counterpartUid == senderUid) return name;
+  return null;
+}
+
 /// Кем подписать подарок на полке.
 ///
 /// Жалоба 14 августа 2026: «приложение показывает мой подарок партнёру так,

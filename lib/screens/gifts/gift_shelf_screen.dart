@@ -19,6 +19,7 @@ class GiftShelfScreen extends StatefulWidget {
     required this.selfUid,
     required this.selfName,
     this.partnerName,
+    this.partnerUid = '',
   });
 
   final AppTheme theme;
@@ -28,6 +29,9 @@ class GiftShelfScreen extends StatefulWidget {
 
   /// Имя партнёра — им подписаны записки к подаркам.
   final String? partnerName;
+
+  /// Номер партнёра: его имя только на его подарках.
+  final String partnerUid;
 
   @override
   State<GiftShelfScreen> createState() => _GiftShelfScreenState();
@@ -80,6 +84,7 @@ class _GiftShelfScreenState extends State<GiftShelfScreen> {
                 name: widget.selfName,
                 isSelf: true,
                 counterpartName: widget.partnerName,
+                counterpartUid: widget.partnerUid,
                 showHeader: false,
                 showGiftsTitle: false,
                 showMissWeek: false,
