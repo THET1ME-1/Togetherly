@@ -39,14 +39,17 @@ GuideHintLayout guideHintLayout({required Rect target, required Size screen, boo
   below ??= ty < screen.height / 2;
   final top = below ? target.bottom + gap : target.top - gap - c;
   final right = tx > screen.width / 2;
-  final left = (right ? tx - c * 0.95 : tx - c * 0.05).clamp(edge, screen.width - edge - c);
+  // Верхние границы не меньше нижних: на экране уже 120 точек (окно iPhone
+  // при запуске в фоне бывает нулевым) `clamp` бросал «Invalid argument(s):
+  // 8.0» — 9 падений за трое суток на 1.43.
+  final double left = (right ? tx - c * 0.95 : tx - c * 0.05).clamp(edge, math.max(edge, screen.width - edge - c));
   final cloud = Rect.fromLTWH(left, top, c, c);
 
-  final width = math.min(220.0, screen.width - c - 3 * edge);
+  final width = math.max(0.0, math.min(220.0, screen.width - c - 3 * edge));
   final cloudOnRight = cloud.center.dx >= screen.width / 2;
   var bLeft = cloudOnRight ? cloud.left - width - 2 : cloud.right + 2;
   var bTop = cloud.top + 10;
-  bLeft = bLeft.clamp(edge, screen.width - edge - width);
+  bLeft = bLeft.clamp(edge, math.max(edge, screen.width - edge - width));
   // Сбоку не поместилось — пузырь встаёт над облачком (или под ним у верхних
   // кнопок), лишь бы не закрывать ни облачко, ни кнопку.
   final bubble = Rect.fromLTWH(bLeft, bTop, width, guideHintBubbleHeight);

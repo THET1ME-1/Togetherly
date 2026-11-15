@@ -20,6 +20,20 @@ Future<String?> showGiftNoteSheet(
 }) {
   final s = LocaleService.current;
   final ctrl = TextEditingController();
+
+  // Лист закрывается один раз и только когда навигатору есть что закрыть.
+  // Bugsink, 1.43: `pop` отсюда падал «Bad state: No element» — у навигатора
+  // не оставалось живых экранов (20 падений за трое суток, после реакций на
+  // подарки из сундука; как именно, не воспроизведено), и интерфейс
+  // рассыпался. `canPop` в этом случае честно отвечает «нет».
+  var closed = false;
+  void close(BuildContext ctx, String value) {
+    if (closed) return;
+    closed = true;
+    final nav = Navigator.of(ctx);
+    if (nav.canPop()) nav.pop(value);
+  }
+
   return showModalSheet<String>(
     context: context,
     isScrollControlled: true,
@@ -101,14 +115,14 @@ Future<String?> showGiftNoteSheet(
                 children: [
                   Expanded(
                     child: TextButton(
-                      onPressed: () => Navigator.of(ctx).pop(''),
+                      onPressed: () => close(ctx, ''),
                       child: Text(s.giftNoteSkip),
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: FilledButton(
-                      onPressed: () => Navigator.of(ctx).pop(ctrl.text),
+                      onPressed: () => close(ctx, ctrl.text),
                       child: Text(s.giftNoteSend),
                     ),
                   ),

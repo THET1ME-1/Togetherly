@@ -33,6 +33,8 @@ Future<void> showGuideHint(
 
   final target = box.localToGlobal(Offset.zero) & box.size;
   final screen = MediaQuery.sizeOf(context);
+  // Окно ещё не разложено (запуск в фоне): облачку и пузырю негде встать.
+  if (screen.width < guideHintCloud + 120) return;
   final layout = guideHintLayout(target: target, screen: screen, below: below);
   final cs = ProfileTheme.schemeFor(theme);
 

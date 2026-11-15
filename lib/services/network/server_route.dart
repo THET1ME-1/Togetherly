@@ -319,6 +319,11 @@ class ServerRoute {
   /// Спрашивает сервер по уже открытому соединению и ждёт первых байт ответа,
   /// какой бы он ни был. Соединение после этого закрывается.
   static Future<void> _askHealth(Socket socket, String host) async {
+    // Соединение, достроившееся после срока проверки, закрывают раньше, чем
+    // сюда дойдёт очередь: запись в него бросала «Bad state: Cannot add event
+    // after closing», а ошибка сокета уходила в `done`, которого никто не
+    // слушал (Bugsink, 1.43). Закрытое соединение — просто проваленная проверка.
+    socket.done.ignore();
     final answered = Completer<void>();
     final subscription = socket.listen(
       (_) {
@@ -335,9 +340,13 @@ class ServerRoute {
       cancelOnError: true,
     );
     try {
-      socket.add(ascii.encode(
-        'GET /api/health HTTP/1.1\r\nHost: $host\r\nConnection: close\r\n\r\n',
-      ));
+      try {
+        socket.add(ascii.encode(
+          'GET /api/health HTTP/1.1\r\nHost: $host\r\nConnection: close\r\n\r\n',
+        ));
+      } on StateError {
+        throw const SocketException('соединение уже закрыто');
+      }
       await answered.future;
     } finally {
       unawaited(subscription.cancel());

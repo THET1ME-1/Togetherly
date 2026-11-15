@@ -251,7 +251,12 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
     if (_isVideo(item)) return;
     final path = await flipPhotoFile(item.path);
     if (path == null || !mounted) return;
-    setState(() => _media[index] = XFile(path));
+    // Пока снимок переворачивался, кадр могли удалить или переставить: номер
+    // устарел, и запись по нему падала RangeError (Bugsink, 1.43, iPhone).
+    // Ищем тот же кадр заново.
+    final at = _media.indexOf(item);
+    if (at < 0) return;
+    setState(() => _media[at] = XFile(path));
   }
 
   /// Отразить можно обложку, если это только что выбранный снимок: прежние

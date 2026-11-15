@@ -68,6 +68,15 @@ void main() {
     }
   });
 
+  test('крошечный и нулевой экран не роняют раскладку', () {
+    // Bugsink, 1.43, iPhone: «Invalid argument(s): 8.0» — окно при запуске в
+    // фоне бывает нулевым, и clamp получал границы наоборот.
+    for (final tiny in [Size.zero, const Size(100, 200), const Size(119, 300)]) {
+      final l = guideHintLayout(target: const Rect.fromLTWH(10, 10, 20, 20), screen: tiny);
+      expect(l.bubbleWidth, greaterThanOrEqualTo(0), reason: '$tiny');
+    }
+  });
+
   test('под кнопкой пузырь растёт вниз, как раньше', () {
     final l = guideHintLayout(target: const Rect.fromLTWH(40, 80, 48, 48), screen: screen);
     expect(l.bubbleBottom, isNull);

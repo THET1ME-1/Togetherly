@@ -44,6 +44,21 @@ void main() {
     expect(got, '');
   });
 
+  testWidgets('повторное «Отправить» не трогает экран под листом', (tester) async {
+    // Bugsink, 1.43: «Bad state: No element» в NavigatorState.pop из этого
+    // листа. Как навигатор остаётся без живых экранов, не воспроизведено;
+    // лист теперь закрывается один раз и только при canPop.
+    final got = await _open(tester, () async {
+      await tester.enterText(find.byType(TextField), 'дважды');
+      await tester.tap(find.byType(FilledButton));
+      await tester.pump(const Duration(milliseconds: 30));
+      await tester.tap(find.byType(FilledButton), warnIfMissed: false);
+    });
+    expect(got, 'дважды');
+    expect(tester.takeException(), isNull);
+    expect(find.text('открыть'), findsOneWidget, reason: 'экран под листом на месте');
+  });
+
   testWidgets('смахнул лист — подарок не уходит', (tester) async {
     final got = await _open(tester, () => tester.tapAt(const Offset(10, 10)));
     expect(got, isNull);
