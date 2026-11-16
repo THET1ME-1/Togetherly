@@ -71,6 +71,7 @@ import 'memory_lane_screen.dart';
 import '../widgets/common/m3_loading.dart';
 import '../models/widget_data.dart';
 import '../models/partner_clock.dart';
+import '../models/chat_window.dart';
 import '../services/zone_share.dart';
 import '../widgets/common/plus_badge.dart';
 import '../widgets/plus/plus_promo_sheet.dart';
@@ -323,6 +324,15 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Последний полученный срез — фолбэк, пока пересоздаём поток при пагинации
   /// (иначе StreamBuilder на миг показал бы спиннер вместо списка).
   List<ChatMsg> _lastMessages = const [];
+
+  /// Окно ленты (`chatWindow`): поток отдаёт весь кэш переписки, а рисуем
+  /// новейшие [_limit] и всё не старше [_windowFloorTs]. Пересчёт только на
+  /// новый срез потока или новый лимит, иначе отметка прочтения уходила бы
+  /// на каждую перерисовку.
+  List<ChatMsg> _allMessages = const [];
+  List<ChatMsg>? _windowSource;
+  int _windowLimit = 0;
+  int? _windowFloorTs;
 
   /// Готовый список строк — сообщения вперемешку с датами и меткой «Новые».
   ///
@@ -2844,8 +2854,25 @@ class _ChatScreenState extends State<ChatScreen> {
                         stream: _messagesStream,
                         builder: (context, snap) {
                           // Во время пересоздания потока (пагинация) держим прошлый срез.
-                          if (snap.data != null) _lastMessages = snap.data!;
-                          final messages = snap.data ?? _lastMessages;
+                          if (snap.data != null) _allMessages = snap.data!;
+                          final all = _allMessages;
+                          // Лента рисует окно, а не весь кэш: тысячи рядов
+                          // при прыжке вниз вешали чат (жалоба 16.11.2026).
+                          if (!identical(all, _windowSource) ||
+                              _windowLimit != _limit) {
+                            _windowSource = all;
+                            _windowLimit = _limit;
+                            _lastMessages = chatWindow<ChatMsg>(
+                              all,
+                              limit: _limit,
+                              floorTs: _windowFloorTs,
+                              tsOf: (m) => m.ts,
+                            );
+                            if (_lastMessages.isNotEmpty) {
+                              _windowFloorTs = _lastMessages.first.ts;
+                            }
+                          }
+                          final messages = _lastMessages;
                           if (messages.isNotEmpty) {
                             _lastMessageTs = messages.last.ts;
                             _lastIsMine = messages.last.uid == _myUid;
@@ -2857,7 +2884,7 @@ class _ChatScreenState extends State<ChatScreen> {
                             }
                           }
                           // Меньше, чем просили → достигли начала истории.
-                          _hasMore = messages.length >= _limit;
+                          _hasMore = all.length >= _limit;
 
                           if (snap.connectionState == ConnectionState.waiting &&
                               messages.isEmpty) {
@@ -3135,7 +3162,8 @@ class _ChatScreenState extends State<ChatScreen> {
     return _EntranceSlide(
       key: ValueKey('enter_${msg.id}_$_entranceEpoch'),
       fromRight: msg.uid == _myUid,
-      animate: _playEntrance,
+      // Влёт видно только у нижних рядов экрана; остальным тикер не нужен.
+      animate: _playEntrance && total - 1 - index < 12,
       delay: Duration(milliseconds: (total - 1 - index).clamp(0, 6) * 60),
       child: _buildBubble(msg),
     );
@@ -4509,37 +4537,40 @@ class _SwipeToReplyState extends State<_SwipeToReply>
   // Сколько пройти пальцем влево (px), чтобы сработал ответ.
   static const double _kTriggerRaw = 64;
 
-  late final AnimationController _ctrl = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 220),
-  );
-  late final Animation<double> _curve = CurvedAnimation(
-    parent: _ctrl,
-    curve: Curves.easeOutCubic,
-  );
+  // Пружина заводится при первом смахивании, а не у каждого пузыря: тикер
+  // держит слушателя у TickerMode экрана, и разбор сотен пузырей в одном
+  // кадре упирался в его список (зависания чата в Google Play, 1.43).
+  AnimationController? _ctrl;
 
   double _raw = 0; // накопленный ход пальца влево, >= 0
   double _springFrom = 0; // с какого _raw начался пружинный возврат
   bool _armed = false; // достигнут ли порог ответа
 
-  @override
-  void initState() {
-    super.initState();
-    _ctrl.addListener(() {
-      setState(() => _raw = _springFrom * (1 - _curve.value));
+  AnimationController _spring() {
+    final made = _ctrl;
+    if (made != null) return made;
+    final c = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+    );
+    final curve = CurvedAnimation(parent: c, curve: Curves.easeOutCubic);
+    c.addListener(() {
+      setState(() => _raw = _springFrom * (1 - curve.value));
     });
+    _ctrl = c;
+    return c;
   }
 
   @override
   void dispose() {
-    _ctrl.dispose();
+    _ctrl?.dispose();
     super.dispose();
   }
 
   // Смещение бабла: rubber-band — растёт всё медленнее, упираясь в _kMaxVisual.
   double get _visual => -_kMaxVisual * (_raw / (_raw + _kMaxVisual));
 
-  void _onStart(DragStartDetails _) => _ctrl.stop();
+  void _onStart(DragStartDetails _) => _ctrl?.stop();
 
   void _onUpdate(DragUpdateDetails d) {
     final next = (_raw - d.primaryDelta!).clamp(0.0, 400.0);
@@ -4555,7 +4586,7 @@ class _SwipeToReplyState extends State<_SwipeToReply>
     if (_armed) widget.onReply();
     _armed = false;
     _springFrom = _raw;
-    _ctrl.forward(from: 0);
+    _spring().forward(from: 0);
   }
 
   @override
