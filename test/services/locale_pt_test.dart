@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:love_app/dict_strings.dart';
 import 'package:love_app/l10n/pt/daily_tasks.dart';
@@ -89,6 +91,34 @@ void main() {
           .where((k) => !kPtByEnglish.containsKey(k))
           .toList();
       expect(missing, isEmpty, reason: 'строки экранов: ${missing.take(8)}');
+    });
+
+    // Часть строк зашита прямо в английский класс мимо словаря: согласие на
+    // цикл, «Мои данные», «Экспорт воспоминаний» шли бразильцу по-английски
+    // (16.11.2026). Украинский и китайский их переводят — португальский обязан
+    // переопределять то же самое.
+    test('строки английского класса — всё, что переводят украинский и китайский', () {
+      final member = RegExp(r'^\s*(?:String|List<String>) (?:get )?([a-zA-Z0-9]+)', multiLine: true);
+      Set<String> overrides(String lang) => member
+          .allMatches(File('lib/services/strings_$lang.dart').readAsStringSync())
+          .map((m) => m[1]!)
+          .toSet();
+      final pt = overrides('pt');
+      final missing = {...overrides('uk'), ...overrides('zh')}.difference(pt).toList();
+      expect(missing, isEmpty, reason: 'нет в strings_pt.dart: ${missing.take(10)}');
+    });
+
+    test('согласие на цикл и экспорт по-португальски', () {
+      expect(pt.cycleConsentWithdraw, 'Retirar o consentimento do ciclo');
+      expect(pt.exportMyData, 'Meus dados');
+      expect(pt.exportMemories, 'Exportar lembranças');
+    });
+
+    test('уведомление о настроении и галерея виджетов по-португальски', () {
+      expect(ruEn('Настроение не задано', 'Mood not set'), 'Humor não definido');
+      expect(ruEn('Добавить', 'Add'), 'Adicionar');
+      expect(ruEn('вместе', 'together'), 'juntos');
+      expect(pt.cycleWeekdayShorts.first, isNot('пн'));
     });
 
     test('метки чисел те же, что в английской строке', () {

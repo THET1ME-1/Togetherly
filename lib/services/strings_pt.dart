@@ -184,6 +184,33 @@ class _PtStrings extends _EnStrings {
   @override
   String exportError(String e) => 'Erro durante a exportação: $e';
 
+  // ── Ciclo e dados ──
+  @override
+  String get cycleConsentBody =>
+      'As datas do ciclo e o bem-estar são dados de saúde, por isso pedimos à '
+      'parte. Eles ficam no nosso servidor, seu par só vê se você ativar, e '
+      'são apagados com um toque. Dá para retirar o consentimento nos ajustes, '
+      'e os registros vão junto.';
+  @override
+  String get cycleConsentAgree => 'Concordo, acompanhar';
+  @override
+  String get cycleConsentLater => 'Agora não';
+  @override
+  String get cycleConsentWithdraw => 'Retirar o consentimento do ciclo';
+  @override
+  String get cycleConsentWithdrawHint =>
+      'A seção fecha e os registros são apagados';
+  @override
+  String get exportMyData => 'Meus dados';
+  @override
+  String get exportMyDataHint => 'Baixar um arquivo com tudo o que guardamos';
+  @override
+  String get exportMyDataReady => 'Arquivo pronto';
+  @override
+  String get exportMyDataFailed => 'Não foi possível montar o arquivo';
+  @override
+  String get exportMemories => 'Exportar lembranças';
+
   @override
   String downloadFailed(String e) => 'O download falhou: $e';
 

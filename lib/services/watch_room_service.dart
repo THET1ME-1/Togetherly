@@ -36,6 +36,10 @@ class WatchRoomService {
   /// [build] и [nativeWindow] — метки для замера касаний (`b`, `nb`): из какой
   /// сборки открыли комнату и каким окном. До 12.10.2026 страница сборку не
   /// знала, и проверить выпуск замером было нечем.
+  ///
+  /// [lang] — язык приложения (`lang`). Без него страница берёт язык системы,
+  /// и бразилец с португальским приложением видел комнату по-английски
+  /// (16.11.2026). Ссылке для партнёра язык не нужен: у него свой.
   static String siteUrl(
     String room, {
     String? src,
@@ -44,6 +48,7 @@ class WatchRoomService {
     String? feed,
     int build = 0,
     bool nativeWindow = false,
+    String? lang,
   }) {
     // Совместная лента — своя страница (/watch/reels/) в том же канале пары,
     // что и комната (05.10.2026). Сборки постарше открывают её прежним
@@ -61,6 +66,7 @@ class WatchRoomService {
     }
     if (build > 0) query['b'] = '$build';
     if (nativeWindow) query['nb'] = '1';
+    if (lang != null && lang.isNotEmpty) query['lang'] = lang;
     if (query.isEmpty) return '$base#$room';
     final encoded = query.entries
         .map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}')

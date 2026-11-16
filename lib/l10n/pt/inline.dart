@@ -67,6 +67,7 @@ const Map<String, String> kPtByEnglish = {
   'optional': 'opcional',
   'Save': 'Salvar',
   'Add': 'Adicionar',
+  'together': 'juntos',
   'Cancel': 'Cancelar',
   'Own photo': 'Foto própria',
   'Replace photo': 'Trocar foto',
@@ -179,6 +180,9 @@ const Map<String, String> kPtByEnglish = {
   'Peak at {0}:{1} · {2}% between {3} and {4}':
       'Pico às {0}:{1} · {2}% entre {3} e {4}',
   'Mood': 'Humor',
+  'Mood not set': 'Humor não definido',
+  'My mood': 'Meu humor',
+  'Mood on the lock screen': 'Humor na tela de bloqueio',
   'Mood over {0} days': 'Humor em {0} dias',
   'Daily average, {0} to {1}': 'Média diária, de {0} a {1}',
   'Favourite moods': 'Humores favoritos',

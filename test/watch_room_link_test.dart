@@ -71,6 +71,15 @@ void main() {
       );
     });
 
+    test('язык приложения уезжает комнате, ссылка партнёру без него', () {
+      // Без `lang` страница брала язык системы, и бразилец с португальским
+      // приложением видел комнату по-английски (16.11.2026).
+      final url = WatchRoomService.siteUrl('abcd2345', name: 'Sávio', lang: 'pt');
+      expect(Uri.parse(url).queryParameters['lang'], 'pt');
+      expect(url, endsWith('#abcd2345'));
+      expect(WatchRoomService.siteUrl('abcd2345'), isNot(contains('lang=')));
+    });
+
     test('длинное имя обрезается: в чате оно всё равно не поместится', () {
       final url = WatchRoomService.siteUrl('abcd2345', name: 'я' * 80);
       expect(Uri.parse(url).queryParameters['name']!.length, 32);

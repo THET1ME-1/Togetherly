@@ -511,6 +511,7 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
     feed: widget.reels ? widget.reelsSource.key : null,
     build: widget.build,
     nativeWindow: _native,
+    lang: LocaleService.instance.language.code,
   ));
 
   /// Ссылка для партнёра — без ролика и без имени: он войдёт в ту же комнату,

@@ -1,8 +1,10 @@
-/* Русский и английский для лендинга и комнаты.
+/* Русский, английский и португальский для лендинга и комнаты.
  *
  * Тексты лежат в одном словаре, разметка помечена data-i18n. Язык берётся из
- * выбора человека, а если выбора не было — из языка браузера. Русский
- * показываем только тем, у кого браузер русский: остальным английский понятнее.
+ * адреса (`?lang=`, его передаёт приложение), потом из выбора человека, а если
+ * выбора не было — из языка браузера. Русский и португальский показываем тем,
+ * у кого такой браузер, остальным английский. Ключа нет в португальском —
+ * берётся английский.
  */
 (() => {
   'use strict';
@@ -257,22 +259,157 @@
       'gate.fail': 'That didn\u2019t work. Try again',
       'hero.createFailed': 'Couldn\u2019t create the room. Check your connection and try again',
     },
+    pt: {
+      'nav.how': 'Como funciona',
+      'nav.where': 'Plataformas',
+      'nav.privacy': 'Privacidade',
+      'nav.app': 'App',
+      'nav.theme': 'Mudar tema',
+
+      'hero.eyebrow': 'Uma sala para dois, direto no navegador',
+      'hero.title1': 'UM FILME',
+      'hero.title2': 'DUAS',
+      'hero.title3': 'TELAS',
+      'hero.lead': 'Um s\u00f3 tempo para voc\u00eas dois. Pausa, avan\u00e7o e chat chegam ao seu par na hora.',
+      'hero.create': 'Criar sala',
+      'hero.code': 'C\u00f3digo da sala',
+      'hero.join': 'Entrar',
+      'hero.note': 'Sem cadastro. A sala abre em um segundo.',
+
+      'start.cap': 'Uma sala para dois',
+      'start.or': 'ou pelo c\u00f3digo',
+
+      'how.kicker': '\u2192 Como funciona',
+      'how.1.title': 'Crie',
+      'how.1.text': 'A sala abre na hora e existe enquanto voc\u00eas est\u00e3o nela. Sem cadastro.',
+      'how.2.title': 'Convide',
+      'how.2.text': 'Mande o link. Seu par abre e j\u00e1 aparece ao seu lado.',
+      'how.3.title': 'Assistam',
+      'how.3.text': 'Um pausa, pausa para os dois. O tempo se acerta sozinho.',
+
+      'where.kicker': '\u2192 De onde assistir',
+      'where.foot': 'Cole um link de qualquer uma delas. V\u00eddeo seu tamb\u00e9m serve: o link direto para o arquivo toca como est\u00e1.',
+
+      'privacy.kicker': '\u2192 O que fica no servidor',
+      'privacy.title': 'Nada',
+      'privacy.lead': 'A sala existe enquanto tem gente nela. Fechou as abas, ela some, junto com o link do v\u00eddeo e o chat. Nenhum registro \u00e9 gravado.',
+      'privacy.1.title': 'Sem conta',
+      'privacy.1.text': 'Entrada an\u00f4nima, sem e-mail.',
+      'privacy.2.title': 'Sem hist\u00f3rico',
+      'privacy.2.text': 'As mensagens vivem s\u00f3 nas abas abertas.',
+      'privacy.3.title': 'Sem arquivos',
+      'privacy.3.text': 'O v\u00eddeo vem da plataforma, n\u00e3o de n\u00f3s.',
+
+      'promo.kicker': '\u2192 Tamb\u00e9m tem app',
+      'promo.title': 'Togetherly para casais',
+      'promo.text': 'Lembran\u00e7as em comum, calend\u00e1rio de humor, presentes um para o outro e widgets na tela inicial.',
+      'promo.btn': 'Baixar',
+
+      'foot.privacy': 'Privacidade',
+      'foot.terms': 'Termos',
+      'foot.about': 'Uma sala para dois direto no navegador: um v\u00eddeo, um s\u00f3 tempo, chat ao lado. Sem cadastro, sem hist\u00f3rico, sem arquivos no servidor.',
+      'foot.col.watch': 'Assistir',
+      'foot.col.app': 'App',
+      'foot.col.help': 'Suporte',
+      'foot.github': 'GitHub Releases',
+      'foot.rights': '\u00a9 2026 Togetherly. Todos os direitos reservados.',
+      'foot.made': 'Feito para quem est\u00e1 longe.',
+
+      'room.copy': 'Copiar link',
+      'room.copied': 'Link copiado',
+      'room.share': 'Compartilhar',
+      'room.back': 'Voltar',
+      'room.fold': 'Recolher o topo',
+      'room.unfold': 'Abrir o topo',
+      'room.code': 'C\u00f3digo da sala',
+      'room.alone': 's\u00f3 voc\u00ea',
+      'room.viewers': 'assistindo: {n}',
+      'room.empty': 'Cole o link de um v\u00eddeo',
+      'room.linkPlaceholder': 'Link de v\u00eddeo, Yandex Disk, Google Drive, Dropbox',
+      'room.play': 'Assistir',
+      'room.fileBtn': 'Abrir arquivo do aparelho',
+      'room.fileSource': 'arquivo',
+      'room.filePlaying': 'Tocando seu arquivo: {name}',
+      'room.fileWanted': 'Seu par abriu {name}. Abra o mesmo arquivo a\u00ed do seu lado.',
+      'room.fileChoose': 'Escolher arquivo',
+      'room.resolving': 'Pedindo o link ao disco\u2026',
+      'room.manualNote': 'Este player n\u00e3o recebe comandos: apertem juntos na contagem.',
+      'room.together': 'Come\u00e7ar juntos',
+      'room.pauseBoth': 'Pausar para os dois',
+      'room.now': 'J\u00e1!',
+      'room.pauseNow': 'Pausa',
+      'room.chat': 'Chat',
+      'room.chatEmpty': 'Ainda n\u00e3o tem nada aqui. Escreva primeiro.',
+      'room.message': 'Mensagem\u2026',
+      'room.connecting': 'Conectando\u2026',
+      'room.ready': 'Sala pronta',
+      'room.lost': 'Conex\u00e3o perdida, reconectando\u2026',
+      'room.offline': 'Sem conex\u00e3o',
+      'room.badLink': 'N\u00e3o d\u00e1 para abrir esse link. Funciona com YouTube, VK, Rutube, Vimeo, Yandex.Disk, Google Drive, Dropbox, MEGA e links diretos para arquivos',
+      'room.seekMissed': 'Este player n\u00e3o conseguiu pular no arquivo: ele \u00e9 pesado demais. Avance na m\u00e3o ou toque o filme por um link do Yandex.Disk',
+      'room.driveFolder': 'Esse \u00e9 o link de uma pasta do Google Drive. Abra o pr\u00f3prio v\u00eddeo no Drive, toque em Compartilhar e copie o link do arquivo',
+      'room.playing': 'Tocando: {name}',
+      'room.leave': 'Sair',
+      'room.voiceCall': 'Ligar',
+      'room.voiceHang': 'Desligar',
+      'room.voiceMic': 'Microfone',
+      'room.voiceRinging': 'Chamando',
+      'room.voiceFailed': 'A liga\u00e7\u00e3o falhou',
+      'room.you': 'Voc\u00ea',
+      'room.guest': 'Convidado',
+      'room.send': 'Enviar',
+      'room.chatToggle': 'Esconder ou mostrar o chat',
+      'room.chatOpen': 'Abrir o chat',
+      'room.partnerJoined': 'Seu par chegou',
+
+      'gate.closedTitle': 'Sala do casal',
+      'gate.closedText': 'S\u00f3 voc\u00eas dois podem entrar. Entre com a conta que voc\u00ea usa no app Togetherly. Se digitou o c\u00f3digo na m\u00e3o, confira.',
+      'gate.closedAppText': 'O app n\u00e3o abriu a sala a tempo. Feche e abra de novo. Se n\u00e3o ajudar, entre com o e-mail e a senha do Togetherly.',
+      'gate.strangerTitle': 'Esta sala n\u00e3o \u00e9 sua',
+      'gate.strangerText': 'A conta {who} n\u00e3o faz parte deste casal. Entre com a conta com que voc\u00ea forma o casal ou crie sua pr\u00f3pria sala.',
+      'gate.thisAccount': 'nesta p\u00e1gina',
+      'gate.missingTitle': 'Sala n\u00e3o encontrada',
+      'gate.missingText': 'Confira o c\u00f3digo. Ou crie uma sala nova e mande o link para quem voc\u00ea quer assistir junto.',
+      'gate.email': 'E-mail',
+      'gate.pass': 'Senha',
+      'gate.signIn': 'Entrar',
+      'gate.or': 'ou',
+      'gate.yandex': 'Yandex',
+      'gate.other': 'Entrar com outra conta',
+      'gate.create': 'Criar sala',
+      'gate.home': 'Voltar ao in\u00edcio',
+      'gate.wait': 'Verificando\u2026',
+      'gate.badPair': 'E-mail ou senha incorretos',
+      'gate.fail': 'N\u00e3o deu certo. Tente de novo',
+      'hero.createFailed': 'A sala n\u00e3o foi criada. Confira a internet e tente de novo',
+    },
   };
 
   const KEY = 'togetherly.watch.lang';
+  const LANGS = ['ru', 'en', 'pt'];
 
+  // \u042f\u0437\u044b\u043a \u0438\u0437 \u0430\u0434\u0440\u0435\u0441\u0430 (`?lang=pt`, \u0435\u0433\u043e \u0441\u0442\u0430\u0432\u0438\u0442 \u043f\u0440\u0438\u043b\u043e\u0436\u0435\u043d\u0438\u0435), \u043f\u043e\u0442\u043e\u043c \u0432\u044b\u0431\u043e\u0440 \u0447\u0435\u043b\u043e\u0432\u0435\u043a\u0430,
+  // \u043f\u043e\u0442\u043e\u043c \u044f\u0437\u044b\u043a \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0430. \u041f\u043e\u0440\u0442\u0443\u0433\u0430\u043b\u044c\u0441\u043a\u0438\u0439 \u0438 \u0440\u0443\u0441\u0441\u043a\u0438\u0439 \u0431\u0435\u0440\u0451\u043c \u043f\u043e \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0443, \u043e\u0441\u0442\u0430\u043b\u044c\u043d\u044b\u043c
+  // \u0430\u043d\u0433\u043b\u0438\u0439\u0441\u043a\u0438\u0439.
   function detect() {
+    let asked = '';
+    try {
+      asked = new URLSearchParams(location.search).get('lang') || '';
+    } catch (_) {}
+    if (LANGS.includes(asked)) return asked;
     const saved = localStorage.getItem(KEY);
-    if (saved === 'ru' || saved === 'en') return saved;
+    if (LANGS.includes(saved)) return saved;
     const langs = navigator.languages || [navigator.language || 'en'];
-    return langs.some((l) => String(l).toLowerCase().startsWith('ru')) ? 'ru' : 'en';
+    const first = langs.map((l) => String(l).toLowerCase().slice(0, 2)).find((l) => l === 'ru' || l === 'pt');
+    return first || 'en';
   }
 
   const I18N = {
     lang: detect(),
 
     t(key, vars) {
-      let text = (DICT[this.lang] && DICT[this.lang][key]) || DICT.ru[key] || key;
+      let text = (DICT[this.lang] && DICT[this.lang][key])
+        || (this.lang !== 'ru' && DICT.en[key]) || DICT.ru[key] || key;
       if (vars) {
         Object.keys(vars).forEach((k) => {
           text = text.replace('{' + k + '}', vars[k]);
@@ -299,7 +436,7 @@
     },
 
     set(lang) {
-      if (lang !== 'ru' && lang !== 'en') return;
+      if (!LANGS.includes(lang)) return;
       this.lang = lang;
       localStorage.setItem(KEY, lang);
       this.apply();

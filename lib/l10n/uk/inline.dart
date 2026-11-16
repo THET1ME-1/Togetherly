@@ -59,6 +59,7 @@ const Map<String, String> kUkByEnglish = {
   'optional': 'необов’язково',
   'Save': 'Зберегти',
   'Add': 'Додати',
+  'together': 'разом',
   'Cancel': 'Скасувати',
   'Own photo': 'Своє фото',
   'Replace photo': 'Замінити фото',
@@ -167,6 +168,9 @@ const Map<String, String> kUkByEnglish = {
   'Peak at {0}:{1} · {2}% between {3} and {4}':
       'Пік о {0}:{1} · {2}% між {3} і {4}',
   'Mood': 'Настрій',
+  'Mood not set': 'Настрій не задано',
+  'My mood': 'Мій настрій',
+  'Mood on the lock screen': 'Настрій на екрані блокування',
   'Mood over {0} days': 'Настрій за {0} дн.',
   'Daily average, {0} to {1}': 'Середнє за день, від {0} до {1}',
   'Favourite moods': 'Улюблені настрої',

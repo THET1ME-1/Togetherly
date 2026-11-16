@@ -3086,9 +3086,9 @@ class _WidgetScreenState extends State<WidgetScreen>
                 onPressed: () =>
                     _pinWidget(qualifiedName, widgetType: widgetType),
                 icon: const Icon(Icons.add_to_home_screen_rounded, size: 17),
-                label: const Text(
-                  'Добавить',
-                  style: TextStyle(
+                label: Text(
+                  ruEn('Добавить', 'Add'),
+                  style: const TextStyle(
                     fontFamily: 'Onest',
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -3174,14 +3174,14 @@ class _WidgetScreenState extends State<WidgetScreen>
 
   Widget _timerCompact() => _halfTileBg(
         const [Color(0xFF7A5AD0), Color(0xFF9D6FF0)],
-        const Column(
+        Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.favorite_rounded, color: Colors.white, size: 34),
-            SizedBox(height: 6),
+            const Icon(Icons.favorite_rounded, color: Colors.white, size: 34),
+            const SizedBox(height: 6),
             Text(
-              'вместе',
-              style: TextStyle(
+              ruEn('вместе', 'together'),
+              style: const TextStyle(
                 fontFamily: 'Onest',
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
@@ -3536,7 +3536,7 @@ class _WidgetScreenState extends State<WidgetScreen>
       if (mine != null && theirs != null && mine.score == theirs.score) matched++;
     }
 
-    const labels = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
+    final labels = _s.cycleWeekdayShorts;
 
     Widget bar(double value, Color color) => Expanded(
           child: FractionallySizedBox(

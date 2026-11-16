@@ -30,10 +30,11 @@
   const send = (type, extra) => { if (ch) ch.send(type, 0, extra); };
   const subscribed = () => !!(ch && ch.subscribed());
 
-  const RU = (window.I18N && window.I18N.lang) !== 'en';
+  const LANG = (window.I18N && window.I18N.lang) || 'ru';
   // В плашке — чья лента сейчас играет. Имена не склоняем («лента Бори» из
   // имени не собрать), поэтому имя в именительном: «Лента · Боря».
-  const T = RU ? {
+  const TEXTS = {};
+  TEXTS.ru = {
     mine: 'Твоя лента', theirs: (n) => 'Лента · ' + n, partner: 'партнёр',
     refresh: 'Обновить рекомендации', refreshing: 'Подбираем свежие ролики…',
     call: 'Позвонить', react: 'Реакция', chat: 'Чат', share: 'Отправить ролик', prev: 'Прошлый ролик', back: 'Назад',
@@ -52,7 +53,28 @@
     missingTitle: 'Такой комнаты нет', missingSub: 'Откройте совместную ленту из приложения Togetherly.',
     offlineTitle: 'Нет связи', offlineSub: 'Проверьте интернет и откройте ленту ещё раз.',
     toRoom: 'Войти', toHome: 'На главную',
-  } : {
+  };
+  TEXTS.pt = {
+    mine: 'Seu feed', theirs: (n) => 'Feed · ' + n, partner: 'seu par',
+    refresh: 'Atualizar recomendações', refreshing: 'Escolhendo vídeos novos…',
+    call: 'Ligar', react: 'Reagir', chat: 'Chat', share: 'Enviar vídeo', prev: 'Vídeo anterior', back: 'Voltar',
+    mic: 'Microfone', hang: 'Desligar', ringing: 'Chamando…', failed: 'Não deu',
+    write: () => 'Sua mensagem…', send: 'Enviar',
+    loading: 'Montando o feed…', loadingSub: 'Os primeiros vídeos chegam em poucos segundos',
+    noFeed: 'O feed vem do app', noFeedSub: 'Abra «Feeds» no Togetherly no celular e os vídeos aparecem aqui também',
+    match: 'Combinou!', matchSub: 'Vocês dois curtiram este vídeo', sound: 'Ligar o som',
+    copied: 'Link copiado', ourChat: 'Nosso chat', empty: 'Ainda não tem nada aqui', unavailable: 'Vídeo indisponível, indo para o próximo',
+    save: 'Salvar nas lembranças', saved: 'Vídeo nas lembranças', savedSub: 'Ele espera por vocês no feed de lembranças',
+    savedBy: (n) => n + ' salvou o vídeo', saveFailed: 'Não salvou, tente de novo', needApp: 'Dá para salvar pelo app Togetherly',
+    leads: (n) => n + ' está rolando', take: 'Deixa eu rolar', tookLead: (n) => 'Agora ' + n + ' está rolando', youLead: 'Agora é você quem rola',
+    you: 'Você', guest: 'Convidado', joined: 'Seu par está no feed', lost: 'Conexão perdida, reconectando…',
+    authTitle: 'Faça login', authSub: 'Só o casal abre o próprio feed. Entre na página da sala.',
+    strangerTitle: 'Este é o feed de outro casal', strangerSub: 'Abra o feed em comum pelo seu app.',
+    missingTitle: 'Sala não encontrada', missingSub: 'Abra o feed em comum pelo app Togetherly.',
+    offlineTitle: 'Sem conexão', offlineSub: 'Confira a internet e abra o feed de novo.',
+    toRoom: 'Entrar', toHome: 'Início',
+  };
+  TEXTS.en = {
     mine: 'Your feed', theirs: (n) => 'Feed · ' + n, partner: 'partner',
     refresh: 'Refresh recommendations', refreshing: 'Picking fresh clips…',
     call: 'Call', react: 'React', chat: 'Chat', share: 'Send clip', prev: 'Previous clip', back: 'Back',
@@ -72,6 +94,7 @@
     offlineTitle: 'No connection', offlineSub: 'Check your internet and open the feed again.',
     toRoom: 'Sign in', toHome: 'Home',
   };
+  const T = TEXTS[LANG] || TEXTS.en;
 
   // Значки — из того же набора Material Symbols Rounded, что в приложении
   // (symbols.woff2 — нужные глифы, собраны из assets/fonts).

@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show Color;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import '../dict_strings.dart' show ruEn;
 import '../utils/notification_permission.dart';
 
 /// Сервис постоянного уведомления с настроением на Android.
@@ -19,7 +20,6 @@ class MoodNotificationService {
 
   static const int _kNotificationId = 8888;
   static const String _kChannelId = 'mood_lock_screen_v3';
-  static const String _kChannelName = 'Настроение';
 
   // ─────────────────────────────────────────────────────────────────────────
   //  INIT
@@ -50,10 +50,10 @@ class MoodNotificationService {
 
       // HIGH importance — единственный надёжный способ показать уведомление
       // на экране блокировки без отдельного разрешения MANAGE_OVERLAY на Android 12+
-      const channel = AndroidNotificationChannel(
+      final channel = AndroidNotificationChannel(
         _kChannelId,
-        _kChannelName,
-        description: 'Настроение на экране блокировки',
+        _channelName,
+        description: _channelDescription,
         importance: Importance.high,
         playSound: false,
         enableVibration: false,
@@ -99,8 +99,8 @@ class MoodNotificationService {
 
     final androidDetails = AndroidNotificationDetails(
       _kChannelId,
-      _kChannelName,
-      channelDescription: 'Настроение на экране блокировки',
+      _channelName,
+      channelDescription: _channelDescription,
       importance: Importance.high,
       priority: Priority.high,
       ongoing: true,
@@ -146,18 +146,24 @@ class MoodNotificationService {
   //  HELPERS
   // ─────────────────────────────────────────────────────────────────────────
 
+  // Название и описание канала видны в настройках уведомлений Android,
+  // поэтому тоже идут на языке приложения.
+  String get _channelName => ruEn('Настроение', 'Mood');
+  String get _channelDescription =>
+      ruEn('Настроение на экране блокировки', 'Mood on the lock screen');
+
   String _buildTitle(String name, String mood) {
-    if (mood.isEmpty) return '😶 Настроение не задано';
+    if (mood.isEmpty) return '😶 ${ruEn('Настроение не задано', 'Mood not set')}';
     final emoji = _moodToEmoji(mood);
     if (name.isNotEmpty) return '$emoji $name: $mood';
-    return '$emoji Моё настроение: $mood';
+    return '$emoji ${ruEn('Моё настроение', 'My mood')}: $mood';
   }
 
   String _buildBody(String partnerName, String partnerMood) {
     if (partnerMood.isEmpty) return '';
     final emoji = _moodToEmoji(partnerMood);
     if (partnerName.isNotEmpty) return '$emoji $partnerName: $partnerMood';
-    return '$emoji Партнёр: $partnerMood';
+    return '$emoji ${ruEn('Партнёр', 'Partner')}: $partnerMood';
   }
 
   String _moodToEmoji(String label) {
