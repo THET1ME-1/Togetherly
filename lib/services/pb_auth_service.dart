@@ -94,17 +94,27 @@ class PbAuthService {
         }
         await _ensureProfile(displayName: displayName);
         return _svc.currentUser;
-      } on ClientException catch (e) {
+      } on ClientException catch (e, taken) {
         // «Почта занята» сразу после нашей же попытки — почти всегда наш
         // предыдущий запрос, который доехал до базы, но не вернулся. Пароль тот
         // же, поэтому пробуем войти; чужой аккаунт с этой почтой вход не пустит,
         // и человек увидит привычный разговор про занятую почту.
         if (AuthFailure.of(e) != AuthFailure.emailTaken) rethrow;
         debugPrint('PbAuth: почта занята, пробуем войти своим же паролем');
-        await _pb
-            .collection(_usersCol)
-            .authWithPassword(email, password)
-            .timeout(netTimeout);
+        try {
+          await _pb
+              .collection(_usersCol)
+              .authWithPassword(email, password)
+              .timeout(netTimeout);
+        } on ClientException catch (login) {
+          // Вход не пустил — аккаунт чужой или заведён через Google без
+          // пароля. Отдаём наружу «почта занята», а не отказ входа: его экран
+          // показывал как «Некорректный email» (отзыв в Play 16.11.2026).
+          if (AuthFailure.of(login) == AuthFailure.badCredentials) {
+            Error.throwWithStackTrace(e, taken);
+          }
+          rethrow;
+        }
         await _ensureProfile(displayName: displayName);
         return _svc.currentUser;
       }

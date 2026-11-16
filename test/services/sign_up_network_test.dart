@@ -92,7 +92,11 @@ void main() {
       async.elapse(const Duration(seconds: 5));
 
       expect(error, isNotNull);
-      expect(AuthFailure.of(error!).isNetwork, isFalse, reason: '$error');
+      // Наружу обязан уйти отказ создания, а не отказ проверочного входа:
+      // вход по чужому (или гугловому, без пароля) аккаунту не пускает, и
+      // экран показывал «Некорректный email» вместо «Аккаунт уже есть»
+      // (отзыв в Play 16.11.2026, 17 попыток подряд).
+      expect(AuthFailure.of(error!), AuthFailure.emailTaken, reason: '$error');
     });
   });
 }
