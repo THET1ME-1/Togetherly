@@ -41,6 +41,7 @@ import '../models/daily_task.dart';
 import '../dict_strings.dart';
 import '../models/feed_category.dart';
 import '../models/memory.dart';
+import '../models/memory_form_entry.dart';
 import '../models/memory_frames.dart';
 import '../models/sound_clip.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
@@ -4739,8 +4740,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           );
         } else {
           // Видео по ссылке (и прочие легаси-типы) — открываем форму сразу
-          // на вкладке «По ссылке».
-          _showCreateMemoryForm(type, startWithUrl: type == MemoryType.video);
+          // на вкладке «По ссылке». Тип `videoLink` своей формы не имеет,
+          // его поле ссылки живёт в форме видео.
+          final entry = memoryFormEntry(type);
+          _showCreateMemoryForm(entry.type, startWithUrl: entry.byLink);
         }
   }
 
