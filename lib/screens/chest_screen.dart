@@ -269,6 +269,9 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     _pager = PageController(initialPage: _page);
     _syncGlitch();
     final main = _slots.first;
+    // Каталог целиком не дошёл — сундук без анимации стоит закрытым.
+    // Его картинки дотягиваются тремя записями (обращение 653).
+    if (debugSeasons == null && main.openUrl == null) _learnChestArt();
     main.choice = widget.debugChoice;
     if (main.choice != null) {
       main.won = trKey('chestGiftTitle').replaceAll('{name}', GiftCatalog.byKey(main.choice!.giftKey)?.title ?? '');
@@ -505,6 +508,15 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
   }
 
   bool _foreground = true;
+
+  Future<void> _learnChestArt() async {
+    try {
+      await CatalogService.instance.ensureChestArt().timeout(const Duration(seconds: 15));
+    } catch (_) {
+      return;
+    }
+    if (mounted) setState(() {});
+  }
 
   /// Сбой кнопки живёт только у сундука на экране и пока приложение видно.
   void _syncGlitch() {

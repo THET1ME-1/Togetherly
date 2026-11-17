@@ -241,16 +241,36 @@ class CatalogService extends ChangeNotifier {
   /// Store 26.10.2026). У подарков каталога id всегда `gift_<ключ>`.
   Future<void> ensureGifts(Iterable<String> keys) async {
     final missing = {for (final k in keys) if (GiftCatalog.byKey(k) == null) k};
-    if (missing.isEmpty) return;
-    final recs = await PbDataService.instance.loadCatalogByIds([for (final k in missing) 'gift_$k']);
+    await _ensureIds([for (final k in missing) 'gift_$k']);
+  }
+
+  /// Дотянуть рамки, которых нет в каталоге на телефоне. Без записи рамка
+  /// из сундука выходила круглой фотографией с подписью «Рамка au_books»
+  /// (обращение 653, 17.11.2026: Россия, каталог целиком не доходил).
+  Future<void> ensureFrames(Iterable<String> keys) async {
+    final known = {for (final f in _frames) f.key};
+    await _ensureIds([for (final k in keys) if (!known.contains(k)) 'frame_$k']);
+  }
+
+  /// Дотянуть картинки обычного сундука. Без них сундук стоял закрытым, а под
+  /// кнопкой «Открыть» сразу появлялся список призов (обращение 653).
+  Future<void> ensureChestArt() async {
+    const keys = ['chest_idle2', 'chest_open2', 'chest_hold2'];
+    await _ensureIds([for (final k in keys) if (_giftArt[k]?.lgUrl == null) 'art_$k']);
+  }
+
+  /// Дописать в каталог записи по id, не перекачивая остальное.
+  Future<void> _ensureIds(List<String> ids) async {
+    if (ids.isEmpty) return;
+    final recs = await PbDataService.instance.loadCatalogByIds(ids);
     if (recs.isEmpty) return;
     final added = [
       for (final r in recs) {...r.data, 'id': r.id},
     ];
-    final ids = {for (final a in added) a['id']};
+    final got = {for (final a in added) a['id']};
     final rows = [
       for (final r in _rows)
-        if (r is! Map || !ids.contains(r['id'])) r,
+        if (r is! Map || !got.contains(r['id'])) r,
       ...added,
     ];
     _apply(rows, _rowsVersion ?? await _appVersion());

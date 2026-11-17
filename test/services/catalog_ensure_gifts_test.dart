@@ -6,6 +6,7 @@ import 'package:http/testing.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:love_app/models/avatar_frame.dart';
 import 'package:love_app/models/gift.dart';
 import 'package:love_app/services/catalog_service.dart';
 import 'package:love_app/services/pocketbase_service.dart';
@@ -72,6 +73,29 @@ void main() {
         final filter = req.url.queryParameters['filter'] ?? '';
         final items = [
           if (filter.contains("'gift_au_pie'")) giftRow('au_pie'),
+          if (filter.contains("'frame_au_books'"))
+            {
+              'id': 'frame_au_books',
+              'collectionId': 'c',
+              'collectionName': 'catalog_items',
+              'kind': 'frame',
+              'enabled': true,
+              'data': {
+                'key': 'au_books',
+                'name': {'ru': 'Книги'},
+                'lg': 'https://x/au_books.webp',
+              },
+            },
+          for (final k in ['chest_idle2', 'chest_open2', 'chest_hold2'])
+            if (filter.contains("'art_$k'"))
+              {
+                'id': 'art_$k',
+                'collectionId': 'c',
+                'collectionName': 'catalog_items',
+                'kind': 'art',
+                'enabled': true,
+                'data': {'key': k, 'lg': 'https://x/$k.webp'},
+              },
         ];
         return http.Response.bytes(
           utf8.encode(jsonEncode({
@@ -110,5 +134,30 @@ void main() {
     await CatalogService.instance.ensureGifts({'rose'});
 
     expect(requests, isEmpty);
+  });
+
+  // Обращение 653: рамка из сундука выходила подписью «Рамка au_books», а
+  // обычный сундук стоял закрытым — каталог целиком на телефон не дошёл.
+  test('незнакомая рамка приходит одной записью', () async {
+    expect(AvatarFrame.byKey('au_books'), isNull);
+
+    await CatalogService.instance.ensureFrames({'au_books'});
+
+    expect(AvatarFrame.byKey('au_books')?.names['ru'], 'Книги');
+    expect(requests, hasLength(1));
+    await CatalogService.instance.ensureFrames({'au_books'});
+    expect(requests, hasLength(1));
+  });
+
+  test('картинки обычного сундука дотягиваются, когда их нет', () async {
+    expect(CatalogService.instance.giftArt('chest_open2'), isNull);
+
+    await CatalogService.instance.ensureChestArt();
+
+    expect(CatalogService.instance.giftArt('chest_open2')?.lgUrl, 'https://x/chest_open2.webp');
+    expect(CatalogService.instance.giftArt('chest_idle2')?.lgUrl, isNotNull);
+    expect(requests, hasLength(1));
+    await CatalogService.instance.ensureChestArt();
+    expect(requests, hasLength(1));
   });
 }

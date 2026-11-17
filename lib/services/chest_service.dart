@@ -87,6 +87,11 @@ class ChestService {
   static Future<void> Function(Set<String> keys) catalogEnsureGifts =
       (keys) => CatalogService.instance.ensureGifts(keys);
 
+  /// Как дотянуть незнакомые рамки. Тест подменяет, чтобы не ходить в сеть.
+  @visibleForTesting
+  static Future<void> Function(Set<String> keys) catalogEnsureFrames =
+      (keys) => CatalogService.instance.ensureFrames(keys);
+
   /// Узнать незнакомые подарки: сперва их записи, не вышло — весь каталог.
   static Future<void> _learnGifts(Set<String> keys) async {
     try {
@@ -217,6 +222,14 @@ class ChestService {
       final key = prize is Map ? '${prize['key'] ?? ''}' : '';
       await _learnGifts({if (key.isNotEmpty) key});
       res = parseChestOpen(body);
+    }
+    // Рамку сезона телефон тоже знает только из каталога: без записи она
+    // выходила круглой фотографией с подписью «Рамка au_books» (обращение 653).
+    final frameKey = res.prize?.frameKey;
+    if (frameKey != null && res.prize?.frame == null) {
+      try {
+        await catalogEnsureFrames({frameKey}).timeout(const Duration(seconds: 8));
+      } catch (_) {}
     }
     ChestTelemetry.step(openId, res.ok ? 'open:ok' : 'open:refused', data: {
       'ms': watch.elapsedMilliseconds,
