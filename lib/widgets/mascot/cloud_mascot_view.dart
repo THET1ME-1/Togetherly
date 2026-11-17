@@ -5,6 +5,7 @@ import 'package:sensors_plus/sensors_plus.dart';
 
 import '../../models/cloud_mascot.dart';
 import '../../models/shake_detector.dart';
+import '../../models/tu_wear.dart';
 import '../../services/catalog_service.dart';
 import '../../services/offline/media_view_cache.dart';
 import '../../services/tu_wear_service.dart';
@@ -72,8 +73,9 @@ class CloudShakeWatch {
 /// Готовит сцены облачка заранее, чтобы касание, полёт за пальцем и смена
 /// настроения шли сразу, а не после загрузки: покой во всех цветах и все
 /// реакции в цвете [tint] и в цвете выбранной эмоции [mood]. Повторный вызов
-/// с тем же цветом, эмоцией и размером ничего не делает.
-void warmCloud(String tint, {String? mood, required double size, required double dpr}) {
+/// с тем же цветом, эмоцией и размером ничего не делает. [outfit] — наряд,
+/// в котором Ту на экране, если он не свой (наряд партнёра).
+void warmCloud(String tint, {String? mood, Map<String, String>? outfit, required double size, required double dpr}) {
   final canvas = size * _kCloudCanvas;
   // Каталог может доехать позже первого вызова: число найденных сцен эмоции
   // входит в отметку, и с каталогом прогрев повторится.
@@ -81,28 +83,29 @@ void warmCloud(String tint, {String? mood, required double size, required double
     for (final key in cloudEmotionScenesFor(mood))
       if (CatalogService.instance.giftArt(key) != null) key,
   ];
+  final scenes = [...cloudScenesFor(tint), ...emotionScenes];
+  // Одежда — до отметки сцен: наряд меняется и при тех же цвете и эмоции.
+  _warmOutfit(scenes, outfit: outfit, decode: artDecodeBucket(canvas * dpr));
   final mark = '$tint@$mood@${emotionScenes.length}@${artDecodeBucket(canvas * dpr)}';
   if (_warmed.contains(mark)) return;
   _warmed.add(mark);
-  final scenes = [...cloudScenesFor(tint), ...emotionScenes];
   warmCatalogArt([
     for (final t in kCloudTints) 'cloud_idle_$t',
     ...scenes,
   ], side: canvas, dpr: dpr);
-  _warmOutfit(scenes, decode: artDecodeBucket(canvas * dpr));
 }
 
 /// Слои надетых вещей под сцены Ту — на диск заранее. Без этого Ту в
 /// одежде ждал, пока докачаются слои новой сцены, и короткая сцена
 /// (кувырок 2,8 с) успевала кончиться невидимой.
-void _warmOutfit(List<String> scenes, {required int decode}) {
-  final outfit = TuWearService.instance.outfit;
-  if (outfit.isEmpty) return;
-  final mark = '${scenes.join(',')}@$decode@${outfit.values.join(',')}';
+void _warmOutfit(List<String> scenes, {Map<String, String>? outfit, required int decode}) {
+  final shown = outfit ?? TuWearService.instance.outfit;
+  if (shown.isEmpty) return;
+  final mark = '${scenes.join(',')}@$decode@${shown.values.join(',')}';
   if (_warmedOutfit == mark) return;
   _warmedOutfit = mark;
   for (final art in scenes) {
-    final wear = TuWearService.instance.layersFor(art: art);
+    final wear = TuWearService.instance.layersFor(art: art, tryOn: outfit);
     for (final key in [...wear.back, ...wear.front]) {
       final url = catalogArtUrl(key, decode);
       if (url != null) unawaited(OfflineImageCacheManager.instance.getSingleFile(url).then((_) {}, onError: (_) {}));
@@ -115,20 +118,20 @@ String? _warmedOutfit;
 /// Эмоции пака Ту и слои надетых вещей под них — заранее, чтобы смена
 /// эмоции была мгновенной. Картинки эмоций разжимаются в кэш изображений,
 /// слои одежды только ложатся на диск: их разжимает `LockstepArt`.
-void warmCloudEmotions({required double size, required double dpr}) {
+void warmCloudEmotions({Map<String, String>? outfit, required double size, required double dpr}) {
   final canvas = size * _kCloudCanvas;
   final urls = cloudEmotionWarmUrls(CatalogService.instance.allPacks);
-  final outfit = TuWearService.instance.outfit;
-  final mark = '${urls.length}@${artDecodeBucket(canvas * dpr)}@${outfit.values.join(',')}';
+  final shown = outfit ?? TuWearService.instance.outfit;
+  final mark = '${urls.length}@${artDecodeBucket(canvas * dpr)}@${shown.values.join(',')}';
   if (urls.isEmpty || _warmedEmotions == mark) return;
   _warmedEmotions = mark;
   warmArtUrls(urls, side: canvas * _kPackCrop, dpr: dpr);
-  if (outfit.isEmpty) return;
+  if (shown.isEmpty) return;
   final decode = artDecodeBucket(canvas * dpr);
   for (final pack in CatalogService.instance.allPacks) {
     if (pack.id != kCloudMoodPackId) continue;
     for (final mood in pack.moods) {
-      final wear = TuWearService.instance.layersFor(art: '', emotion: mood.id);
+      final wear = TuWearService.instance.layersFor(art: '', emotion: mood.id, tryOn: outfit);
       for (final key in [...wear.back, ...wear.front]) {
         final url = catalogArtUrl(key, decode);
         if (url != null) unawaited(OfflineImageCacheManager.instance.getSingleFile(url).then((_) {}, onError: (_) {}));
@@ -162,10 +165,15 @@ class CloudMascotView extends StatefulWidget {
     this.listenEvents = false,
     this.onOneShotDone,
     this.tryOn,
+    this.partnerOutfit = false,
   });
 
   /// Примерка: наряд вместо надетого (экран приза сундука).
   final Map<String, String>? tryOn;
+
+  /// Ту партнёра (главная в режиме «партнёра»): на нём наряд партнёра из его
+  /// записи виджета. Не прислал — свой, как раньше.
+  final bool partnerOutfit;
 
   /// Сторона места под маскота. Холст анимации с запасом под полёт и
   /// предметы вокруг, поэтому он рисуется крупнее и выходит за края.
@@ -288,20 +296,28 @@ class _CloudMascotViewState extends State<CloudMascotView> {
   @override
   Widget build(BuildContext context) {
     final dpr = MediaQuery.devicePixelRatioOf(context);
-    if (widget.listenEvents) {
-      warmCloud(widget.tint, mood: widget.mood, size: widget.size, dpr: dpr);
-      warmCloudEmotions(size: widget.size, dpr: dpr);
-    }
     return ListenableBuilder(
       listenable: Listenable.merge([CatalogService.instance, TuWearService.instance]),
-      builder: (context, _) => _art(dpr),
+      builder: (context, _) {
+        final outfit = _outfit;
+        if (widget.listenEvents) {
+          warmCloud(widget.tint, mood: widget.mood, outfit: outfit, size: widget.size, dpr: dpr);
+          warmCloudEmotions(outfit: outfit, size: widget.size, dpr: dpr);
+        }
+        return _art(dpr, outfit);
+      },
     );
   }
+
+  /// Наряд на Ту, если он не свой: примерка или наряд партнёра.
+  Map<String, String>? get _outfit =>
+      widget.tryOn ??
+      (widget.partnerOutfit ? tuOutfitShown(mine: false, partner: TuWearService.instance.partnerOutfit) : null);
 
   /// Сцена маскота или эмоция пака — одной и той же картинкой на одном месте
   /// дерева: смена между ними идёт без мигания, прежний кадр стоит до
   /// готовности нового.
-  Widget _art(double dpr) {
+  Widget _art(double dpr, Map<String, String>? outfit) {
     final canvas = widget.size * _kCloudCanvas;
     final calm = _event == null &&
         (widget.anim == MascotAnimState.live || widget.anim == MascotAnimState.freeze) &&
@@ -345,7 +361,7 @@ class _CloudMascotViewState extends State<CloudMascotView> {
     );
     // Одежда Ту: слои той же сцены под и над ним, кадр в кадр. Сцены, для
     // которой вещь не запечена, просто нет в карте — Ту в ней без вещи.
-    final wear = TuWearService.instance.layersFor(art: art, emotion: emotion != null ? widget.mood : null, tryOn: widget.tryOn);
+    final wear = TuWearService.instance.layersFor(art: art, emotion: emotion != null ? widget.mood : null, tryOn: outfit);
     final layered = url != null && (wear.back.isNotEmpty || wear.front.isNotEmpty);
     _layeredArt = layered ? art : null;
     if (!layered) return bare;

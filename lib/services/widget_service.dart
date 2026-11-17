@@ -8,6 +8,7 @@ import '../models/memory.dart';
 import '../models/partner_note.dart';
 import '../models/doing.dart';
 import '../models/mood_entry.dart';
+import '../models/tu_wear.dart';
 import 'doing_service.dart';
 import 'locale_service.dart';
 import 'pair_widget_payload.dart';
@@ -20,6 +21,7 @@ import 'pb_auth_service.dart';
 import 'pb_data_service.dart';
 import 'pb_realtime_service.dart';
 import 'pocketbase_service.dart';
+import 'tu_wear_service.dart';
 import 'widget_anim_service.dart';
 
 /// Сервис синхронизации виджет-данных между партнёрами — на PocketBase
@@ -213,6 +215,8 @@ class WidgetService extends ChangeNotifier {
     _partnerSubs[partnerUid] = _rt.watchWidgetOne(_groupId, partnerUid).listen(
       (rec) {
         if (_isDisposed) return;
+        // Наряд Ту партнёра: на главной в режиме «партнёра» Ту в нём.
+        TuWearService.instance.setPartnerOutfit(rec == null ? null : tuOutfitFromData(rec.data['data']));
         if (rec != null) {
           _partnerData[partnerUid] = WidgetData.fromPb(rec);
         } else {
@@ -264,6 +268,7 @@ class WidgetService extends ChangeNotifier {
     _groupId = '';
     _myData = null;
     _partnerData.clear();
+    TuWearService.instance.setPartnerOutfit(null);
     _myPhotoSig = null;
     _partnerPhotoSigs.clear();
     _partnerNoteSigs.clear();

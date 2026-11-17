@@ -1,18 +1,24 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart' show ClientException;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/tu_wear.dart';
 import 'catalog_service.dart';
+import 'pb_data_service.dart';
 import 'pocketbase_service.dart';
 
 /// Гардероб Ту: что надето и чем человек владеет.
 ///
 /// Владение пишет только сервер (`users.owned_wear`, сундук), поэтому здесь
 /// оно складывается из записи аккаунта и того, что выпало в сундуке за этот
-/// запуск (ответ открытия приходит раньше, чем обновится запись). Наряд —
-/// выбор человека на этом телефоне, как пак настроений: партнёр видит своего
-/// Ту в своём.
+/// запуск (ответ открытия приходит раньше, чем обновится запись).
+///
+/// Наряд хранится на телефоне и копией уходит в свою запись виджета пары
+/// (`widget_data.data.tu_outfit`): партнёр в режиме «партнёра» видит Ту в
+/// моём наряде. До 17.11.2026 наряд партнёру не уходил вовсе, и одетого Ту
+/// видел только сам хозяин.
 class TuWearService extends ChangeNotifier {
   TuWearService._();
   static final TuWearService instance = TuWearService._();
@@ -24,7 +30,68 @@ class TuWearService extends ChangeNotifier {
   Set<String> _granted = const {};
   bool _loaded = false;
 
+  /// На телефоне наряд ещё ни разу не выбирали (новая установка): тогда
+  /// наряд из записи пары возвращается на телефон, а не затирается пустым.
+  bool _outfitFresh = true;
+
   Map<String, String> get outfit => _outfit;
+
+  /// Наряд партнёра из его записи виджета. `null` — не присылал (старая
+  /// сборка или записи ещё нет).
+  Map<String, String>? _partnerOutfit;
+  Map<String, String>? get partnerOutfit => _partnerOutfit;
+
+  void setPartnerOutfit(Map<String, String>? outfit) {
+    final same = outfit == null ? _partnerOutfit == null : _partnerOutfit != null && mapEquals(outfit, _partnerOutfit);
+    if (same) return;
+    _partnerOutfit = outfit;
+    notifyListeners();
+  }
+
+  /// Пара, в чью запись уходит наряд, и наряд, который там уже лежит.
+  String _groupId = '';
+  final Map<String, Map<String, String>> _sent = {};
+  Timer? _publishTimer;
+
+  /// Пара появилась или сменилась: сверить свой наряд с записью пары.
+  void bindGroup(String groupId) {
+    if (groupId.isEmpty || groupId == 'solo') return;
+    _groupId = groupId;
+    unawaited(_publish());
+  }
+
+  /// Свой наряд — в запись пары, если он разошёлся с ней. Без связи не
+  /// пишем: следующий заход на главную сверит снова.
+  Future<void> _publish() async {
+    final groupId = _groupId;
+    final uid = PocketBaseService().userId ?? '';
+    if (groupId.isEmpty || uid.isEmpty) return;
+    await load();
+    final sent = _sent[groupId];
+    if (sent != null && mapEquals(sent, _outfit)) return;
+    try {
+      final existing = await PbDataService().loadWidgetOrThrow(groupId, uid);
+      final raw = existing?.data['data'];
+      final server = tuOutfitFromData(raw);
+      if (_outfitFresh && _outfit.isEmpty && server != null && server.isNotEmpty) {
+        // Переустановка: наряд возвращается с сервера.
+        _sent[groupId] = server;
+        await _setOutfit(server);
+        return;
+      }
+      if (!tuOutfitNeedsPublish(_outfit, server)) {
+        _sent[groupId] = Map.of(_outfit);
+        return;
+      }
+      final outfit = Map<String, String>.of(_outfit);
+      final data = withTuOutfit(raw is Map ? raw : const {}, outfit);
+      if (await PbDataService().upsertWidget(groupId, uid, {'data': data})) {
+        _sent[groupId] = outfit;
+      }
+    } catch (e) {
+      debugPrint('TuWearService: наряд партнёру не ушёл — $e');
+    }
+  }
 
   /// Вещи во владении: запись аккаунта и выпавшие за этот запуск.
   Set<String> get owned {
@@ -41,15 +108,25 @@ class TuWearService extends ChangeNotifier {
     _loaded = true;
     try {
       final prefs = await SharedPreferences.getInstance();
+      _outfitFresh = !prefs.containsKey(_outfitKey);
       _outfit = wearOutfitDecode(prefs.getString(_outfitKey));
       _granted = {...?prefs.getStringList(_ownedKey)};
     } catch (_) {}
     notifyListeners();
   }
 
-  /// Надеть или снять вещь (повторное нажатие снимает).
+  /// Надеть или снять вещь (повторное нажатие снимает). В запись пары наряд
+  /// уходит через пару секунд после последнего нажатия: перебор вещей в
+  /// гардеробе даёт одну запись, а не десяток.
   Future<void> toggle(TuWear item) async {
-    _outfit = wearToggle(_outfit, item.cat, item.key);
+    await _setOutfit(wearToggle(_outfit, item.cat, item.key));
+    _publishTimer?.cancel();
+    _publishTimer = Timer(const Duration(seconds: 3), () => unawaited(_publish()));
+  }
+
+  Future<void> _setOutfit(Map<String, String> outfit) async {
+    _outfit = outfit;
+    _outfitFresh = false;
     notifyListeners();
     try {
       final prefs = await SharedPreferences.getInstance();

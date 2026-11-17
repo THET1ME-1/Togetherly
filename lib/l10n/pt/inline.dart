@@ -331,7 +331,7 @@ const Map<String, String> kPtByEnglish = {
 
   // Ту и его гардероб
   'Tu': 'Tu',
-  'Mood colour': 'Cor do humor',
+  'Whose Tu': 'De quem é o Tu',
   'Mine': 'Meus',
   'Wardrobe': 'Guarda-roupa',
   'Clothes': 'Roupas',

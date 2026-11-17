@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show mapEquals;
+
 import '../dict_strings.dart';
 
 /// Вещь гардероба Ту (маскота-облачка): запись каталога вида `wear`.
@@ -223,6 +225,42 @@ String? wearSceneOf({required String art, required String? emotion}) {
     if (l.front != null) front.add(l.front!);
   }
   return (back: back, front: front);
+}
+
+// Наряд для партнёра лежит в своей записи виджета пары (`widget_data.data`),
+// рядом с заметкой, занятием и поясом: правка записи сама доезжает до
+// партнёра событием канала пары (обращение 17.11.2026).
+const String kTuOutfitDataKey = 'tu_outfit';
+
+/// Поле `data` с нарядом. Раздетый Ту пишется пустым нарядом: пропажа ключа
+/// значит «наряда не присылали» (старая сборка), и у партнёра на месте моего
+/// наряда остался бы его собственный.
+Map<String, dynamic> withTuOutfit(Map<dynamic, dynamic> data, Map<String, String> outfit) {
+  final out = Map<String, dynamic>.from(data);
+  out[kTuOutfitDataKey] = Map<String, String>.of(outfit);
+  return out;
+}
+
+/// Наряд из поля `data` записи виджета. `null` — ключа нет.
+Map<String, String>? tuOutfitFromData(Object? data) {
+  if (data is! Map) return null;
+  final raw = data[kTuOutfitDataKey];
+  if (raw is! Map) return null;
+  return {for (final e in raw.entries) if (e.value is String) '${e.key}': e.value as String};
+}
+
+/// Какой наряд надеть Ту на главной. `null` — свой (с проверкой владения).
+/// Режим «партнёра» показывает его наряд; партнёр на старой сборке наряда
+/// не присылает, и тогда Ту в моём, как до этой правки.
+Map<String, String>? tuOutfitShown({required bool mine, required Map<String, String>? partner}) =>
+    mine ? null : partner;
+
+/// Писать ли свой наряд в запись: только когда он разошёлся с ней. Кто ни
+/// разу не одевал Ту, записи не трогает: лишняя правка будит телефон
+/// партнёра тихим пушем.
+bool tuOutfitNeedsPublish(Map<String, String> local, Map<String, String>? server) {
+  if (server == null) return local.isNotEmpty;
+  return !mapEquals(local, server);
 }
 
 String wearOutfitEncode(Map<String, String> outfit) => jsonEncode(outfit);

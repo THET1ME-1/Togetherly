@@ -104,4 +104,65 @@ void main() {
       expect(wardrobeItems([live, retired], owned: const {'specs'}), [live, retired]);
     });
   });
+
+  // Обращение 17.11.2026: «партнёр не видит, как я одел нашего Ту». Наряд
+  // жил только в памяти телефона; теперь он лежит в своей записи виджета.
+  group('наряд виден партнёру', () {
+    test('наряд ложится в data рядом с заметкой, занятием и поясом', () {
+      final data = withTuOutfit(
+        {'note': {'text': 'привет'}, 'doing': {'id': 'cook'}, 'zone': '+02:00'},
+        {'neck': 'scarf', 'glasses': 'specs'},
+      );
+      expect(data['note'], {'text': 'привет'});
+      expect(data['doing'], {'id': 'cook'});
+      expect(data['zone'], '+02:00');
+      expect(data[kTuOutfitDataKey], {'neck': 'scarf', 'glasses': 'specs'});
+    });
+
+    test('раздетый Ту пишется пустым нарядом, а не пропажей ключа', () {
+      final data = withTuOutfit({kTuOutfitDataKey: {'neck': 'scarf'}}, const {});
+      expect(data.containsKey(kTuOutfitDataKey), isTrue);
+      expect(tuOutfitFromData(data), isEmpty);
+    });
+
+    test('чтение: ключа нет — партнёр наряд не присылал', () {
+      expect(tuOutfitFromData(null), isNull);
+      expect(tuOutfitFromData(const {}), isNull);
+      expect(tuOutfitFromData({kTuOutfitDataKey: 'мусор'}), isNull);
+    });
+
+    test('чтение: берутся только строки', () {
+      expect(
+        tuOutfitFromData({kTuOutfitDataKey: {'neck': 'scarf', 'top': 5, 'face': null}}),
+        {'neck': 'scarf'},
+      );
+    });
+
+    test('на главной в режиме «партнёра» — его наряд', () {
+      expect(tuOutfitShown(mine: false, partner: {'neck': 'scarf'}), {'neck': 'scarf'});
+    });
+
+    test('партнёр раздел своего Ту — показываем раздетым', () {
+      expect(tuOutfitShown(mine: false, partner: const {}), isEmpty);
+    });
+
+    test('партнёр на старой сборке наряд не присылает — показываем свой', () {
+      expect(tuOutfitShown(mine: false, partner: null), isNull);
+    });
+
+    test('в режиме «моё» — всегда свой', () {
+      expect(tuOutfitShown(mine: true, partner: {'neck': 'scarf'}), isNull);
+    });
+
+    test('писать на сервер, только когда наряд разошёлся с записью', () {
+      expect(tuOutfitNeedsPublish({'neck': 'scarf'}, null), isTrue);
+      expect(tuOutfitNeedsPublish({'neck': 'scarf'}, {'neck': 'shawl'}), isTrue);
+      expect(tuOutfitNeedsPublish(const {}, {'neck': 'scarf'}), isTrue);
+      expect(tuOutfitNeedsPublish({'neck': 'scarf', 'glasses': 'specs'}, {'glasses': 'specs', 'neck': 'scarf'}), isFalse);
+    });
+
+    test('ни разу не одевал — запись не трогаем', () {
+      expect(tuOutfitNeedsPublish(const {}, null), isFalse);
+    });
+  });
 }

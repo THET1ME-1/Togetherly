@@ -599,7 +599,7 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
                 ],
               ),
             ),
-            // Облачко в цвете настроения: партнёра или своём.
+            // Чей Ту на главной: партнёра (его настроение и наряд) или свой.
             if (_isCloud)
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
@@ -607,7 +607,7 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
                   children: [
                     Expanded(
                       child: Text(
-                        ruEn('Цвет настроения', 'Mood colour'),
+                        ruEn('Чей Ту', 'Whose Tu'),
                         style: TextStyle(color: widget.theme.textPrimary, fontSize: 15),
                       ),
                     ),
@@ -778,6 +778,7 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
                 mascot: mascot,
                 service: _svc,
                 cloudMood: widget.moodOf?.call(_cloudMine),
+                partnerOutfit: !_cloudMine,
                 anim: _anim,
                 level: MascotAnim.levelForStreak(_svc.activeStreak),
                 sleep: widget.sleepOf(mascot.id),
@@ -842,10 +843,14 @@ class _MascotImage extends StatelessWidget {
   /// Настроение, которым красится облачко (id), или null.
   final String? cloudMood;
 
+  /// Ту партнёра: на нём наряд партнёра.
+  final bool partnerOutfit;
+
   const _MascotImage({
     required this.mascot,
     required this.service,
     this.cloudMood,
+    this.partnerOutfit = false,
     this.anim = MascotAnimState.live,
     this.level = 3,
     this.sleep = SleepWindow.standard,
@@ -865,6 +870,7 @@ class _MascotImage extends StatelessWidget {
             night: sleep.contains(DateTime.now()),
             sick: cloudMood == 'sick',
             mood: cloudMood,
+            partnerOutfit: partnerOutfit,
             listenEvents: true,
             onOneShotDone: onAnimDone,
           );
