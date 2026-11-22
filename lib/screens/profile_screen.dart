@@ -38,6 +38,7 @@ import '../models/upload_failure.dart';
 import 'package:pocketbase/pocketbase.dart' show ClientException;
 
 import '../services/pb_auth_service.dart';
+import '../services/support_link_service.dart';
 import '../widgets/settings/change_password_sheet.dart';
 import '../services/pocketbase_service.dart';
 import '../services/notif_prefs_sync.dart';
@@ -508,8 +509,13 @@ class _ProfileScreenState extends State<ProfileScreen>
     await _openExternalUri(_tgChannelUri);
   }
 
+  /// Бот поддержки сразу узнаёт версию, телефон и аккаунт и не спрашивает о них.
   Future<void> _openBugBot() async {
-    await _openExternalUri(_bugBotUri);
+    Uri link = _bugBotUri;
+    try {
+      link = await supportBotLink();
+    } catch (_) {}
+    await _openExternalUri(link);
   }
 
   /// Справка «Как сделать». Открывается из шапки профиля и из настроек.
