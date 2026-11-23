@@ -15,9 +15,14 @@ class FormTopBar extends StatelessWidget {
     required this.dot,
     required this.label,
     required this.onClose,
+    this.trailing,
   });
 
   final ColorScheme scheme;
+
+  /// Что встаёт справа от пилюли. Капсула ставит сюда «Готово», пока
+  /// открыта клавиатура.
+  final Widget? trailing;
 
   /// Цвет точки — `AppTheme.fillColor`.
   final Color dot;
@@ -76,6 +81,10 @@ class FormTopBar extends StatelessWidget {
               ),
             ),
           ),
+          if (trailing != null) ...[
+            const SizedBox(width: 8),
+            trailing!,
+          ],
         ],
       ),
     );

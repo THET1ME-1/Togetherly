@@ -33,6 +33,7 @@ Future<AppTheme> _pump(
   double width = 360,
   double scale = 1.0,
   AppLanguage language = AppLanguage.ru,
+  double keyboard = 0,
 }) async {
   LocaleService.instance.setLanguage(language);
   final theme = buildAppTheme(kPalettes[21], brightness); // «Кофе», как на снимках
@@ -41,7 +42,11 @@ Future<AppTheme> _pump(
   addTearDown(tester.view.reset);
   await tester.pumpWidget(MaterialApp(
     home: MediaQuery(
-      data: MediaQueryData(size: Size(width, 780), textScaler: TextScaler.linear(scale)),
+      data: MediaQueryData(
+        size: Size(width, 780),
+        textScaler: TextScaler.linear(scale),
+        viewInsets: EdgeInsets.only(bottom: keyboard),
+      ),
       child: TimeCapsuleScreen(
         theme: theme,
         pairId: 'g',
@@ -76,6 +81,63 @@ void main() {
     await tester.enterText(find.byKey(const ValueKey('capsule-letter')), '   ');
     await tester.pump();
     expect(_seal(tester).onPressed, isNull, reason: 'одни пробелы — не письмо');
+  });
+
+  // Обращение 678 (iPhone 17): письмо написано, «Запечатать» спрятана на
+  // время набора, а клавиатуру закрыть нечем — клавиша ввода переносит
+  // строку, кнопки «назад» у iPhone нет.
+  group('клавиатуру можно закрыть без кнопки «назад»', () {
+    bool letterFocused(WidgetTester tester) => tester
+        .widget<EditableText>(find.descendant(
+            of: find.byKey(const ValueKey('capsule-letter')),
+            matching: find.byType(EditableText)))
+        .focusNode
+        .hasFocus;
+
+    testWidgets('пока клавиатура открыта, в шапке «Готово», и оно её закрывает', (tester) async {
+      await _pump(tester, keyboard: 300);
+      await tester.tap(find.byKey(const ValueKey('capsule-letter')));
+      await tester.enterText(find.byKey(const ValueKey('capsule-letter')), 'Привет из ноября');
+      await tester.pump();
+      expect(letterFocused(tester), isTrue);
+      expect(find.byKey(const ValueKey('capsule-seal')), findsNothing);
+      expect(find.byKey(const ValueKey('capsule-done')), findsOneWidget);
+      expect(find.text('Готово'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('capsule-done')));
+      await tester.pump();
+      expect(letterFocused(tester), isFalse);
+    });
+
+    for (final language in [AppLanguage.fr, AppLanguage.de, AppLanguage.ru]) {
+      testWidgets('шапка с «Готово» влезает: ${language.code}, 320 dp, шрифт 1.3', (tester) async {
+        await _pump(tester, width: 320, scale: 1.3, language: language, keyboard: 300);
+        expect(find.byKey(const ValueKey('capsule-done')), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets('без клавиатуры «Готово» нет, «Запечатать» на месте', (tester) async {
+      await _pump(tester);
+      expect(find.byKey(const ValueKey('capsule-done')), findsNothing);
+      expect(find.byKey(const ValueKey('capsule-seal')), findsOneWidget);
+    });
+
+    testWidgets('касание мимо поля закрывает клавиатуру', (tester) async {
+      await _pump(tester, keyboard: 300);
+      await tester.tap(find.byKey(const ValueKey('capsule-letter')));
+      await tester.pump();
+      expect(letterFocused(tester), isTrue);
+      await tester.tapAt(const Offset(180, 90)); // подсказка под шапкой
+      await tester.pump();
+      expect(letterFocused(tester), isFalse);
+    });
+
+    testWidgets('смахивание письма закрывает клавиатуру', (tester) async {
+      await _pump(tester, keyboard: 300);
+      final scroll = tester.widget<SingleChildScrollView>(find.byType(SingleChildScrollView).first);
+      expect(scroll.keyboardDismissBehavior, ScrollViewKeyboardDismissBehavior.onDrag);
+    });
   });
 
   testWidgets('срок: полгода по умолчанию, кнопки меняют число дней', (tester) async {

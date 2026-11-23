@@ -120,9 +120,15 @@ class _TimeCapsuleScreenState extends State<TimeCapsuleScreen> {
                   dot: _t.fillColor,
                   label: s.timeCapsule,
                   onClose: () => Navigator.pop(context),
+                  trailing: typing ? _doneButton(cs, s) : null,
                 ),
                 Expanded(
                   child: SingleChildScrollView(
+                    // Письмо многострочное: клавиша ввода на iPhone переносит
+                    // строку, а кнопки «назад», как на Android, там нет.
+                    // Клавиатуру закрывает смахивание письма, касание мимо
+                    // полей и «Готово» в шапке.
+                    keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                     padding: EdgeInsets.fromLTRB(
                         12, 6, 12, 108 + media.padding.bottom),
                     child: Column(
@@ -151,6 +157,24 @@ class _TimeCapsuleScreenState extends State<TimeCapsuleScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  void _hideKeyboard() => FocusManager.instance.primaryFocus?.unfocus();
+
+  /// «Готово» на время набора. Пока клавиатура открыта, «Запечатать» спрятана
+  /// (иначе письмо уезжает под неё), и на iPhone человек оставался с готовым
+  /// письмом без способа его отправить (обращение 678).
+  Widget _doneButton(ColorScheme cs, AppStrings s) {
+    return FilledButton.tonal(
+      key: const ValueKey('capsule-done'),
+      onPressed: _hideKeyboard,
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(0, 48),
+        padding: const EdgeInsets.symmetric(horizontal: 18),
+        textStyle: AppFonts.onest(size: 14, weight: 700, color: cs.onSecondaryContainer),
+      ),
+      child: Text(s.done),
     );
   }
 
@@ -212,6 +236,7 @@ class _TimeCapsuleScreenState extends State<TimeCapsuleScreen> {
                   controller: _titleCtrl,
                   maxLength: 120,
                   maxLines: null,
+                  onTapOutside: (_) => _hideKeyboard(),
                   textCapitalization: TextCapitalization.sentences,
                   style: titleStyle,
                   cursorColor: ink,
@@ -229,6 +254,7 @@ class _TimeCapsuleScreenState extends State<TimeCapsuleScreen> {
                   maxLines: null,
                   maxLength: kCapsuleLetterMax,
                   buildCounter: _counter,
+                  onTapOutside: (_) => _hideKeyboard(),
                   textCapitalization: TextCapitalization.sentences,
                   style: bodyStyle,
                   cursorColor: ink,
