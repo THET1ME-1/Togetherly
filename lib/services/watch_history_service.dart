@@ -2,6 +2,10 @@ import 'package:pocketbase/pocketbase.dart';
 
 import 'pocketbase_service.dart';
 
+/// Кусок ссылки на файл своего ролика пары: так строка «Недавних» узнаёт,
+/// что показывала именно его.
+String watchVideoFilePath(String videoId) => '/watch_videos/$videoId/';
+
 /// Одна строчка истории просмотров пары.
 class WatchEntry {
   final String id;
@@ -62,6 +66,40 @@ class WatchHistoryService {
       return res.items.map(WatchEntry.fromRecord).toList();
     } catch (_) {
       return const [];
+    }
+  }
+
+  /// Убирает строку из «Недавних». Строки, которой уже нет, тоже нет.
+  static Future<bool> remove(String id) async {
+    if (id.isEmpty) return false;
+    try {
+      await _pb.collection(_col).delete(id);
+      return true;
+    } on ClientException catch (e) {
+      return e.statusCode == 404;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Убирает из «Недавних» всё, что показывало удалённый свой ролик: ссылка
+  /// на его файл ведёт в пустоту.
+  static Future<void> forgetVideo(String groupId, String videoId) async {
+    if (groupId.isEmpty || videoId.isEmpty) return;
+    try {
+      final res = await _pb.collection(_col).getList(
+            page: 1,
+            perPage: 50,
+            filter: _pb.filter('group_id = {:g} && url ~ {:u}', {
+              'g': groupId,
+              'u': watchVideoFilePath(videoId),
+            }),
+          );
+      for (final r in res.items) {
+        await remove(r.id);
+      }
+    } catch (_) {
+      // Не вышло сейчас — строка останется в «Недавних», её уберут руками.
     }
   }
 

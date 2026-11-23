@@ -6,8 +6,10 @@ import 'package:pocketbase/pocketbase.dart';
 import 'package:video_compress/video_compress.dart';
 
 import '../utils/video_link_thumb.dart';
+import 'offline/local_store.dart';
 import 'pocketbase_service.dart';
 import 'pb_realtime_service.dart';
+import 'watch_history_service.dart';
 
 /// Своё видео пары: либо загруженное во вкладке «Смотрим», либо ролик из
 /// ленты воспоминаний.
@@ -374,14 +376,28 @@ class WatchVideosService {
 
   /// Убирает свой ролик. Отвечает, получилось ли: экран показывает отказ, а не
   /// делает вид, что ролик исчез.
-  static Future<bool> remove(String id) async {
+  ///
+  /// Ролика, которого на сервере уже нет, тоже больше нет: его убрал партнёр
+  /// или первая попытка дошла, а ответ потерялся. Раньше такой ответ шёл
+  /// отказом, ролик оставался в кэше телефона, и человек жал «Удалить» по
+  /// кругу, читая «Ошибка» (обращение от 23.11.2026, десять попыток за утро).
+  /// Вместе с роликом уходят его строки из «Недавних»: файла под ними нет.
+  static Future<bool> remove(String id, {String groupId = ''}) async {
     if (id.isEmpty) return false;
     try {
       await _pb.collection(_col).delete(id);
-      return true;
     } catch (e) {
-      debugPrint('WatchVideos.remove failed: $e');
-      return false;
+      if (!recordAlreadyGone(e)) {
+        debugPrint('WatchVideos.remove failed: $e');
+        return false;
+      }
     }
+    await LocalStore.instance.deleteRecord(_col, id);
+    if (groupId.isNotEmpty) await WatchHistoryService.forgetVideo(groupId, id);
+    return true;
   }
 }
+
+/// Отказ сервера значит «такой записи уже нет».
+bool recordAlreadyGone(Object error) =>
+    error is ClientException && error.statusCode == 404;

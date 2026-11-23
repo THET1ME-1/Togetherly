@@ -301,7 +301,10 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
     );
     if (agreed != true) return;
 
-    final ok = await WatchVideosService.remove(video.id);
+    final ok = await WatchVideosService.remove(
+      video.id,
+      groupId: widget.pairData.pairId,
+    );
     if (!mounted) return;
     messenger.showSnackBar(
       SnackBar(
@@ -309,7 +312,62 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
         behavior: SnackBarBehavior.floating,
       ),
     );
-    if (ok) await _loadVideos();
+    if (ok) await Future.wait([_loadVideos(), _loadRecent()]);
+  }
+
+  /// Нажатие по строке «Недавних»: включить снова или убрать. Убрать раньше
+  /// было нечем вовсе, и ролик, удалённый из «Наших видео», оставался тут
+  /// обложкой без файла (обращение от 23.11.2026).
+  Future<void> _tapRecent(WatchEntry entry) async {
+    final s = LocaleService.current;
+    final action = await showAppSheet<String>(
+      context,
+      builder: (ctx) => SheetScaffold(
+        title: entry.label,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  key: const ValueKey('recent-play'),
+                  onPressed: () => Navigator.of(ctx).pop('play'),
+                  icon: const Icon(Icons.play_arrow_rounded),
+                  label: Text(s.watchTogether),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton.icon(
+                  key: const ValueKey('recent-remove'),
+                  onPressed: () => Navigator.of(ctx).pop('remove'),
+                  icon: const Icon(Icons.delete_outline_rounded),
+                  label: Text(s.delete),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!mounted || action == null) return;
+    if (action == 'play') {
+      await _openAgain(entry);
+      return;
+    }
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await WatchHistoryService.remove(entry.id);
+    if (!mounted) return;
+    if (ok) {
+      setState(() => _recent = _recent.where((e) => e.id != entry.id).toList());
+    } else {
+      messenger.showSnackBar(
+        SnackBar(content: Text(s.error), behavior: SnackBarBehavior.floating),
+      );
+    }
   }
 
   Future<void> _loadRecent() async {
@@ -501,7 +559,7 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
                 separatorBuilder: (_, _) => const SizedBox(width: 12),
                 itemBuilder: (_, i) => _RecentCard(
                   entry: _recent[i],
-                  onTap: () => _openAgain(_recent[i]),
+                  onTap: () => _tapRecent(_recent[i]),
                 ),
               ),
             ),
