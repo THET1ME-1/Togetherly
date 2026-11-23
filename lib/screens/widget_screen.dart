@@ -3224,22 +3224,10 @@ class _WidgetScreenState extends State<WidgetScreen>
       ) ??
       0;
 
-  static const List<String> _monthsGenitive = [
-    'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-    'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
-  ];
-
-  static const List<String> _monthsGenitiveEn = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-  ];
-
-  String _formatDayMonth(DateTime d) => switch (LocaleService.instance.language) {
-        AppLanguage.ru => '${d.day} ${_monthsGenitive[d.month - 1]}',
-        AppLanguage.zh => '${d.month}月${d.day}日',
-        AppLanguage.uk => LocaleService.current.dayLogDate(d),
-        _ => '${_monthsGenitiveEn[d.month - 1]} ${d.day}',
-      };
+  /// «1 ноября», «Nov 1», «1. Nov.» — день и месяц на языке приложения.
+  /// До 23.11.2026 своя развилка знала только ru, zh и uk, а немец, француз,
+  /// испанец и итальянец видели английский месяц.
+  String _formatDayMonth(DateTime d) => widgetDateShort(d);
 
   /// Цвет виджета по роли активной темы.
   ///

@@ -100,18 +100,23 @@ Future<Map<String, String>> _senderNamesOf(List<GiftMemo> memos,
   return out;
 }
 
-/// «2 раза», «5 раз» — лист говорит по-русски и по-английски.
+/// «2 раза», «5 раз» — число рядом со словом на каждом языке приложения.
 String giftTimesLabel(int n, {required bool ru}) {
-  if (LocaleService.instance.language == AppLanguage.zh) return '$n 次';
-  if (LocaleService.instance.language == AppLanguage.uk) {
-    final m10 = n % 10, m100 = n % 100;
-    final few = m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14);
-    return '$n ${few ? 'рази' : 'разів'}';
-  }
-  if (!ru) return n == 1 ? 'once' : '$n times';
   final m10 = n % 10, m100 = n % 100;
-  final word = (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) ? 'раза' : 'раз';
-  return '$n $word';
+  final few = m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14);
+  if (ru) return '$n ${few ? 'раза' : 'раз'}';
+  final one = n == 1;
+  return switch (LocaleService.instance.language) {
+    AppLanguage.zh => '$n 次',
+    AppLanguage.uk =>
+      '$n ${m10 == 1 && m100 != 11 ? 'раз' : few ? 'рази' : 'разів'}',
+    AppLanguage.pt => one ? 'uma vez' : '$n vezes',
+    AppLanguage.de => one ? 'einmal' : '$n-mal',
+    AppLanguage.fr => one ? 'une fois' : '$n fois',
+    AppLanguage.es => one ? 'una vez' : '$n veces',
+    AppLanguage.it => one ? 'una volta' : '$n volte',
+    AppLanguage.ru || AppLanguage.en => one ? 'once' : '$n times',
+  };
 }
 
 class GiftMemoList extends StatelessWidget {
@@ -181,7 +186,10 @@ class GiftMemoList extends StatelessWidget {
         if (name != null && name.isNotEmpty) {
           if (_zh) return '来自 $name';
           if (_uk) return 'від $name';
-          return _tr('от $name', 'from $name');
+          // Имя ставится после перевода: строку с подставленным именем
+          // таблица по образцу не находит.
+          if (ru) return 'от $name';
+          return trEnglish('from {0}').replaceAll('{0}', name);
         }
         return _tr('от партнёра', 'from your partner');
       case GiftSender.unknown:
@@ -209,8 +217,9 @@ class GiftMemoList extends StatelessWidget {
             ? '最近一次 ${_dateLabel(latest)}'
             : _uk
             ? 'останній ${_dateLabel(latest)}'
-            : _tr('последний ${_dateLabel(latest)}',
-                'last on ${_dateLabel(latest)}'),
+            : ru
+            ? 'последний ${_dateLabel(latest)}'
+            : trEnglish('last on {0}').replaceAll('{0}', _dateLabel(latest)),
     ].join(' · ');
 
     return Padding(

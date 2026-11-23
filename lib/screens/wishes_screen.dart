@@ -360,10 +360,12 @@ class _WishesScreenState extends State<WishesScreen> {
           ? '要删除“${wish.title}”吗？你们两边都会看不到它。'
           : LocaleService.instance.language == AppLanguage.uk
           ? 'Видалити «${wish.title}»? Бажання зникне в обох.'
-          : _tr(
-              'Удалить «${wish.title}»? Желание пропадёт у обоих.',
-              'Delete "${wish.title}"? It will disappear for both of you.',
-            ),
+          : LocaleService.instance.isRussian
+          ? 'Удалить «${wish.title}»? Желание пропадёт у обоих.'
+          // Название ставится после перевода: с ним внутри строку
+          // таблица по образцу не находит.
+          : trEnglish('Delete "{0}"? It will disappear for both of you.')
+              .replaceAll('{0}', wish.title),
       confirmLabel: _tr('Удалить', 'Delete'),
       destructive: true,
     );

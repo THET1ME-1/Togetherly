@@ -953,7 +953,17 @@ class _MoodPickerSheetState extends State<MoodPickerSheet> {
                         AppLanguage.zh => '画师：$author · 另一半也会一起获得',
                         AppLanguage.uk =>
                           'Малюнки — $author · набір з’явиться і в партнера',
-                        _ => 'Art by $author · your partner gets it too',
+                        AppLanguage.pt =>
+                          'Desenhos de $author · seu par também ganha',
+                        AppLanguage.de =>
+                          'Zeichnungen von $author · dein Partner bekommt es auch',
+                        AppLanguage.fr =>
+                          'Dessins de $author · ton partenaire l’a aussi',
+                        AppLanguage.es =>
+                          'Dibujos de $author · tu pareja también lo recibe',
+                        AppLanguage.it =>
+                          'Disegni di $author · lo riceve anche il partner',
+                        AppLanguage.en => 'Art by $author · your partner gets it too',
                       },
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),

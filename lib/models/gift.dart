@@ -1,3 +1,7 @@
+import '../l10n/de/gifts.dart';
+import '../l10n/es/gifts.dart';
+import '../l10n/fr/gifts.dart';
+import '../l10n/it/gifts.dart';
 import '../l10n/pt/gifts.dart';
 import '../l10n/uk/gifts.dart';
 import '../l10n/zh/gifts.dart';
@@ -224,7 +228,11 @@ class Gift {
         AppLanguage.zh => kGiftTitlesZh[key] ?? titleEn,
         AppLanguage.uk => kGiftTitlesUk[key] ?? titleEn,
         AppLanguage.pt => kGiftTitlesPt[key] ?? titleEn,
-        _ => titleEn,
+        AppLanguage.de => kGiftTitlesDe[key] ?? titleEn,
+        AppLanguage.fr => kGiftTitlesFr[key] ?? titleEn,
+        AppLanguage.es => kGiftTitlesEs[key] ?? titleEn,
+        AppLanguage.it => kGiftTitlesIt[key] ?? titleEn,
+        AppLanguage.en => titleEn,
       };
 }
 

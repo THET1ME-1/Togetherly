@@ -62,8 +62,41 @@ check('язык из адреса важнее сохранённого выбо
 });
 
 check('незнакомый язык из адреса не мешает остальным правилам', () => {
-  assert.strictEqual(load({ search: '?lang=de', saved: 'ru' }).lang, 'ru');
-  assert.strictEqual(load({ search: '?lang=de', languages: ['de-DE'] }).lang, 'en');
+  assert.strictEqual(load({ search: '?lang=ja', saved: 'ru' }).lang, 'ru');
+  assert.strictEqual(load({ search: '?lang=ja', languages: ['ja-JP'] }).lang, 'en');
+});
+
+// До 23.11.2026 словарь знал только ru, en и pt: украинец, китаец, немец,
+// француз, испанец и итальянец видели комнату по-английски.
+check('все языки приложения: из адреса и из браузера', () => {
+  const room = {
+    uk: 'Вставте посилання на відео', zh: '粘贴视频链接',
+    de: 'Füge einen Videolink ein', fr: 'Colle un lien vers une vidéo',
+    es: 'Pega el enlace de un vídeo', it: 'Incolla il link di un video',
+  };
+  for (const [lang, text] of Object.entries(room)) {
+    const fromApp = load({ search: '?lang=' + lang, languages: ['en-US'] });
+    assert.strictEqual(fromApp.lang, lang);
+    assert.strictEqual(fromApp.t('room.empty'), text);
+    assert.strictEqual(load({ languages: [lang + '-XX', 'en'] }).lang, lang);
+  }
+  assert.strictEqual(load({ languages: ['zh-TW'] }).lang, 'zh');
+  assert.strictEqual(load({ languages: ['en-GB', 'de-AT'] }).lang, 'de');
+});
+
+check('каждый язык покрывает все ключи английского', () => {
+  const en = load({ search: '?lang=en' });
+  const keys = fs.readFileSync(path.join(__dirname, '..', 'i18n.js'), 'utf8')
+    .match(/^ {6}'([a-z0-9.]+)':/gm).map((s) => s.trim().slice(1, -2));
+  for (const lang of ['uk', 'zh', 'de', 'fr', 'es', 'it']) {
+    const i = load({ search: '?lang=' + lang });
+    const same = [...new Set(keys)].filter((k) => i.t(k) === en.t(k)
+      && !['foot.github', 'gate.yandex', 'room.chat', 'room.pauseNow', 'nav.app',
+        'foot.col.app', 'gate.email', 'gate.pass', 'room.offline', 'room.message',
+        'room.fileSource', 'privacy.title', 'nav.privacy', 'foot.privacy'].includes(k));
+    // Совпасть с английским могут только слова, одинаковые в обоих языках.
+    assert.ok(same.length <= 3, lang + ': как в английском — ' + same.join(', '));
+  }
 });
 
 check('старая сборка без lang: португальский браузер — португальский', () => {

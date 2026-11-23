@@ -11,7 +11,6 @@ import '../utils/couple_days.dart';
 import '../utils/widget_dates.dart';
 import '../theme/app_theme.dart';
 import 'home_widget_service.dart';
-import 'locale_service.dart';
 import 'map/pair_map_widget_service.dart';
 import 'mood_service.dart';
 import 'pb_data_service.dart';
@@ -31,26 +30,9 @@ import 'pb_data_service.dart';
 class CatalogWidgetSync {
   CatalogWidgetSync._();
 
-  static const _months = <String>[
-    'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-    'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
-  ];
-
-  static String _dayMonth(DateTime d) => '${d.day} ${_months[d.month - 1]}';
-
-  static const _monthsEn = <String>[
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-  ];
-
-  /// Подпись даты на чипе «До встречи» — как в превью экрана «Виджеты».
-  static String _countdownDate(DateTime d) =>
-      switch (LocaleService.instance.language) {
-        AppLanguage.ru => _dayMonth(d),
-        AppLanguage.zh => '${d.month}月${d.day}日',
-        AppLanguage.uk => LocaleService.current.dayLogDate(d),
-        _ => '${_monthsEn[d.month - 1]} ${d.day}',
-      };
+  /// Подпись даты на чипе «До встречи» — как в превью экрана «Виджеты»: день и
+  /// месяц на языке приложения.
+  static String _countdownDate(DateTime d) => widgetDateShort(d);
 
   static String _initial(String name) {
     final trimmed = name.trim();

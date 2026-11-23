@@ -66,6 +66,10 @@ import 'l10n/dict/watch_voice.dart';
 import 'l10n/dict/welcome.dart';
 import 'l10n/dict/widget_screen.dart';
 import 'l10n/dict/home_widgets.dart';
+import 'l10n/de/inline.dart';
+import 'l10n/es/inline.dart';
+import 'l10n/fr/inline.dart';
+import 'l10n/it/inline.dart';
 import 'l10n/pt/inline.dart';
 import 'l10n/uk/inline.dart';
 import 'l10n/uk/uk.dart';
@@ -170,23 +174,29 @@ String trDict(String key, String code) {
 
 /// Строка, которая живёт прямо в экране парой «русский / английский».
 ///
-/// Остальные языки видят английскую, китайский и украинский ищут перевод в
-/// `kZhByEnglish` и `kUkByEnglish` по английскому образцу: числа в строке
-/// заменяются метками `{0}`, `{1}`… и подставляются обратно, поэтому «нужно
-/// 30, у вас 12» находит перевод так же, как строка без чисел. Украинцу без
-/// перевода достаётся английская строка, а не русская.
+/// Английский видит её как есть, остальные семь языков ищут перевод в своей
+/// таблице `k<Язык>ByEnglish` (`l10n/<язык>/inline.dart`) по английскому
+/// образцу: числа в строке заменяются метками `{0}`, `{1}`… и подставляются
+/// обратно, поэтому «нужно 30, у вас 12» находит перевод так же, как строка
+/// без чисел. Без перевода достаётся английская строка, а не русская.
 String ruEn(String ru, String en) => switch (LocaleService.instance.language) {
       AppLanguage.ru => ru,
       _ => trEnglish(en),
     };
 
-/// Английская строка из экрана на текущем языке: китайский и украинский
-/// переводятся по образцу, остальные языки получают её как есть.
+/// Английская строка из экрана на текущем языке: у каждого языка, кроме
+/// русского и английского, своя таблица перевода по образцу. До 23.11.2026
+/// таблиц не было у немецкого, французского, испанского и итальянского, и они
+/// видели эти строки по-английски.
 String trEnglish(String en) => switch (LocaleService.instance.language) {
       AppLanguage.zh => _byEnglish(kZhByEnglish, en),
       AppLanguage.uk => _byEnglish(kUkByEnglish, en),
       AppLanguage.pt => _byEnglish(kPtByEnglish, en),
-      _ => en,
+      AppLanguage.de => _byEnglish(kDeByEnglish, en),
+      AppLanguage.fr => _byEnglish(kFrByEnglish, en),
+      AppLanguage.es => _byEnglish(kEsByEnglish, en),
+      AppLanguage.it => _byEnglish(kItByEnglish, en),
+      AppLanguage.ru || AppLanguage.en => en,
     };
 
 /// Перевод английской строки из экрана по таблице, иначе сама строка.

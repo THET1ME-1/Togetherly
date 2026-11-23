@@ -181,6 +181,34 @@ class _ItStrings extends _EnStrings {
   @override
   String exportError(String e) => 'Errore durante l’esportazione: $e';
 
+  // ── Цикл и данные ── (до 23.11.2026 шли по-английски: строки зашиты прямо
+  // в `_EnStrings`, мимо словаря)
+  @override
+  String get cycleConsentBody =>
+      'Le date del ciclo e il benessere sono dati sanitari, per questo te lo '
+      'chiediamo a parte. Restano sul nostro server, il partner li vede solo se '
+      'lo attivi e si cancellano con un tocco. Puoi revocare il consenso nelle '
+      'impostazioni e le voci se ne vanno con lui.';
+  @override
+  String get cycleConsentAgree => 'Accetto, tieni il ciclo';
+  @override
+  String get cycleConsentLater => 'Non ora';
+  @override
+  String get cycleConsentWithdraw => 'Revoca il consenso al ciclo';
+  @override
+  String get cycleConsentWithdrawHint =>
+      'La sezione si chiude e le voci vengono cancellate';
+  @override
+  String get exportMyData => 'I miei dati';
+  @override
+  String get exportMyDataHint => 'Scarica un file con tutto quello che conserviamo';
+  @override
+  String get exportMyDataReady => 'File pronto';
+  @override
+  String get exportMyDataFailed => 'Impossibile preparare il file';
+  @override
+  String get exportMemories => 'Esporta i ricordi';
+
   @override
   String downloadFailed(String e) => 'Download non riuscito: $e';
 

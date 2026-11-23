@@ -181,6 +181,34 @@ class _FrStrings extends _EnStrings {
   @override
   String exportError(String e) => 'Erreur pendant l’export : $e';
 
+  // ── Цикл и данные ── (до 23.11.2026 шли по-английски: строки зашиты прямо
+  // в `_EnStrings`, мимо словаря)
+  @override
+  String get cycleConsentBody =>
+      'Les dates du cycle et le bien-être sont des données de santé, c’est '
+      'pourquoi on te le demande à part. Elles restent sur notre serveur, ton '
+      'partenaire ne les voit que si tu l’actives, et elles s’effacent d’un geste. '
+      'Tu peux retirer ton accord dans les réglages, les entrées partent avec.';
+  @override
+  String get cycleConsentAgree => 'J’accepte, suivre le cycle';
+  @override
+  String get cycleConsentLater => 'Pas maintenant';
+  @override
+  String get cycleConsentWithdraw => 'Retirer l’accord pour le cycle';
+  @override
+  String get cycleConsentWithdrawHint =>
+      'La section se ferme et les entrées sont supprimées';
+  @override
+  String get exportMyData => 'Mes données';
+  @override
+  String get exportMyDataHint => 'Télécharger un fichier avec tout ce que nous conservons';
+  @override
+  String get exportMyDataReady => 'Fichier prêt';
+  @override
+  String get exportMyDataFailed => 'Impossible de préparer le fichier';
+  @override
+  String get exportMemories => 'Exporter les souvenirs';
+
   @override
   String downloadFailed(String e) => 'Téléchargement échoué : $e';
 

@@ -1,0 +1,556 @@
+// Немецкий для строк, которые живут прямо в экранах парой «русский /
+// английский» (`ruEn` и `trEnglish` в `../../dict_strings.dart`, `_tr` и `_t`
+// в нескольких экранах). Устроено как `../pt/inline.dart`: ключ — английская
+// строка, где каждое число заменено на `{0}`, `{1}`… по порядку. Набор ключей
+// совпадает с португальским, это стережёт `test/services/locale_eu_test.dart`.
+//
+// До 23.11.2026 таблицы не было, и немец видел эти строки по-английски.
+
+const Map<String, String> kDeByEnglish = {
+  // Поиск фильмов: вид работы
+  'Series': 'Serie',
+  'Cartoon': 'Zeichentrickfilm',
+  'Animated series': 'Zeichentrickserie',
+  'Anime': 'Anime',
+  'Movie': 'Film',
+
+  // Работа в фоне (Android)
+  'Instant notifications & widgets': 'Sofortige Benachrichtigungen und Widgets',
+  'To get messages, “miss you” and widget updates instantly — even when the app is closed — allow Togetherly to run in the background without battery limits.\n\nOtherwise Android suspends the connection and everything only arrives when you open the app.':
+      'Damit Nachrichten, „Ich vermisse dich“ und Widget-Updates sofort ankommen – auch bei geschlossener App –, erlaube Togetherly, ohne Akku-Beschränkung im Hintergrund zu laufen.\n\nSonst unterbricht Android die Verbindung, und alles kommt erst an, wenn du die App öffnest.',
+  'Allow': 'Erlauben',
+  'Later': 'Später',
+
+  // Наборы настроений
+  'This pack is not for sale yet': 'Dieses Paket ist noch nicht erhältlich',
+  'This pack is not available yet': 'Dieses Paket ist noch nicht verfügbar',
+  'Payment is processing — the pack will open by itself':
+      'Die Zahlung wird bearbeitet – das Paket schaltet sich von selbst frei',
+  'Purchase failed': 'Kauf fehlgeschlagen',
+  'You already own this pack': 'Dieses Paket hast du schon',
+  'Could not open checkout': 'Die Zahlung ließ sich nicht öffnen',
+  'Not enough coins: {0} needed, you have {1}':
+      'Nicht genug Münzen: {0} nötig, du hast {1}',
+  'Unlock for {0}': 'Für {0} freischalten',
+  'Yours forever, and your partner gets it too':
+      'Für immer deins, und dein Partner bekommt es auch',
+
+  // Очередь синхронизации
+  'Offline': 'Offline',
+  'Compressing video…': 'Video wird komprimiert…',
+  "Didn't sync — retry": 'Nicht synchronisiert – erneut versuchen',
+  'Dismiss': 'Verwerfen',
+  "These changes won't be saved. Dismiss?":
+      'Diese Änderungen werden nicht gespeichert. Verwerfen?',
+  'Keep': 'Behalten',
+
+  // Желания
+  'Want with you': 'Mit dir erleben',
+  'All →': 'Alle →',
+  '{0} already came true — see them': '{0} schon in Erfüllung gegangen – ansehen',
+  'What to watch, where to go, where to eat — start a list for two.':
+      'Was schauen, wohin fahren, wo essen – startet eine Liste zu zweit.',
+  "The shop didn't share a card — fill it in":
+      'Der Shop hat keine Karte geliefert – füll sie selbst aus',
+  "The photo didn't upload — try later":
+      'Das Foto wurde nicht hochgeladen – versuch es später',
+  'From gallery': 'Aus der Galerie',
+  'Take a photo': 'Foto aufnehmen',
+  'Edit wish': 'Wunsch bearbeiten',
+  'New wish': 'Neuer Wunsch',
+  'Custom': 'Eigene',
+  'What we want': 'Was wir wollen',
+  '"Dune: Part Three"': '„Dune: Teil Drei“',
+  'Note': 'Notiz',
+  'optional': 'optional',
+  'Save': 'Speichern',
+  'Add': 'Hinzufügen',
+  'together': 'zusammen',
+  'Cancel': 'Abbrechen',
+  'Own photo': 'Eigenes Foto',
+  'Replace photo': 'Foto ersetzen',
+  'Product link': 'Produktlink',
+  'Price': 'Preis',
+  'Open link': 'Link öffnen',
+  'Edit category': 'Kategorie bearbeiten',
+  'Your own category': 'Eigene Kategorie',
+  'Name': 'Name',
+  'Concerts': 'Konzerte',
+  'Pick from {0} icons': 'Wähle aus {0} Symbolen',
+  'Create': 'Erstellen',
+  "You're gifting it — your partner won't know":
+      'Du schenkst es – dein Partner erfährt es nicht',
+  'Came true': 'Erfüllt',
+  'UNDO': 'RÜCKGÄNGIG',
+  'When it happened': 'Wann es passiert ist',
+  'How it went': 'Wie es war',
+  'A few words to remember': 'Ein paar Worte zur Erinnerung',
+  'Delete': 'Löschen',
+  'Dreaming': 'Wir träumen',
+  'Add your first wish: a film you are waiting for, a place you want to go, or anything of your own. Your partner will see it right away.':
+      'Füge deinen ersten Wunsch hinzu: einen Film, auf den du wartest, einen Ort, an den du willst, oder etwas ganz Eigenes. Dein Partner sieht ihn sofort.',
+  'Nothing has come true yet. Tick a wish off when it happens.':
+      'Noch hat sich nichts erfüllt. Hake einen Wunsch ab, wenn es so weit ist.',
+  'Every wish came true. Time to think of a new one.':
+      'Alle Wünsche haben sich erfüllt. Zeit für einen neuen.',
+  "I'm gifting": 'Ich schenke es',
+  'Gift it': 'Verschenken',
+  'Open': 'Öffnen',
+  'in Togetherly+': 'in Togetherly+',
+  'Delete "{0}"? It will disappear for both of you.':
+      '„{0}“ löschen? Er verschwindet bei euch beiden.',
+
+  // Кольцо настроений
+  'bright': 'helle',
+  'Collapse': 'Einklappen',
+  '{0} more': 'Noch {0}',
+
+  // Типы воспоминаний
+  'Photo': 'Foto',
+  'Video': 'Video',
+  'Video link': 'Videolink',
+  'Text': 'Text',
+  'Music': 'Musik',
+  'Book': 'Buch',
+  'Place': 'Ort',
+  'Audio': 'Audio',
+  'Untyped': 'Ohne Typ',
+  'Moment': 'Moment',
+  'Location': 'Ort',
+  'Untitled': 'Ohne Titel',
+
+  // Галерея маскотов
+  'Pixel': 'Pixel',
+  'Our drawings': 'Unsere Zeichnungen',
+  'Built-in': 'Eingebaut',
+  'Catalog': 'Katalog',
+  'Unlock this character forever for {0} coins?':
+      'Diese Figur für {0} Münzen für immer freischalten?',
+  'Buy': 'Kaufen',
+  'Not for sale yet': 'Noch nicht erhältlich',
+  'Unlocks at level {0}': 'Wird ab Level {0} freigeschaltet',
+  'On screen now': 'Gerade auf dem Bildschirm',
+  'Waiting': 'Wartet',
+  'Nobody with that name. Try another word.':
+      'Niemand mit diesem Namen. Versuch ein anderes Wort.',
+  'Mascots marked «От нас» drawn by Meller{0}':
+      'Mit „Von uns“ markierte Maskottchen hat Meller{0} gezeichnet',
+  'Find a mascot': 'Maskottchen suchen',
+  'paid': 'kostenpflichtig',
+  'Lv {0}': 'Lv. {0}',
+  'Streak paused at {0}. Bring it back to keep going':
+      'Serie bei {0} pausiert. Hol sie zurück, um weiterzumachen',
+  'Streak {0} paused': 'Serie {0} pausiert',
+
+  // Статистика пары
+  'You': 'Du',
+  'Partner': 'Partner',
+  'Couple stats': 'Paarstatistik',
+  'Refresh': 'Aktualisieren',
+  'Nothing to show yet — stats appear once you start together.':
+      'Noch nichts zu zeigen – die Statistik erscheint, sobald ihr gemeinsam loslegt.',
+  'Tips for today': 'Tipps für heute',
+  'Picked from your numbers': 'Passend zu euren Zahlen',
+  'Days together': 'Tage zusammen',
+  'Day streak': 'Tagesserie',
+  'Couple XP': 'Paar-XP',
+  'To anniversary': 'Bis zum Jahrestag',
+  'Memories': 'Erinnerungen',
+  'Photos': 'Fotos',
+  'Videos': 'Videos',
+  'Messages': 'Nachrichten',
+  'Mood marks': 'Stimmungseinträge',
+  'Miss-yous': 'Vermisse-dich',
+  'Brush strokes': 'Pinselstriche',
+  'Comments': 'Kommentare',
+  'Gifts': 'Geschenke',
+  'Mascots': 'Maskottchen',
+  'Watch sessions': 'Gemeinsam geschaut',
+  'Canvases': 'Leinwände',
+  'The year together': 'Das gemeinsame Jahr',
+  'Share of each series best month': 'Anteil jeder Reihe im besten Monat',
+  'Moods': 'Stimmungen',
+  'Side by side': 'Nebeneinander',
+  'Each partner all-time': 'Jeder von euch, seit Beginn',
+  'Weekly rhythm': 'Wochenrhythmus',
+  'Which days you are busiest': 'An welchen Tagen ihr am aktivsten seid',
+  'Hours of the day': 'Tageszeiten',
+  'Peak at {0}:{1} · {2}% between {3} and {4}':
+      'Spitze um {0}:{1} · {2} % zwischen {3} und {4}',
+  'Mood': 'Stimmung',
+  'Mood not set': 'Stimmung nicht gesetzt',
+  'My mood': 'Meine Stimmung',
+  'Mood on the lock screen': 'Stimmung auf dem Sperrbildschirm',
+  'Mood over {0} days': 'Stimmung über {0} Tage',
+  'Daily average, {0} to {1}': 'Tagesdurchschnitt, {0} bis {1}',
+  'Favourite moods': 'Lieblingsstimmungen',
+  'What you mark most often': 'Was ihr am häufigsten eintragt',
+  'What memories are made of': 'Woraus eure Erinnerungen bestehen',
+  'Under one': 'Weniger als eine',
+  'Memories per week now': 'Erinnerungen pro Woche derzeit',
+  'In {0} days': 'In {0} Tagen',
+  'To {0} memories': 'Bis {0} Erinnerungen',
+  'Projected for a year at this pace': 'Hochrechnung für ein Jahr in diesem Tempo',
+  'of {0}': 'von {0}',
+  'Active days last month': 'Aktive Tage im letzten Monat',
+  'Mood versus last month': 'Stimmung im Vergleich zum Vormonat',
+  'What is next': 'Was als Nächstes kommt',
+  'Projection from the last thirty days': 'Hochrechnung aus den letzten dreißig Tagen',
+  'Nothing yet': 'Noch nichts',
+
+  // Донат за монеты
+  'Donation → coins': 'Spende → Münzen',
+  'To get coins automatically, put your email in the donation message:':
+      'Damit die Münzen automatisch ankommen, schreib deine E-Mail in die Spendennachricht:',
+  'Email copied': 'E-Mail kopiert',
+  'Copy the email above': 'Kopiere die E-Mail oben',
+  'Paste it into the donation message': 'Füge sie in die Spendennachricht ein',
+  'From {0} ₽ — coins arrive on their own in a couple of minutes':
+      'Ab {0} ₽ – die Münzen kommen in ein paar Minuten von selbst',
+  'Open DonationAlerts': 'DonationAlerts öffnen',
+
+  // Профиль
+  'dark': 'dunkel',
+  'light': 'hell',
+  'How you love': 'Wie du liebst',
+  'Twenty questions, one shape for two': 'Zwanzig Fragen, eine Form für zwei',
+  'Tests for two': 'Tests für zwei',
+  'Six tests, from love language to how you argue':
+      'Sechs Tests, von der Liebessprache bis zur Streitkultur',
+
+  // Настройка профиля
+  'Prefer not to say': 'Keine Angabe',
+  'Custom gender': 'Anderes Geschlecht',
+  'Enter your gender': 'Gib dein Geschlecht ein',
+
+  // Календарь настроений
+  'Entries': 'Einträge',
+  'Days tracked': 'Erfasste Tage',
+  'Most often': 'Am häufigsten',
+
+  // Уровень и задания
+  'Open the app every day': 'Öffne die App jeden Tag',
+  'Add memories': 'Füge Erinnerungen hinzu',
+  'Watch videos together': 'Schaut Videos zusammen',
+  'Add the home screen widget': 'Füge das Widget zum Home-Bildschirm hinzu',
+  'Track your mood': 'Trag deine Stimmung ein',
+  'one-time': 'einmalig',
+  '{0}/day': '{0}/Tag',
+  'Level & tasks': 'Level und Aufgaben',
+  'Tasks — how to level up': 'Aufgaben – so steigt ihr auf',
+  'Rewards — mascots': 'Belohnungen – Maskottchen',
+  'Level {0}': 'Level {0}',
+  '{0} XP to level {1}': 'Noch {0} XP bis Level {1}',
+  'Rewards are loading…': 'Belohnungen werden geladen…',
+
+  // Живое фото в виджете
+  'A live photo needs a video or a GIF': 'Ein Live-Foto braucht ein Video oder ein GIF',
+  'Live photo is in the widget': 'Das Live-Foto ist im Widget',
+  'Failed — please try again': 'Fehlgeschlagen – bitte versuch es noch einmal',
+  'Live photo removed': 'Live-Foto entfernt',
+  'Live photo — a video or a GIF': 'Live-Foto – ein Video oder ein GIF',
+  'Remove the live photo': 'Live-Foto entfernen',
+  'This video is too large — pick a shorter one':
+      'Dieses Video ist zu groß – wähle ein kürzeres',
+  'This GIF is too large — pick a lighter one':
+      'Dieses GIF ist zu groß – wähle ein kleineres',
+
+  // Наборы и маскоты: имена
+  'Classic': 'Klassisch',
+  'Pink': 'Rosa',
+  'Bunny': 'Häschen',
+  'Mochi': 'Mochi',
+  'Puppy': 'Welpe',
+  'Pud': 'Pudding',
+  'Prick': 'Stachel',
+  'Cristal': 'Kristall',
+  'Wick': 'Docht',
+  'Brew': 'Teechen',
+  'Bulb': 'Birnchen',
+  'Cloud': 'Wolke',
+  'Sprout': 'Spross',
+  'Scoop': 'Kugel',
+  'Pearl': 'Perle',
+  'Volt': 'Volt',
+  'Moony': 'Möndchen',
+  'Snaily': 'Schneckchen',
+  'Balloon': 'Ballon',
+  'Shroomy': 'Pilzchen',
+  'Donut': 'Donut',
+  'Beep': 'Piep',
+  'Boo': 'Buh',
+  'Tape': 'Kassette',
+  'Compass': 'Kompass',
+  'Ember': 'Glut',
+  'Boxy': 'Kistchen',
+  'Blink': 'Blinzel',
+  'Bubbly': 'Bläschen',
+  'Cuckoo': 'Kuckuck',
+  'Half': 'Hälfte',
+  'Seasons': 'Jahreszeiten',
+  'Postie': 'Postbote',
+  'Fae': 'Fee',
+  'Lantern': 'Laterne',
+  'Jelly': 'Wackelpudding',
+  'Spiky': 'Spiky',
+  'Lulu': 'Lulu',
+  'Iskrik': 'Funki',
+  'Zhuzha': 'Summsi',
+
+  // Раскраски: разделы
+  'Food': 'Essen',
+  'Trip': 'Reise',
+  'Other': 'Sonstiges',
+  'Cafe': 'Café',
+  'Castle': 'Schloss',
+  'Rain': 'Regen',
+  'Ferris wheel': 'Riesenrad',
+  'Metro': 'U-Bahn',
+  'Camping': 'Camping',
+  'Festival': 'Festival',
+  'Baking': 'Backen',
+  'Beach': 'Strand',
+  'Gaming': 'Gaming',
+
+  // Подарки
+  'date lost': 'Datum verloren',
+  'from you': 'von dir',
+  'from your partner': 'von deinem Partner',
+  'from the chest': 'aus der Truhe',
+  'This gift is not on the shelf yet.': 'Dieses Geschenk liegt noch nicht im Regal.',
+  'Your reply': 'Deine Antwort',
+  'Reply': 'Antworten',
+  'No note': 'Ohne Notiz',
+  'Everyday': 'Alltag',
+  'Occasions': 'Anlässe',
+  'Milestones': 'Meilensteine',
+  'from {0}': 'von {0}',
+  'last on {0}': 'zuletzt am {0}',
+
+  // Ту и его гардероб
+  'Tu': 'Tu',
+  'Whose Tu': 'Wessen Tu',
+  'Mine': 'Meiner',
+  'Wardrobe': 'Kleiderschrank',
+  'Clothes': 'Kleidung',
+  'Glasses': 'Brillen',
+  'Face': 'Gesicht',
+  'Scarves': 'Schals und Decken',
+  'Head': 'Kopf',
+  'Above': 'Über dem Kopf',
+  'Buddy': 'Freund daneben',
+  'Tu’s wardrobe': 'Tus Kleiderschrank',
+  'Tu’s items will appear here once the catalog loads.':
+      'Tus Sachen erscheinen hier, sobald der Katalog geladen ist.',
+  'Trying on: ': 'Anprobe: ',
+  'Stop trying on': 'Anprobe beenden',
+  'All': 'Alle',
+  'For coins': 'Für Münzen',
+  'For ads': 'Für Werbung',
+  'Nothing here yet': 'Hier ist noch nichts',
+  'Wearing': 'Trägt er',
+  'Trying on': 'Anprobe',
+  'Wear': 'Anziehen',
+  'Ads {0} of {1}': 'Werbung {0} von {1}',
+  '{0} coins': '{0} Münzen',
+  'Get': 'Holen',
+  'Watch ad': 'Werbung ansehen',
+  'From chest': 'Aus der Truhe',
+  'Buy · {0}': 'Kaufen · {0}',
+  'Next ad · {0} of {1}': 'Nächste Werbung · {0} von {1}',
+  'Drops from the “Cozy autumn” chest': 'Kommt aus der Truhe „Gemütlicher Herbst“',
+  'Drops from the chest': 'Kommt aus der Truhe',
+  'Something went wrong, try again': 'Etwas ist schiefgelaufen, versuch es noch einmal',
+  'The ad is still loading, try again in a moment':
+      'Die Werbung lädt noch, versuch es gleich noch einmal',
+  'Ad counted: {0} of {1}': 'Werbung gezählt: {0} von {1}',
+  'Wait a few seconds before the next one': 'Warte ein paar Sekunden bis zur nächsten',
+  'For Tu only, wear it in the wardrobe': 'Nur für Tu – zieh es im Kleiderschrank an',
+  'Tu is wearing it now': 'Tu trägt es gerade',
+  '“{0}” is yours and already on': '„{0}“ gehört dir und ist schon angezogen',
+  'Tu’s item “{0}”': 'Tus Sache „{0}“',
+
+  // Вещи Ту: названия из каталога (`name_en` записей вида `wear`)
+  'Acorn cap': 'Eichelhut',
+  'Freckles': 'Sommersprossen',
+  'Maple leaf': 'Ahornblatt',
+  'Little rain cloud': 'Regenwölkchen',
+  'Knitted snood': 'Strickschal',
+  'Umbrella': 'Regenschirm',
+  'Round glasses': 'Runde Brille',
+  'Blanket cocoon': 'Deckenkokon',
+  'Leaf fall': 'Blätterregen',
+  'Scarf': 'Schal',
+  'Heart balloon': 'Herzballon',
+  'Little bell': 'Glöckchen',
+  'Bow': 'Schleife',
+  'Bow tie': 'Fliege',
+  'Daisy': 'Gänseblümchen',
+  'Glitter': 'Glitzer',
+  'Heart blush': 'Herzwangen',
+  'Spring antennae': 'Federfühler',
+  'Little bee': 'Bienchen',
+  'Heart glasses': 'Herzbrille',
+  'Firefly': 'Glühwürmchen',
+  'Monocle': 'Monokel',
+  'Halo': 'Heiligenschein',
+  'Mustache': 'Schnurrbart',
+  'Pearl necklace': 'Perlenkette',
+  'Circling hearts': 'Kreisende Herzen',
+  'Heart plaster': 'Herzpflaster',
+  'Rainbow': 'Regenbogen',
+  'Sunglasses': 'Sonnenbrille',
+  'Tiara': 'Diadem',
+  'Star glasses': 'Sternbrille',
+  'Tie': 'Krawatte',
+  'Cat whiskers': 'Katzenschnurrhaare',
+  'Check blazer': 'Karierter Blazer',
+  'Linen blazer': 'Leinenblazer',
+  'Mint blazer': 'Mintfarbener Blazer',
+  'Navy blazer': 'Marineblauer Blazer',
+  'Pink suit': 'Rosa Anzug',
+  'Tuxedo': 'Smoking',
+  'Velvet blazer': 'Samtblazer',
+  'White suit': 'Weißer Anzug',
+  'Argyle vest': 'Pullunder mit Rautenmuster',
+  'Breton top': 'Ringelshirt',
+  'Cable-knit sweater': 'Zopfpullover',
+  'Denim jacket': 'Jeansjacke',
+  'Hoodie': 'Kapuzenpulli',
+  'Biker jacket': 'Bikerjacke',
+  'Overalls': 'Latzhose',
+  'Puffer jacket': 'Steppjacke',
+  'Raincoat': 'Regenmantel',
+  'Cardigan': 'Strickjacke',
+  'Corduroy jacket': 'Cordjacke',
+  'Flannel shirt': 'Flanellhemd',
+  'Quilted vest': 'Steppweste',
+  'Leaf sweater': 'Blätterpulli',
+  'Pumpkin sweatshirt': 'Kürbis-Sweatshirt',
+  'Trench coat': 'Trenchcoat',
+  'Fish in a bubble': 'Fisch in der Blase',
+  'Our story book': 'Buch unserer Geschichte',
+  'Pumpkin lantern': 'Kürbislaterne',
+
+  // Строки, которые до 23.11.2026 были только русскими
+  // Каналы и тексты уведомлений
+  'Mascot': 'Maskottchen',
+  "A reminder when you haven't opened the app for a while":
+      'Eine Erinnerung, wenn du die App länger nicht geöffnet hast',
+  'Your mascot misses you 🥺': 'Dein Maskottchen vermisst dich 🥺',
+  "It's been a while — come back and cheer up your mascot 🐾":
+      'Lange nicht gesehen – komm zurück und mach deinem Maskottchen eine Freude 🐾',
+  'Invitation': 'Einladung',
+  'A reminder to invite your partner while you have no pair':
+      'Eine Erinnerung, deinen Partner einzuladen, solange ihr noch nicht verbunden seid',
+  'Celebrations': 'Feiertage',
+  'Reminders about anniversaries and birthdays': 'Erinnerungen an Jahrestage und Geburtstage',
+  'Time capsule': 'Zeitkapsel',
+  'A reminder when a time capsule opens': 'Eine Erinnerung, wenn sich eine Zeitkapsel öffnet',
+  'A permanent counter of the days you have spent together':
+      'Ein dauerhafter Zähler eurer gemeinsamen Tage',
+  'Server connection': 'Serververbindung',
+  'Keeps the connection open to deliver messages, moods and “miss you” from your partner while the app is in the background.':
+      'Hält die Verbindung offen, damit Nachrichten, Stimmungen und „Ich vermisse dich“ deines Partners ankommen, während die App im Hintergrund ist.',
+  'Togetherly is connected': 'Togetherly ist verbunden',
+  'Receiving notifications from your partner': 'Benachrichtigungen deines Partners werden empfangen',
+
+  // Запасные подписи виджетов
+  'No data yet': 'Noch keine Daten',
+  'Rating': 'Bewertung',
+  'Photo of the day': 'Foto des Tages',
+  'My photo': 'Mein Foto',
+  "Partner's photo": 'Foto des Partners',
+  'Me': 'Ich',
+  'Member': 'Mitglied',
+
+  // Советы паре
+  'Your partner is having a rough day': 'Dein Partner hat einen schweren Tag',
+  'Ask how they are and just listen. No advice needed — sometimes it is enough to have someone close.':
+      'Frag, wie es geht, und hör einfach zu. Ratschläge braucht es nicht – manchmal reicht es, dass jemand da ist.',
+  'You don’t know how your partner is today': 'Du weißt nicht, wie es deinem Partner heute geht',
+  'Ask them yourself: a real question beats a mark in the calendar.':
+      'Frag selbst: Eine echte Frage ist besser als ein Eintrag im Kalender.',
+  'These days can be hard': 'Diese Tage können schwer sein',
+  'Take on a chore, bring her some tea, suggest an evening with no plans. Ask what she would like.':
+      'Übernimm etwas im Haushalt, bring ihr einen Tee, schlag einen Abend ohne Pläne vor. Frag, was sie sich wünscht.',
+  'Her period is coming soon': 'Ihre Periode kommt bald',
+  'A good moment to do something in advance: order her favourite treat or keep the evening free.':
+      'Ein guter Moment, vorzusorgen: Bestell ihre Lieblingsleckerei oder halt den Abend frei.',
+  'The silence has gone on too long': 'Die Stille dauert schon zu lange',
+  'You haven’t texted in a while': 'Ihr habt lange nicht geschrieben',
+  'Write first — it doesn’t have to be about anything. “Thinking of you” is enough.':
+      'Schreib zuerst – es muss um nichts Bestimmtes gehen. „Denk an dich“ reicht.',
+  'You haven’t sent “miss you” in a while': 'Du hast lange kein „Ich vermisse dich“ geschickt',
+  'One tap and they will know. A small thing that works.':
+      'Ein Tippen, und dein Partner weiß es. Eine Kleinigkeit, die wirkt.',
+  'No new memories for a while': 'Lange keine neuen Erinnerungen',
+  'Add a photo or a few lines about your week. A year from now it will mean more than it seems today.':
+      'Füge ein Foto oder ein paar Zeilen über eure Woche hinzu. In einem Jahr bedeutet es mehr, als es heute scheint.',
+  'Your anniversary is today': 'Heute ist euer Jahrestag',
+  'Your anniversary is tomorrow': 'Morgen ist euer Jahrestag',
+  '{0} days until your anniversary': 'Noch {0} Tage bis zu eurem Jahrestag',
+  'Be the first to say it.': 'Sag es als Erster.',
+  'There is time to plan something better than last-minute flowers.':
+      'Es bleibt Zeit, etwas Besseres als Blumen in letzter Minute zu planen.',
+  '{0} days together today': 'Heute {0} Tage zusammen',
+  'A round date is a good reason to say it out loud.':
+      'Ein rundes Datum ist ein guter Grund, es laut zu sagen.',
+  'Write': 'Schreiben',
+  'Send': 'Senden',
+
+  // Ограничение комментариев
+  'No more than {0} comments an hour — try again in {1} min. 🌸':
+      'Höchstens {0} Kommentare pro Stunde – versuch es in {1} Min. wieder 🌸',
+
+  // Отказы сервера при подключении пары (`lib/utils/server_message.dart`)
+  'No code entered': 'Kein Code eingegeben',
+  'This code is damaged': 'Dieser Code ist beschädigt',
+  'This is your own code!': 'Das ist dein eigener Code!',
+  'This is your own code': 'Das ist dein eigener Code',
+  'Couldn’t accept the code': 'Der Code konnte nicht angenommen werden',
+  'Code not found. Ask your partner to tap “New code” and read it out again':
+      'Code nicht gefunden. Bitte deinen Partner, auf „Neuer Code“ zu tippen und ihn noch einmal vorzulesen',
+  'Code not found': 'Code nicht gefunden',
+  'This pair is already full': 'Dieses Paar ist schon vollständig',
+  'Enter a name': 'Gib einen Namen ein',
+  'There is no request': 'Es gibt keine Anfrage',
+  'This place is already taken': 'Dieser Platz ist schon besetzt',
+  'Couldn’t save': 'Nicht gespeichert',
+  'Couldn’t create the pair': 'Das Paar konnte nicht erstellt werden',
+  'Couldn’t issue a code': 'Es konnte kein Code erstellt werden',
+  'No pair specified': 'Kein Paar angegeben',
+  'Pair not found': 'Paar nicht gefunden',
+  'This is not your pair': 'Das ist nicht dein Paar',
+  'Couldn’t send the request': 'Die Anfrage konnte nicht gesendet werden',
+  'You already have a pair': 'Du hast schon ein Paar',
+  'You already have a pair — leave it first': 'Du hast schon ein Paar – verlass es zuerst',
+  'Enter the code': 'Gib den Code ein',
+  'Your session has expired — please sign in again': 'Deine Sitzung ist abgelaufen – bitte melde dich erneut an',
+  'The server didn’t return the pair': 'Der Server hat das Paar nicht zurückgegeben',
+  'The server didn’t return the pair — please try again':
+      'Der Server hat das Paar nicht zurückgegeben – bitte versuch es noch einmal',
+
+  // Свои раскраски
+  'My colouring page': 'Mein Ausmalbild',
+  'The file is lost': 'Die Datei ist verloren gegangen',
+  'This is not a picture, or it couldn’t be read': 'Das ist kein Bild, oder es ließ sich nicht lesen',
+  'The lines aren’t closed: the fill would spread over the whole page':
+      'Die Linien sind nicht geschlossen: Die Füllung würde über das ganze Blatt laufen',
+  'Something went wrong': 'Etwas ist schiefgelaufen',
+
+  // Архив воспоминаний
+  'Title': 'Titel',
+  'File': 'Datei',
+  'MEMORIES': 'ERINNERUNGEN',
+  'TIMERS': 'TIMER',
+  'Start': 'Beginn',
+  'Days passed': 'Vergangene Tage',
+  'Memories archive': 'Erinnerungsarchiv',
+
+  // Мелочи
+  ' & ': ' & ',
+  'cell': 'Zelle',
+  'm': 'm',
+  'km': 'km',
+};

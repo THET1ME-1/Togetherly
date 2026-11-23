@@ -1,0 +1,556 @@
+// Итальянский для строк, которые живут прямо в экранах парой «русский /
+// английский» (`ruEn` и `trEnglish` в `../../dict_strings.dart`, `_tr` и `_t`
+// в нескольких экранах). Устроено как `../pt/inline.dart`: ключ — английская
+// строка, где каждое число заменено на `{0}`, `{1}`… по порядку. Набор ключей
+// совпадает с португальским, это стережёт `test/services/locale_eu_test.dart`.
+//
+// До 23.11.2026 таблицы не было, и итальянец видел эти строки по-английски.
+
+const Map<String, String> kItByEnglish = {
+  // Поиск фильмов: вид работы
+  'Series': 'Serie',
+  'Cartoon': 'Cartone animato',
+  'Animated series': 'Serie animata',
+  'Anime': 'Anime',
+  'Movie': 'Film',
+
+  // Работа в фоне (Android)
+  'Instant notifications & widgets': 'Notifiche e widget all’istante',
+  'To get messages, “miss you” and widget updates instantly — even when the app is closed — allow Togetherly to run in the background without battery limits.\n\nOtherwise Android suspends the connection and everything only arrives when you open the app.':
+      'Per ricevere subito messaggi, «mi manchi» e aggiornamenti dei widget, anche ad app chiusa, consenti a Togetherly di funzionare in background senza limiti di batteria.\n\nAltrimenti Android sospende la connessione e tutto arriva solo quando apri l’app.',
+  'Allow': 'Consenti',
+  'Later': 'Più tardi',
+
+  // Наборы настроений
+  'This pack is not for sale yet': 'Questo pacchetto non è ancora in vendita',
+  'This pack is not available yet': 'Questo pacchetto non è ancora disponibile',
+  'Payment is processing — the pack will open by itself':
+      'Pagamento in corso: il pacchetto si sbloccherà da solo',
+  'Purchase failed': 'Acquisto non riuscito',
+  'You already own this pack': 'Hai già questo pacchetto',
+  'Could not open checkout': 'Impossibile aprire il pagamento',
+  'Not enough coins: {0} needed, you have {1}':
+      'Monete insufficienti: ne servono {0}, ne hai {1}',
+  'Unlock for {0}': 'Sblocca per {0}',
+  'Yours forever, and your partner gets it too':
+      'Tuo per sempre, e lo riceve anche il partner',
+
+  // Очередь синхронизации
+  'Offline': 'Offline',
+  'Compressing video…': 'Compressione del video…',
+  "Didn't sync — retry": 'Non sincronizzato: riprova',
+  'Dismiss': 'Scarta',
+  "These changes won't be saved. Dismiss?":
+      'Queste modifiche non verranno salvate. Scartare?',
+  'Keep': 'Tieni',
+
+  // Желания
+  'Want with you': 'Voglio con te',
+  'All →': 'Tutti →',
+  '{0} already came true — see them': '{0} già realizzati: guardali',
+  'What to watch, where to go, where to eat — start a list for two.':
+      'Cosa guardare, dove andare, dove mangiare: iniziate una lista in due.',
+  "The shop didn't share a card — fill it in":
+      'Il negozio non ha condiviso la scheda: compilala tu',
+  "The photo didn't upload — try later":
+      'La foto non è stata caricata: riprova più tardi',
+  'From gallery': 'Dalla galleria',
+  'Take a photo': 'Scatta una foto',
+  'Edit wish': 'Modifica desiderio',
+  'New wish': 'Nuovo desiderio',
+  'Custom': 'Personalizzato',
+  'What we want': 'Cosa vogliamo',
+  '"Dune: Part Three"': '«Dune: Parte tre»',
+  'Note': 'Nota',
+  'optional': 'facoltativo',
+  'Save': 'Salva',
+  'Add': 'Aggiungi',
+  'together': 'insieme',
+  'Cancel': 'Annulla',
+  'Own photo': 'Foto tua',
+  'Replace photo': 'Sostituisci foto',
+  'Product link': 'Link al prodotto',
+  'Price': 'Prezzo',
+  'Open link': 'Apri link',
+  'Edit category': 'Modifica categoria',
+  'Your own category': 'La tua categoria',
+  'Name': 'Nome',
+  'Concerts': 'Concerti',
+  'Pick from {0} icons': 'Scegli tra {0} icone',
+  'Create': 'Crea',
+  "You're gifting it — your partner won't know":
+      'Lo regali tu: il partner non lo saprà',
+  'Came true': 'Realizzato',
+  'UNDO': 'ANNULLA',
+  'When it happened': 'Quando è successo',
+  'How it went': 'Com’è andata',
+  'A few words to remember': 'Qualche parola per ricordarlo',
+  'Delete': 'Elimina',
+  'Dreaming': 'Sogniamo',
+  'Add your first wish: a film you are waiting for, a place you want to go, or anything of your own. Your partner will see it right away.':
+      'Aggiungi il tuo primo desiderio: un film che aspetti, un posto dove vuoi andare o qualcosa di tuo. Il partner lo vedrà subito.',
+  'Nothing has come true yet. Tick a wish off when it happens.':
+      'Ancora niente si è realizzato. Spunta un desiderio quando succede.',
+  'Every wish came true. Time to think of a new one.':
+      'Tutti i desideri si sono realizzati. È ora di pensarne uno nuovo.',
+  "I'm gifting": 'Lo regalo io',
+  'Gift it': 'Regalalo',
+  'Open': 'Apri',
+  'in Togetherly+': 'in Togetherly+',
+  'Delete "{0}"? It will disappear for both of you.':
+      'Eliminare «{0}»? Sparirà per entrambi.',
+
+  // Кольцо настроений
+  'bright': 'luminosi',
+  'Collapse': 'Comprimi',
+  '{0} more': 'Altri {0}',
+
+  // Типы воспоминаний
+  'Photo': 'Foto',
+  'Video': 'Video',
+  'Video link': 'Link video',
+  'Text': 'Testo',
+  'Music': 'Musica',
+  'Book': 'Libro',
+  'Place': 'Luogo',
+  'Audio': 'Audio',
+  'Untyped': 'Senza tipo',
+  'Moment': 'Momento',
+  'Location': 'Luogo',
+  'Untitled': 'Senza titolo',
+
+  // Галерея маскотов
+  'Pixel': 'Pixel',
+  'Our drawings': 'I nostri disegni',
+  'Built-in': 'Integrati',
+  'Catalog': 'Catalogo',
+  'Unlock this character forever for {0} coins?':
+      'Sbloccare questo personaggio per sempre per {0} monete?',
+  'Buy': 'Compra',
+  'Not for sale yet': 'Non ancora in vendita',
+  'Unlocks at level {0}': 'Si sblocca al livello {0}',
+  'On screen now': 'Ora sullo schermo',
+  'Waiting': 'In attesa',
+  'Nobody with that name. Try another word.':
+      'Nessuno con questo nome. Prova un’altra parola.',
+  'Mascots marked «От нас» drawn by Meller{0}':
+      'Le mascotte segnate «Da noi» sono disegnate da Meller{0}',
+  'Find a mascot': 'Cerca una mascotte',
+  'paid': 'a pagamento',
+  'Lv {0}': 'Liv. {0}',
+  'Streak paused at {0}. Bring it back to keep going':
+      'Serie in pausa a {0}. Recuperala per continuare',
+  'Streak {0} paused': 'Serie di {0} in pausa',
+
+  // Статистика пары
+  'You': 'Tu',
+  'Partner': 'Partner',
+  'Couple stats': 'Statistiche di coppia',
+  'Refresh': 'Aggiorna',
+  'Nothing to show yet — stats appear once you start together.':
+      'Ancora niente da mostrare: le statistiche compaiono quando iniziate insieme.',
+  'Tips for today': 'Consigli per oggi',
+  'Picked from your numbers': 'Scelti in base ai vostri numeri',
+  'Days together': 'Giorni insieme',
+  'Day streak': 'Serie di giorni',
+  'Couple XP': 'XP di coppia',
+  'To anniversary': 'All’anniversario',
+  'Memories': 'Ricordi',
+  'Photos': 'Foto',
+  'Videos': 'Video',
+  'Messages': 'Messaggi',
+  'Mood marks': 'Umori segnati',
+  'Miss-yous': 'Mi manchi',
+  'Brush strokes': 'Pennellate',
+  'Comments': 'Commenti',
+  'Gifts': 'Regali',
+  'Mascots': 'Mascotte',
+  'Watch sessions': 'Visioni insieme',
+  'Canvases': 'Tele',
+  'The year together': 'L’anno insieme',
+  'Share of each series best month': 'Quota di ogni serie nel mese migliore',
+  'Moods': 'Umori',
+  'Side by side': 'Fianco a fianco',
+  'Each partner all-time': 'Ciascuno, dall’inizio',
+  'Weekly rhythm': 'Ritmo settimanale',
+  'Which days you are busiest': 'In quali giorni siete più attivi',
+  'Hours of the day': 'Ore del giorno',
+  'Peak at {0}:{1} · {2}% between {3} and {4}':
+      'Picco alle {0}:{1} · {2}% tra le {3} e le {4}',
+  'Mood': 'Umore',
+  'Mood not set': 'Umore non impostato',
+  'My mood': 'Il mio umore',
+  'Mood on the lock screen': 'Umore sulla schermata di blocco',
+  'Mood over {0} days': 'Umore in {0} giorni',
+  'Daily average, {0} to {1}': 'Media giornaliera, dal {0} al {1}',
+  'Favourite moods': 'Umori preferiti',
+  'What you mark most often': 'Cosa segnate più spesso',
+  'What memories are made of': 'Di cosa sono fatti i ricordi',
+  'Under one': 'Meno di uno',
+  'Memories per week now': 'Ricordi a settimana ora',
+  'In {0} days': 'Tra {0} giorni',
+  'To {0} memories': 'Fino a {0} ricordi',
+  'Projected for a year at this pace': 'Previsione per un anno a questo ritmo',
+  'of {0}': 'su {0}',
+  'Active days last month': 'Giorni attivi il mese scorso',
+  'Mood versus last month': 'Umore rispetto al mese scorso',
+  'What is next': 'Cosa viene dopo',
+  'Projection from the last thirty days': 'Previsione sugli ultimi trenta giorni',
+  'Nothing yet': 'Ancora niente',
+
+  // Донат за монеты
+  'Donation → coins': 'Donazione → monete',
+  'To get coins automatically, put your email in the donation message:':
+      'Per ricevere le monete in automatico, scrivi la tua email nel messaggio della donazione:',
+  'Email copied': 'Email copiata',
+  'Copy the email above': 'Copia l’email qui sopra',
+  'Paste it into the donation message': 'Incollala nel messaggio della donazione',
+  'From {0} ₽ — coins arrive on their own in a couple of minutes':
+      'Da {0} ₽: le monete arrivano da sole in un paio di minuti',
+  'Open DonationAlerts': 'Apri DonationAlerts',
+
+  // Профиль
+  'dark': 'scuro',
+  'light': 'chiaro',
+  'How you love': 'Come ami',
+  'Twenty questions, one shape for two': 'Venti domande, una forma per due',
+  'Tests for two': 'Test per due',
+  'Six tests, from love language to how you argue':
+      'Sei test, dal linguaggio dell’amore a come litigate',
+
+  // Настройка профиля
+  'Prefer not to say': 'Preferisco non dirlo',
+  'Custom gender': 'Altro genere',
+  'Enter your gender': 'Scrivi il tuo genere',
+
+  // Календарь настроений
+  'Entries': 'Voci',
+  'Days tracked': 'Giorni registrati',
+  'Most often': 'Il più frequente',
+
+  // Уровень и задания
+  'Open the app every day': 'Apri l’app ogni giorno',
+  'Add memories': 'Aggiungi ricordi',
+  'Watch videos together': 'Guardate video insieme',
+  'Add the home screen widget': 'Aggiungi il widget alla schermata Home',
+  'Track your mood': 'Segna il tuo umore',
+  'one-time': 'una volta',
+  '{0}/day': '{0}/giorno',
+  'Level & tasks': 'Livello e compiti',
+  'Tasks — how to level up': 'Compiti: come salire di livello',
+  'Rewards — mascots': 'Ricompense: mascotte',
+  'Level {0}': 'Livello {0}',
+  '{0} XP to level {1}': '{0} XP al livello {1}',
+  'Rewards are loading…': 'Caricamento delle ricompense…',
+
+  // Живое фото в виджете
+  'A live photo needs a video or a GIF': 'Una foto animata richiede un video o una GIF',
+  'Live photo is in the widget': 'La foto animata è nel widget',
+  'Failed — please try again': 'Non riuscito: riprova',
+  'Live photo removed': 'Foto animata rimossa',
+  'Live photo — a video or a GIF': 'Foto animata: un video o una GIF',
+  'Remove the live photo': 'Rimuovi la foto animata',
+  'This video is too large — pick a shorter one':
+      'Questo video è troppo grande: scegline uno più breve',
+  'This GIF is too large — pick a lighter one':
+      'Questa GIF è troppo grande: scegline una più leggera',
+
+  // Наборы и маскоты: имена
+  'Classic': 'Classici',
+  'Pink': 'Rosa',
+  'Bunny': 'Coniglietto',
+  'Mochi': 'Mochi',
+  'Puppy': 'Cucciolo',
+  'Pud': 'Budino',
+  'Prick': 'Spino',
+  'Cristal': 'Cristallo',
+  'Wick': 'Stoppino',
+  'Brew': 'Tisana',
+  'Bulb': 'Lampadina',
+  'Cloud': 'Nuvola',
+  'Sprout': 'Germoglio',
+  'Scoop': 'Pallina',
+  'Pearl': 'Perla',
+  'Volt': 'Volt',
+  'Moony': 'Lunetta',
+  'Snaily': 'Lumachina',
+  'Balloon': 'Palloncino',
+  'Shroomy': 'Funghetto',
+  'Donut': 'Ciambella',
+  'Beep': 'Bip',
+  'Boo': 'Bu',
+  'Tape': 'Cassetta',
+  'Compass': 'Bussola',
+  'Ember': 'Brace',
+  'Boxy': 'Scatolina',
+  'Blink': 'Occhiolino',
+  'Bubbly': 'Bollicina',
+  'Cuckoo': 'Cucù',
+  'Half': 'Metà',
+  'Seasons': 'Stagioni',
+  'Postie': 'Postino',
+  'Fae': 'Fata',
+  'Lantern': 'Lanterna',
+  'Jelly': 'Gelatina',
+  'Spiky': 'Spiky',
+  'Lulu': 'Lulu',
+  'Iskrik': 'Scintilla',
+  'Zhuzha': 'Zuzzi',
+
+  // Раскраски: разделы
+  'Food': 'Cibo',
+  'Trip': 'Viaggio',
+  'Other': 'Altro',
+  'Cafe': 'Caffè',
+  'Castle': 'Castello',
+  'Rain': 'Pioggia',
+  'Ferris wheel': 'Ruota panoramica',
+  'Metro': 'Metro',
+  'Camping': 'Campeggio',
+  'Festival': 'Festival',
+  'Baking': 'Pasticceria',
+  'Beach': 'Spiaggia',
+  'Gaming': 'Videogiochi',
+
+  // Подарки
+  'date lost': 'data persa',
+  'from you': 'da te',
+  'from your partner': 'dal partner',
+  'from the chest': 'dal forziere',
+  'This gift is not on the shelf yet.': 'Questo regalo non è ancora sullo scaffale.',
+  'Your reply': 'La tua risposta',
+  'Reply': 'Rispondi',
+  'No note': 'Senza biglietto',
+  'Everyday': 'Tutti i giorni',
+  'Occasions': 'Occasioni',
+  'Milestones': 'Traguardi',
+  'from {0}': 'da {0}',
+  'last on {0}': 'l’ultimo il {0}',
+
+  // Ту и его гардероб
+  'Tu': 'Tu',
+  'Whose Tu': 'Di chi è Tu',
+  'Mine': 'Il mio',
+  'Wardrobe': 'Guardaroba',
+  'Clothes': 'Vestiti',
+  'Glasses': 'Occhiali',
+  'Face': 'Viso',
+  'Scarves': 'Sciarpe e plaid',
+  'Head': 'Testa',
+  'Above': 'Sopra la testa',
+  'Buddy': 'Amichetto accanto',
+  'Tu’s wardrobe': 'Il guardaroba di Tu',
+  'Tu’s items will appear here once the catalog loads.':
+      'Le cose di Tu compariranno qui quando il catalogo sarà caricato.',
+  'Trying on: ': 'In prova: ',
+  'Stop trying on': 'Smetti di provare',
+  'All': 'Tutto',
+  'For coins': 'Per monete',
+  'For ads': 'Per pubblicità',
+  'Nothing here yet': 'Qui non c’è ancora niente',
+  'Wearing': 'Indossato',
+  'Trying on': 'In prova',
+  'Wear': 'Indossa',
+  'Ads {0} of {1}': 'Pubblicità {0} di {1}',
+  '{0} coins': '{0} monete',
+  'Get': 'Prendi',
+  'Watch ad': 'Guarda la pubblicità',
+  'From chest': 'Dal forziere',
+  'Buy · {0}': 'Compra · {0}',
+  'Next ad · {0} of {1}': 'Prossima pubblicità · {0} di {1}',
+  'Drops from the “Cozy autumn” chest': 'Esce dal forziere «Autunno accogliente»',
+  'Drops from the chest': 'Esce dal forziere',
+  'Something went wrong, try again': 'Qualcosa è andato storto, riprova',
+  'The ad is still loading, try again in a moment':
+      'La pubblicità si sta ancora caricando, riprova tra un attimo',
+  'Ad counted: {0} of {1}': 'Pubblicità conteggiata: {0} di {1}',
+  'Wait a few seconds before the next one': 'Aspetta qualche secondo prima della prossima',
+  'For Tu only, wear it in the wardrobe': 'Solo per Tu: indossalo nel guardaroba',
+  'Tu is wearing it now': 'Tu lo sta indossando',
+  '“{0}” is yours and already on': '«{0}» è tuo ed è già indossato',
+  'Tu’s item “{0}”': 'Capo di Tu «{0}»',
+
+  // Вещи Ту: названия из каталога (`name_en` записей вида `wear`)
+  'Acorn cap': 'Cappello di ghianda',
+  'Freckles': 'Lentiggini',
+  'Maple leaf': 'Foglia d’acero',
+  'Little rain cloud': 'Nuvoletta di pioggia',
+  'Knitted snood': 'Scaldacollo in maglia',
+  'Umbrella': 'Ombrello',
+  'Round glasses': 'Occhiali tondi',
+  'Blanket cocoon': 'Bozzolo di coperta',
+  'Leaf fall': 'Pioggia di foglie',
+  'Scarf': 'Sciarpa',
+  'Heart balloon': 'Palloncino a cuore',
+  'Little bell': 'Campanellino',
+  'Bow': 'Fiocco',
+  'Bow tie': 'Papillon',
+  'Daisy': 'Margherita',
+  'Glitter': 'Brillantini',
+  'Heart blush': 'Guance a cuore',
+  'Spring antennae': 'Antenne a molla',
+  'Little bee': 'Apetta',
+  'Heart glasses': 'Occhiali a cuore',
+  'Firefly': 'Lucciola',
+  'Monocle': 'Monocolo',
+  'Halo': 'Aureola',
+  'Mustache': 'Baffi',
+  'Pearl necklace': 'Collana di perle',
+  'Circling hearts': 'Cuori che girano',
+  'Heart plaster': 'Cerotto a cuore',
+  'Rainbow': 'Arcobaleno',
+  'Sunglasses': 'Occhiali da sole',
+  'Tiara': 'Diadema',
+  'Star glasses': 'Occhiali a stella',
+  'Tie': 'Cravatta',
+  'Cat whiskers': 'Baffi da gatto',
+  'Check blazer': 'Blazer a quadri',
+  'Linen blazer': 'Blazer di lino',
+  'Mint blazer': 'Blazer menta',
+  'Navy blazer': 'Blazer blu navy',
+  'Pink suit': 'Completo rosa',
+  'Tuxedo': 'Smoking',
+  'Velvet blazer': 'Blazer di velluto',
+  'White suit': 'Completo bianco',
+  'Argyle vest': 'Gilet a rombi',
+  'Breton top': 'Maglia alla marinara',
+  'Cable-knit sweater': 'Maglione a trecce',
+  'Denim jacket': 'Giacca di jeans',
+  'Hoodie': 'Felpa con cappuccio',
+  'Biker jacket': 'Giubbotto da motociclista',
+  'Overalls': 'Salopette',
+  'Puffer jacket': 'Piumino',
+  'Raincoat': 'Impermeabile',
+  'Cardigan': 'Cardigan',
+  'Corduroy jacket': 'Giacca di velluto a coste',
+  'Flannel shirt': 'Camicia di flanella',
+  'Quilted vest': 'Gilet trapuntato',
+  'Leaf sweater': 'Maglione con foglie',
+  'Pumpkin sweatshirt': 'Felpa con zucca',
+  'Trench coat': 'Trench',
+  'Fish in a bubble': 'Pesce nella bolla',
+  'Our story book': 'Il libro della nostra storia',
+  'Pumpkin lantern': 'Lanterna di zucca',
+
+  // Строки, которые до 23.11.2026 были только русскими
+  // Каналы и тексты уведомлений
+  'Mascot': 'Mascotte',
+  "A reminder when you haven't opened the app for a while":
+      'Un promemoria quando non apri l’app da un po’',
+  'Your mascot misses you 🥺': 'La tua mascotte sente la tua mancanza 🥺',
+  "It's been a while — come back and cheer up your mascot 🐾":
+      'È passato un po’: torna e rallegra la tua mascotte 🐾',
+  'Invitation': 'Invito',
+  'A reminder to invite your partner while you have no pair':
+      'Un promemoria per invitare il partner finché non siete collegati',
+  'Celebrations': 'Ricorrenze',
+  'Reminders about anniversaries and birthdays': 'Promemoria di anniversari e compleanni',
+  'Time capsule': 'Capsula del tempo',
+  'A reminder when a time capsule opens': 'Un promemoria quando si apre una capsula del tempo',
+  'A permanent counter of the days you have spent together':
+      'Un contatore fisso dei giorni passati insieme',
+  'Server connection': 'Connessione al server',
+  'Keeps the connection open to deliver messages, moods and “miss you” from your partner while the app is in the background.':
+      'Tiene aperta la connessione per ricevere messaggi, umori e «mi manchi» del partner mentre l’app è in background.',
+  'Togetherly is connected': 'Togetherly è connesso',
+  'Receiving notifications from your partner': 'Ricezione delle notifiche del partner',
+
+  // Запасные подписи виджетов
+  'No data yet': 'Ancora nessun dato',
+  'Rating': 'Voto',
+  'Photo of the day': 'Foto del giorno',
+  'My photo': 'La mia foto',
+  "Partner's photo": 'Foto del partner',
+  'Me': 'Io',
+  'Member': 'Membro',
+
+  // Советы паре
+  'Your partner is having a rough day': 'Il partner sta passando una giornata difficile',
+  'Ask how they are and just listen. No advice needed — sometimes it is enough to have someone close.':
+      'Chiedi come sta e ascolta e basta. Non servono consigli: a volte basta avere qualcuno vicino.',
+  'You don’t know how your partner is today': 'Non sai come sta il partner oggi',
+  'Ask them yourself: a real question beats a mark in the calendar.':
+      'Chiediglielo tu: una domanda vera vale più di un segno sul calendario.',
+  'These days can be hard': 'Questi giorni possono essere pesanti',
+  'Take on a chore, bring her some tea, suggest an evening with no plans. Ask what she would like.':
+      'Occupati di una faccenda di casa, portale un tè, proponi una serata senza programmi. Chiedile cosa le farebbe piacere.',
+  'Her period is coming soon': 'Il suo ciclo arriva presto',
+  'A good moment to do something in advance: order her favourite treat or keep the evening free.':
+      'Un buon momento per muoversi in anticipo: ordina il suo dolce preferito o tieni libera la serata.',
+  'The silence has gone on too long': 'Il silenzio dura da troppo',
+  'You haven’t texted in a while': 'Non vi scrivete da un po’',
+  'Write first — it doesn’t have to be about anything. “Thinking of you” is enough.':
+      'Scrivi per primo, non serve un motivo. Basta un «ti penso».',
+  'You haven’t sent “miss you” in a while': 'Non mandi un «mi manchi» da un po’',
+  'One tap and they will know. A small thing that works.':
+      'Un tocco e il partner lo saprà. Una piccola cosa che funziona.',
+  'No new memories for a while': 'Nessun ricordo nuovo da un po’',
+  'Add a photo or a few lines about your week. A year from now it will mean more than it seems today.':
+      'Aggiungi una foto o qualche riga sulla settimana. Tra un anno varrà più di quanto sembri oggi.',
+  'Your anniversary is today': 'Oggi è il vostro anniversario',
+  'Your anniversary is tomorrow': 'Domani è il vostro anniversario',
+  '{0} days until your anniversary': 'Mancano {0} giorni al vostro anniversario',
+  'Be the first to say it.': 'Dillo per primo.',
+  'There is time to plan something better than last-minute flowers.':
+      'C’è tempo per organizzare qualcosa di meglio dei fiori dell’ultimo minuto.',
+  '{0} days together today': 'Oggi {0} giorni insieme',
+  'A round date is a good reason to say it out loud.':
+      'Una data tonda è un buon motivo per dirlo ad alta voce.',
+  'Write': 'Scrivi',
+  'Send': 'Invia',
+
+  // Ограничение комментариев
+  'No more than {0} comments an hour — try again in {1} min. 🌸':
+      'Non più di {0} commenti all’ora: riprova tra {1} min. 🌸',
+
+  // Отказы сервера при подключении пары (`lib/utils/server_message.dart`)
+  'No code entered': 'Nessun codice inserito',
+  'This code is damaged': 'Questo codice è danneggiato',
+  'This is your own code!': 'È il tuo codice!',
+  'This is your own code': 'È il tuo codice',
+  'Couldn’t accept the code': 'Impossibile accettare il codice',
+  'Code not found. Ask your partner to tap “New code” and read it out again':
+      'Codice non trovato. Chiedi al partner di toccare «Nuovo codice» e di dettartelo di nuovo',
+  'Code not found': 'Codice non trovato',
+  'This pair is already full': 'Questa coppia è già completa',
+  'Enter a name': 'Inserisci un nome',
+  'There is no request': 'Nessuna richiesta',
+  'This place is already taken': 'Questo posto è già occupato',
+  'Couldn’t save': 'Non salvato',
+  'Couldn’t create the pair': 'Impossibile creare la coppia',
+  'Couldn’t issue a code': 'Impossibile generare un codice',
+  'No pair specified': 'Nessuna coppia indicata',
+  'Pair not found': 'Coppia non trovata',
+  'This is not your pair': 'Questa non è la tua coppia',
+  'Couldn’t send the request': 'Impossibile inviare la richiesta',
+  'You already have a pair': 'Hai già una coppia',
+  'You already have a pair — leave it first': 'Hai già una coppia: prima esci da quella',
+  'Enter the code': 'Inserisci il codice',
+  'Your session has expired — please sign in again': 'La sessione è scaduta: accedi di nuovo',
+  'The server didn’t return the pair': 'Il server non ha restituito la coppia',
+  'The server didn’t return the pair — please try again':
+      'Il server non ha restituito la coppia: riprova',
+
+  // Свои раскраски
+  'My colouring page': 'Il mio disegno da colorare',
+  'The file is lost': 'Il file è andato perso',
+  'This is not a picture, or it couldn’t be read': 'Non è un’immagine, oppure non è stato possibile leggerla',
+  'The lines aren’t closed: the fill would spread over the whole page':
+      'Le linee non sono chiuse: il colore si spargerebbe su tutto il foglio',
+  'Something went wrong': 'Qualcosa è andato storto',
+
+  // Архив воспоминаний
+  'Title': 'Titolo',
+  'File': 'File',
+  'MEMORIES': 'RICORDI',
+  'TIMERS': 'TIMER',
+  'Start': 'Inizio',
+  'Days passed': 'Giorni trascorsi',
+  'Memories archive': 'Archivio dei ricordi',
+
+  // Мелочи
+  ' & ': ' e ',
+  'cell': 'cella',
+  'm': 'm',
+  'km': 'km',
+};

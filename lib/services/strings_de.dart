@@ -172,6 +172,34 @@ class _DeStrings extends _EnStrings {
   @override
   String exportError(String e) => 'Fehler beim Export: $e';
 
+  // ── Цикл и данные ── (до 23.11.2026 шли по-английски: строки зашиты прямо
+  // в `_EnStrings`, мимо словаря)
+  @override
+  String get cycleConsentBody =>
+      'Zyklusdaten und Wohlbefinden sind Gesundheitsdaten, deshalb fragen wir '
+      'extra. Sie liegen auf unserem Server, dein Partner sieht sie nur, wenn du '
+      'es einschaltest, und sie sind mit einem Tippen gelöscht. Die Zustimmung '
+      'kannst du in den Einstellungen widerrufen, die Einträge verschwinden mit.';
+  @override
+  String get cycleConsentAgree => 'Einverstanden, Zyklus führen';
+  @override
+  String get cycleConsentLater => 'Nicht jetzt';
+  @override
+  String get cycleConsentWithdraw => 'Zustimmung zum Zyklus widerrufen';
+  @override
+  String get cycleConsentWithdrawHint =>
+      'Der Bereich wird geschlossen und die Einträge werden gelöscht';
+  @override
+  String get exportMyData => 'Meine Daten';
+  @override
+  String get exportMyDataHint => 'Eine Datei mit allem herunterladen, was wir speichern';
+  @override
+  String get exportMyDataReady => 'Datei ist fertig';
+  @override
+  String get exportMyDataFailed => 'Die Datei ließ sich nicht erstellen';
+  @override
+  String get exportMemories => 'Erinnerungen exportieren';
+
   @override
   String downloadFailed(String e) => 'Herunterladen fehlgeschlagen: $e';
 

@@ -1,3 +1,7 @@
+import '../l10n/de/daily_tasks.dart';
+import '../l10n/es/daily_tasks.dart';
+import '../l10n/fr/daily_tasks.dart';
+import '../l10n/it/daily_tasks.dart';
 import '../l10n/pt/daily_tasks.dart';
 import '../l10n/uk/daily_tasks.dart';
 import '../l10n/zh/daily_tasks.dart';
@@ -37,7 +41,11 @@ class DailyTask {
       AppLanguage.zh => kDailyTasksZh[id] ?? _en,
       AppLanguage.uk => kDailyTasksUk[id] ?? _en,
       AppLanguage.pt => kDailyTasksPt[id] ?? _en,
-      _ => _en,
+      AppLanguage.de => kDailyTasksDe[id] ?? _en,
+      AppLanguage.fr => kDailyTasksFr[id] ?? _en,
+      AppLanguage.es => kDailyTasksEs[id] ?? _en,
+      AppLanguage.it => kDailyTasksIt[id] ?? _en,
+      AppLanguage.en => _en,
     };
     return raw.replaceAll('{p}', p);
   }

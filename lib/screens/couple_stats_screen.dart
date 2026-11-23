@@ -1374,7 +1374,17 @@ class _CoupleStatsScreenState extends State<CoupleStatsScreen> {
       if (b >= 2 && b <= 4) return 'Записи загалом';
       return 'Записів загалом';
     }
-    if (!_ru) return n == 1 ? 'Entry in total' : 'Entries in total';
+    if (!_ru) {
+      final one = n == 1;
+      return switch (LocaleService.instance.language) {
+        AppLanguage.pt => one ? 'registro no total' : 'registros no total',
+        AppLanguage.de => one ? 'Eintrag insgesamt' : 'Einträge insgesamt',
+        AppLanguage.fr => one ? 'entrée au total' : 'entrées au total',
+        AppLanguage.es => one ? 'registro en total' : 'registros en total',
+        AppLanguage.it => one ? 'voce in totale' : 'voci in totale',
+        _ => one ? 'Entry in total' : 'Entries in total',
+      };
+    }
     if (a >= 11 && a <= 19) return 'Записей всего';
     if (b == 1) return 'Запись всего';
     if (b >= 2 && b <= 4) return 'Записи всего';
