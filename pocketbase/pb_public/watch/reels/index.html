@@ -34,7 +34,8 @@ window.watchVoiceState = (s) => { window.__voicePending = s; };
 (function () {
   var lang = 'ru';
   try {
-    var known = ['ru', 'en', 'pt'];
+    // Все девять языков приложения (до 23.11.2026 здесь были только ru, en, pt).
+    var known = ['ru', 'en', 'pt', 'uk', 'zh', 'de', 'fr', 'es', 'it'];
     var asked = new URLSearchParams(location.search).get('lang') || '';
     var saved = localStorage.getItem('togetherly.watch.lang');
     if (known.indexOf(asked) >= 0) lang = asked;
@@ -44,13 +45,19 @@ window.watchVoiceState = (s) => { window.__voicePending = s; };
       var langs = navigator.languages || [navigator.language || 'en'];
       for (var i = 0; i < langs.length; i++) {
         var two = String(langs[i]).toLowerCase().slice(0, 2);
-        if (two === 'ru' || two === 'pt') { lang = two; break; }
+        if (two !== 'en' && known.indexOf(two) >= 0) { lang = two; break; }
       }
     }
   } catch (e) {}
   var boot = {
     en: ['Gathering your feed…', 'The first clips arrive in a few seconds'],
     pt: ['Montando o feed…', 'Os primeiros vídeos chegam em poucos segundos'],
+    uk: ['Збираємо стрічку…', 'Перші ролики приходять за кілька секунд'],
+    zh: ['正在准备推荐流…', '几秒内就会出现第一批视频'],
+    de: ['Stelle deinen Feed zusammen…', 'Die ersten Clips kommen in ein paar Sekunden'],
+    fr: ['On prépare ton fil…', 'Les premières vidéos arrivent en quelques secondes'],
+    es: ['Preparando tu feed…', 'Los primeros vídeos llegan en unos segundos'],
+    it: ['Preparo il tuo feed…', 'I primi video arrivano in pochi secondi'],
   }[lang];
   if (!boot) return;
   document.getElementById('rlBootTitle').textContent = boot[0];

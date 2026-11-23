@@ -642,7 +642,7 @@
       'hero.eyebrow': 'Ein Raum f\u00fcr zwei, direkt im Browser',
       'hero.title1': 'EIN FILM',
       'hero.title2': 'ZWEI',
-      'hero.title3': 'BILDSCHIRME',
+      'hero.title3': 'DISPLAYS',
       'hero.lead': 'Ein Timecode f\u00fcr euch beide. Pause, Spulen und Chat kommen sofort beim Partner an.',
       'hero.create': 'Raum erstellen',
       'hero.code': 'Raumcode',
