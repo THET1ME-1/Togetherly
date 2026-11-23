@@ -5,6 +5,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
+import '../dict_strings.dart';
 import '../utils/notification_permission.dart';
 import 'locale_service.dart';
 
@@ -24,7 +25,10 @@ class InviteReminderService {
 
   static const int _notificationId = 9993;
   static const String _channelId = 'invite_reminder';
-  static const String _channelName = 'Приглашение';
+  static String get _channelName => ruEn('Приглашение', 'Invitation');
+  static String get _channelDescription => ruEn(
+      'Напоминание позвать партнёра, пока пары нет',
+      'A reminder to invite your partner while you have no pair');
 
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
@@ -48,10 +52,10 @@ class InviteReminderService {
     final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
     await androidPlugin?.createNotificationChannel(
-      const AndroidNotificationChannel(
+      AndroidNotificationChannel(
         _channelId,
         _channelName,
-        description: 'Напоминание позвать партнёра, пока пары нет',
+        description: _channelDescription,
         importance: Importance.defaultImportance,
       ),
     );
@@ -83,11 +87,11 @@ class InviteReminderService {
         title: s.inviteReminderTitle,
         body: s.inviteReminderBody,
         scheduledDate: tz.TZDateTime.now(tz.local).add(const Duration(days: 1)),
-        notificationDetails: const NotificationDetails(
+        notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
             _channelId,
             _channelName,
-            channelDescription: 'Напоминание позвать партнёра, пока пары нет',
+            channelDescription: _channelDescription,
             importance: Importance.defaultImportance,
             priority: Priority.defaultPriority,
             icon: '@drawable/ic_notification',

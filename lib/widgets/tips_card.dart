@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../dict_strings.dart';
 import '../utils/relationship_tips.dart';
 
 /// Карточка советов на сегодня.
@@ -245,11 +246,11 @@ class _TipsCardState extends State<TipsCard> {
       };
 
   String _labelFor(String action) => switch (action) {
-        'chat' => 'Написать',
-        'memory' => 'Добавить',
-        'gift' => 'Подарки',
-        'miss' => 'Отправить',
-        'mood' => 'Настроение',
-        _ => 'Открыть',
+        'chat' => ruEn('Написать', 'Write'),
+        'memory' => ruEn('Добавить', 'Add'),
+        'gift' => ruEn('Подарки', 'Gifts'),
+        'miss' => ruEn('Отправить', 'Send'),
+        'mood' => ruEn('Настроение', 'Mood'),
+        _ => ruEn('Открыть', 'Open'),
       };
 }

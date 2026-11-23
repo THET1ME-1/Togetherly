@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../dict_strings.dart';
 import '../services/analytics_service.dart';
+import '../utils/server_message.dart';
 import '../services/pb_data_service.dart';
 import '../services/pb_realtime_service.dart';
 import '../services/pocketbase_service.dart';
@@ -165,7 +167,7 @@ class ConnectionsManager extends ChangeNotifier {
         debugPrint('acceptCodeAndCreateGroup: self code, ignoring');
         // Без сообщения экран показал бы «код не найден» — и человек искал бы
         // проблему в коде, а не в том, что это его собственный.
-        lastAcceptMessage = 'Это ваш собственный код';
+        lastAcceptMessage = ruEn('Это ваш собственный код', 'This is your own code');
         return false;
       }
     }
@@ -174,7 +176,13 @@ class ConnectionsManager extends ChangeNotifier {
     debugPrint(
       'acceptCodeAndCreateGroup: result=${result['success']}, msg=${result['message']}',
     );
-    lastAcceptMessage = result['message'] as String?;
+    // Текст отказа приходит с сервера по-русски — на экран он идёт на языке
+    // приложения (`serverMessageText`).
+    final serverText = result['message'] as String?;
+    lastAcceptMessage = serverText == null
+        ? null
+        : serverMessageText(serverText,
+            fallback: ruEn('Не удалось принять код', 'Couldn’t accept the code'));
 
     // Код второго места («он в армии»): вместо мгновенного входа — заявка,
     // которую подтверждает хозяйка пары. Иначе код, засветившийся в сторис,
@@ -182,8 +190,9 @@ class ConnectionsManager extends ChangeNotifier {
     if (result['waiting'] == true) {
       final claim = await PbDataService().waitingClaim(code);
       if (claim == null) {
-        lastAcceptMessage =
-            PbDataService().lastWaitingError ?? 'Не удалось отправить заявку';
+        final failed = ruEn('Не удалось отправить заявку', 'Couldn’t send the request');
+        lastAcceptMessage = serverMessageText(
+            PbDataService().lastWaitingError ?? '', fallback: failed);
         lastAcceptWaiting = false;
         return false;
       }
@@ -206,7 +215,8 @@ class ConnectionsManager extends ChangeNotifier {
 
     final pairId = result['pairId'] as String? ?? '';
     if (pairId.isEmpty) {
-      lastAcceptMessage = 'Сервер не вернул пару — попробуйте ещё раз';
+      lastAcceptMessage = ruEn('Сервер не вернул пару — попробуйте ещё раз',
+          'The server didn’t return the pair — please try again');
       return false;
     }
 
@@ -318,7 +328,10 @@ class ConnectionsManager extends ChangeNotifier {
     );
     if (res == null) {
       final msg = PbDataService().lastWaitingError ?? '';
-      lastWaitingCreateError = msg.isEmpty ? null : msg;
+      lastWaitingCreateError = msg.isEmpty
+          ? null
+          : serverMessageText(msg,
+              fallback: ruEn('Не удалось создать пару', 'Couldn’t create the pair'));
       return '';
     }
     final pairId = res['pairId'] ?? '';

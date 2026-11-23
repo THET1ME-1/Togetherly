@@ -789,8 +789,8 @@ class WidgetService extends ChangeNotifier {
       final keys = pairWidgetPayload(
         my: my,
         partner: partner,
-        myFallbackName: 'Я',
-        partnerFallbackName: 'Партнёр',
+        myFallbackName: ruEn('Я', 'Me'),
+        partnerFallbackName: ruEn('Партнёр', 'Partner'),
         pairChanged: pairChanged,
       );
       // Пишем дважды: в ключи ЭТОЙ пары (`love_<пара>_<поле>`) и в старые общие.
@@ -877,7 +877,7 @@ class WidgetService extends ChangeNotifier {
       final membersData = limitedMembers
           .map(
             (m) => {
-              'name': m.displayName.isNotEmpty ? m.displayName : 'Участник',
+              'name': m.displayName.isNotEmpty ? m.displayName : ruEn('Участник', 'Member'),
               'emojiPath': m.moodEmoji,
             },
           )

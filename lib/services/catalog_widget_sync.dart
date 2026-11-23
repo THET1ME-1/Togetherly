@@ -8,6 +8,7 @@ import '../models/mood_entry.dart';
 import '../models/pair_data.dart';
 import '../models/timer_item.dart';
 import '../utils/couple_days.dart';
+import '../utils/widget_dates.dart';
 import '../theme/app_theme.dart';
 import 'home_widget_service.dart';
 import 'locale_service.dart';
@@ -109,12 +110,12 @@ class CatalogWidgetSync {
       await hws.syncTogether(
         groupId: pair.pairId,
         days: days,
-        startDate: start == null ? '' : 'С ${_dayMonth(start)} ${start.year}',
+        startDate: start == null ? '' : widgetSinceLong(start),
         start: start,
         myInitial: _initial(myName),
         partnerInitial: _initial(partnerName),
         names: names,
-        anniversary: start == null ? '' : _dayMonth(start),
+        anniversary: start == null ? '' : widgetDateShort(start),
         anniversaryDate: pair.anniversaryDate,
         myAvatarUrl: myAvatarUrl,
         partnerAvatarUrl: pair.partnerAvatarUrl,
@@ -124,7 +125,7 @@ class CatalogWidgetSync {
         groupId: pair.pairId,
         start: start,
         memoriesCount: memoriesCount,
-        startDateLabel: start == null ? '' : 'с ${_dayMonth(start)} ${start.year}',
+        startDateLabel: start == null ? '' : widgetSince(widgetDateLong(start)),
       );
 
       // Пустой список — таймеры ещё не загрузились (системный есть всегда):

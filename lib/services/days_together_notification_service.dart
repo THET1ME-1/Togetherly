@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../models/days_together_plan.dart';
+import '../dict_strings.dart';
 import '../utils/notification_permission.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz;
@@ -46,9 +47,10 @@ class DaysTogetherNotificationService {
   /// годятся: на iOS это не тихая строчка в шторке, а баннер на экране.
   static const int _iosHour = 9;
   static const String _channelId = 'days_together_v1';
-  static const String _channelName = 'Дни вместе';
-  static const String _channelDesc =
-      'Постоянный счётчик дней, проведённых вместе';
+  static String get _channelName => ruEn('Дни вместе', 'Days together');
+  static String get _channelDesc => ruEn(
+      'Постоянный счётчик дней, проведённых вместе',
+      'A permanent counter of the days you have spent together');
 
   static const String _keyEnabled = 'days_together_notif_enabled';
   static const String _keyStartMs = 'days_together_start_ms';
@@ -78,7 +80,7 @@ class DaysTogetherNotificationService {
     final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
     await androidPlugin?.createNotificationChannel(
-      const AndroidNotificationChannel(
+      AndroidNotificationChannel(
         _channelId,
         _channelName,
         description: _channelDesc,
@@ -281,7 +283,7 @@ class DaysTogetherNotificationService {
     }
   }
 
-  NotificationDetails _details() => const NotificationDetails(
+  NotificationDetails _details() => NotificationDetails(
         android: AndroidNotificationDetails(
           _channelId,
           _channelName,

@@ -1,0 +1,58 @@
+/* Названия и описания виджетов в галерее iPhone. Ключ — русская строка из
+   `.configurationDisplayName` / `.description` в коде расширения, значение —
+   перевод. Галерея показывает их на языке телефона (язык приложения ей
+   неизвестен). Новый виджет — новая пара строк во всех *.lproj; сторож —
+   test/utils/widget_language_test.dart. */
+
+"Маскот на столе" = "Mascot";
+"Персонаж пары растёт вместе с серией." = "Your pair's character grows with your streak.";
+"Настроение пары" = "Couple mood";
+"Настроение и оценка дня вас обоих." = "Mood and day rating for both of you.";
+"Где мы" = "Where we are";
+"Карта на двоих и расстояние между вами." = "A map for two and the distance between you.";
+"Рисунок на столе" = "Drawing";
+"Общий холст пары рядом с иконками." = "Your shared canvas next to your apps.";
+"Обратный отсчёт" = "Countdown";
+"Сколько осталось до вашего события." = "How long until your event.";
+"Настроение — плитки" = "Mood tiles";
+"Отметить день в одно касание и увидеть неделю." = "Mark your day in one tap and see the week.";
+"Дней вместе" = "Days together";
+"Сколько дней вы вместе." = "How many days you have been together.";
+"Огонёк пары" = "Couple streak";
+"Сколько дней подряд вы заходите вместе." = "How many days in a row you both open the app.";
+"Статистика отношений" = "Relationship stats";
+"Дни, моменты, рисунки и «я скучаю»." = "Days, moments, drawings and “miss you”.";
+"Парный виджет" = "Couple widget";
+"Статус, настроение и музыка вас обоих." = "Status, mood and music for both of you.";
+"Сетка фото" = "Photo grid";
+"Несколько фото партнёра в одной сетке." = "Several of your partner's photos in one grid.";
+"Моё фото" = "My photo";
+"Фото, которым вы делитесь с партнёром." = "The photo you share with your partner.";
+"Фото партнёра" = "Partner's photo";
+"Фото, которым с вами поделился партнёр." = "The photo your partner shared with you.";
+"Фото дня" = "Photo of the day";
+"Тёплое фото из ваших воспоминаний." = "A warm photo from your memories.";
+"Заметка" = "Note";
+"Записка на двоих в цвете вашей темы." = "A note for two in your theme colour.";
+"Заметка — бумага" = "Paper note";
+"Та же записка, но клочком бумаги." = "The same note on a scrap of paper.";
+"Таймер" = "Timer";
+"Дни вместе или обратный отсчёт до события." = "Days together or a countdown to an event.";
+"Лепестковый таймер" = "Petal timer";
+"Живой циферблат: годы, месяцы, дни, часы." = "A live dial: years, months, days, hours.";
+"Чем заняты" = "What we're doing";
+"Чем сейчас занят каждый из вас: Ту показывает сам." = "What each of you is up to right now, shown by Tu.";
+"Скучаю" = "Miss you";
+"Сказать «скучаю» с рабочего стола." = "Say “miss you” from your home screen.";
+"Вместе · блокировка" = "Together · Lock Screen";
+"Сколько дней вы вместе — на экране блокировки." = "How many days you have been together, on the Lock Screen.";
+"Скучаю · блокировка" = "Miss you · Lock Screen";
+"Сказать «скучаю» прямо с экрана блокировки." = "Say “miss you” right from the Lock Screen.";
+"Настроение · блокировка" = "Mood · Lock Screen";
+"Настроение обоих на экране блокировки." = "Both moods on the Lock Screen.";
+"Вместе" = "Together";
+"Дни вместе, пройденные вехи и ближайшая круглая дата." = "Days together, milestones passed and the next round date.";
+"Кольцо года" = "Year ring";
+"Сколько прошло от годовщины до годовщины." = "How far you are from one anniversary to the next.";
+"Календарь лет" = "Years calendar";
+"Каждый прожитый вместе месяц — точка." = "Every month together is a dot.";

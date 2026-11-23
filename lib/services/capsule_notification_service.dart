@@ -7,6 +7,7 @@ import 'package:timezone/timezone.dart' as tz;
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../dict_strings.dart';
 import '../utils/notification_permission.dart';
 import 'locale_service.dart';
 
@@ -21,7 +22,10 @@ class CapsuleNotificationService {
       CapsuleNotificationService._();
 
   static const String _channelId = 'time_capsule';
-  static const String _channelName = 'Капсула времени';
+  static String get _channelName => ruEn('Капсула времени', 'Time capsule');
+  static String get _channelDescription => ruEn(
+      'Напоминание об открытии капсулы времени',
+      'A reminder when a time capsule opens');
 
   /// Ключ, в котором ждёт капсула, к которой человек шёл из уведомления.
   /// Лента откроет её сама при первом показе.
@@ -83,10 +87,10 @@ class CapsuleNotificationService {
     final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
     await androidPlugin?.createNotificationChannel(
-      const AndroidNotificationChannel(
+      AndroidNotificationChannel(
         _channelId,
         _channelName,
-        description: 'Напоминание об открытии капсулы времени',
+        description: _channelDescription,
         importance: Importance.high,
       ),
     );
@@ -126,11 +130,11 @@ class CapsuleNotificationService {
         title: s.capsuleOpenedTitle,
         body: body,
         scheduledDate: tz.TZDateTime.from(openAt, tz.local),
-        notificationDetails: const NotificationDetails(
+        notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
             _channelId,
             _channelName,
-            channelDescription: 'Напоминание об открытии капсулы времени',
+            channelDescription: _channelDescription,
             importance: Importance.high,
             priority: Priority.high,
             icon: '@drawable/ic_notification',

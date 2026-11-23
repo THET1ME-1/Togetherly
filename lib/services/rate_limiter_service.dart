@@ -1,5 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../dict_strings.dart';
+
 /// Thrown when an operation exceeds the per-device rate limit.
 class RateLimitException implements Exception {
   final String message;
@@ -42,8 +44,10 @@ class RateLimiterService {
     key: _keyComment,
     maxCount: _maxCommentsPerHour,
     window: _hourWindow,
-    itemLabel: 'комментариев',
-    windowLabel: 'в час',
+    message: (max, minutes) => ruEn(
+      'Не более $max комментариев в час — попробуй через $minutes мин. 🌸',
+      'No more than $max comments an hour — try again in $minutes min. 🌸',
+    ),
   );
 
   /// Records one successful comment write.
@@ -62,8 +66,7 @@ class RateLimiterService {
     required String key,
     required int maxCount,
     required Duration window,
-    required String itemLabel,
-    required String windowLabel,
+    required String Function(int max, int minutes) message,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final now = DateTime.now();
@@ -78,7 +81,7 @@ class RateLimiterService {
       final resetAt = recent.first.add(window);
       final minutesLeft = resetAt.difference(now).inMinutes + 1;
       throw RateLimitException(
-        'Не более $maxCount $itemLabel $windowLabel — попробуй через $minutesLeft мин. 🌸',
+        message(maxCount, minutesLeft),
         minutesUntilReset: minutesLeft,
       );
     }

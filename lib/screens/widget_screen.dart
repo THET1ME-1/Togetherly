@@ -39,6 +39,7 @@ import '../widgets/map/pair_map_widget_preview.dart';
 import '../widgets/year_ring_card.dart';
 import 'plus_screen.dart';
 import '../utils/couple_days.dart';
+import '../utils/widget_dates.dart';
 import '../widgets/avatar_widget.dart';
 import '../utils/safe_pick.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -1288,18 +1289,10 @@ class _WidgetScreenState extends State<WidgetScreen>
         final days = timer != null
             ? timer.daysElapsed.abs()
             : (start != null ? calendarDaysBetween(start, DateTime.now()) : 0);
-        const months = [
-          'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-          'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
-        ];
-        final startLabel = start == null
-            ? ''
-            : 'С ${start.day} ${months[start.month - 1]} ${start.year}';
+        final startLabel = start == null ? '' : widgetSinceLong(start);
         final myName = widget.userData.displayName.trim();
         final partnerName = _pair.partnerDisplayName.trim();
-        final anniversary = start == null
-            ? ''
-            : '${start.day} ${months[start.month - 1]}';
+        final anniversary = start == null ? '' : widgetDateShort(start);
         await hws.syncTogether(
           groupId: _pair.pairId,
           days: days,
@@ -2440,9 +2433,7 @@ class _WidgetScreenState extends State<WidgetScreen>
         daysLabel: LocaleService.current.tgDaysTogetherCaption(days),
         percent: track?.percent ?? 0,
         roles: WidgetThemeSync.rolesOf(_cs),
-        startDate: start == null
-            ? ''
-            : 'С ${LocaleService.current.dayLogDate(start)} ${start.year}',
+        startDate: start == null ? '' : widgetSinceLong(start),
         names: [
           widget.userData.displayName.trim(),
           _pair.partnerDisplayName.trim(),

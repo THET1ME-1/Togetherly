@@ -4770,7 +4770,7 @@ class _DrawScreenState extends State<DrawScreen>
   String _sheetCaption(double w, double h) {
     if (_isPixel) {
       final px = (1600 / _pxCols).round();
-      return '$_pxCols × $_pxRows · клетка $px px';
+      return '$_pxCols × $_pxRows · ${ruEn('клетка', 'cell')} $px px';
     }
     const exportW = 1600;
     final ratio = _sheetRatio ?? (w / h);

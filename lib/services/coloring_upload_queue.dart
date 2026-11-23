@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../dict_strings.dart';
 import '../utils/coloring_outline.dart';
 
 /// Состояние загруженной раскраски.
@@ -146,7 +147,7 @@ class ColoringUploadQueue extends ChangeNotifier {
 
     final item = ColoringUpload(
       id: id,
-      title: title.trim().isEmpty ? 'Моя раскраска' : title.trim(),
+      title: title.trim().isEmpty ? ruEn('Моя раскраска', 'My colouring page') : title.trim(),
       status: ColoringUploadStatus.processing,
       sourcePath: saved.path,
     );
@@ -187,7 +188,8 @@ class ColoringUploadQueue extends ChangeNotifier {
       final src = File(item.sourcePath);
       if (!src.existsSync()) {
         await _update(item.id,
-            status: ColoringUploadStatus.failed, error: 'Файл потерялся');
+            status: ColoringUploadStatus.failed,
+            error: ruEn('Файл потерялся', 'The file is lost'));
         return;
       }
       final bytes = await src.readAsBytes();
@@ -196,13 +198,15 @@ class ColoringUploadQueue extends ChangeNotifier {
       if (result == null) {
         await _update(item.id,
             status: ColoringUploadStatus.failed,
-            error: 'Это не картинка или её не удалось прочитать');
+            error: ruEn('Это не картинка или её не удалось прочитать',
+                'This is not a picture, or it couldn’t be read'));
         return;
       }
       if (result.leaks) {
         await _update(item.id,
             status: ColoringUploadStatus.failed,
-            error: 'Линии не замкнуты: заливка растечётся по всему листу');
+            error: ruEn('Линии не замкнуты: заливка растечётся по всему листу',
+                'The lines aren’t closed: the fill would spread over the whole page'));
         return;
       }
 
@@ -216,7 +220,8 @@ class ColoringUploadQueue extends ChangeNotifier {
           status: ColoringUploadStatus.ready, ratio: result.ratio);
     } catch (e) {
       await _update(item.id,
-          status: ColoringUploadStatus.failed, error: 'Не получилось: $e');
+          status: ColoringUploadStatus.failed,
+          error: '${ruEn('Не получилось', 'Something went wrong')}: $e');
     } finally {
       _busy = false;
       // Следующая в очереди, если она есть.

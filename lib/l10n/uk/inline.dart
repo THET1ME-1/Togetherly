@@ -315,4 +315,127 @@ const Map<String, String> kUkByEnglish = {
   'Everyday': 'Щодня',
   'Occasions': 'З приводу',
   'Milestones': 'Подія',
+
+  // Строки, которые до 23.11.2026 были только русскими (отзыв: «текст иногда
+  // по-белорусски, хотя стоит английский»). Ключи те же в zh и pt.
+  // Каналы и тексты уведомлений
+  'Mascot': 'Маскот',
+  "A reminder when you haven't opened the app for a while":
+      'Нагадування, якщо ви давно не відкривали застосунок',
+  'Your mascot misses you 🥺': 'Ваш маскот сумує 🥺',
+  "It's been a while — come back and cheer up your mascot 🐾":
+      'Вас давно не було — зайдіть і потіште маскота 🐾',
+  'Invitation': 'Запрошення',
+  'A reminder to invite your partner while you have no pair':
+      'Нагадування запросити партнера, поки пари немає',
+  'Celebrations': 'Свята',
+  'Reminders about anniversaries and birthdays': 'Нагадування про річниці й дні народження',
+  'Time capsule': 'Капсула часу',
+  'A reminder when a time capsule opens': 'Нагадування про відкриття капсули часу',
+  'A permanent counter of the days you have spent together':
+      'Постійний лічильник днів, проведених разом',
+  'Server connection': 'Зв’язок із сервером',
+  'Keeps the connection open to deliver messages, moods and “miss you” from your partner while the app is in the background.':
+      'Тримає з’єднання, щоб доставляти повідомлення, настрій і «сумую» від партнера, поки застосунок згорнутий.',
+  'Togetherly is connected': 'Togetherly на зв’язку',
+  'Receiving notifications from your partner': 'Отримуємо сповіщення від партнера',
+
+  // Запасные подписи виджетов
+  'No data yet': 'Поки немає даних',
+  'Rating': 'Оцінка',
+  'Photo of the day': 'Фото дня',
+  'My photo': 'Моє фото',
+  "Partner's photo": 'Фото партнера',
+  'Me': 'Я',
+  'Member': 'Учасник',
+
+  // Советы паре
+  'Your partner is having a rough day': 'У партнера не найкращий день',
+  'Ask how they are and just listen. No advice needed — sometimes it is enough to have someone close.':
+      'Запитайте, як справи, і просто вислухайте. Порада не обов’язкова — іноді досить, що поруч хтось є.',
+  'You don’t know how your partner is today': 'Як партнер сьогодні — невідомо',
+  'Ask them yourself: a real question beats a mark in the calendar.':
+      'Запитайте самі: живе питання краще за позначку в календарі.',
+  'These days can be hard': 'Ці дні бувають важкими',
+  'Take on a chore, bring her some tea, suggest an evening with no plans. Ask what she would like.':
+      'Візьміть на себе щось побутове, принесіть чай, запропонуйте вечір без планів. Запитайте, чого їй хочеться.',
+  'Her period is coming soon': 'Скоро ті самі дні',
+  'A good moment to do something in advance: order her favourite treat or keep the evening free.':
+      'Слушний момент зробити щось заздалегідь: замовити її улюблене чи звільнити вечір.',
+  'The silence has gone on too long': 'Тиша затягнулася',
+  'You haven’t texted in a while': 'Давно не листувалися',
+  'Write first — it doesn’t have to be about anything. “Thinking of you” is enough.':
+      'Напишіть першим — не обов’язково у справі. Досить «думаю про тебе».',
+  'You haven’t sent “miss you” in a while': 'Давно не надсилали «сумую»',
+  'One tap and they will know. A small thing that works.':
+      'Один дотик — і партнер дізнається. Дрібниця, а працює.',
+  'No new memories for a while': 'Спогадів давно не додавалося',
+  'Add a photo or a few lines about your week. A year from now it will mean more than it seems today.':
+      'Додайте фото або кілька рядків про цей тиждень. Через рік це буде дорожче, ніж здається зараз.',
+  'Your anniversary is today': 'Річниця сьогодні',
+  'Your anniversary is tomorrow': 'Річниця завтра',
+  '{0} days until your anniversary': 'До річниці {0} дн.',
+  'Be the first to say it.': 'Скажіть про це першими.',
+  'There is time to plan something better than last-minute flowers.':
+      'Ще встигнете вигадати щось, окрім квітів в останню годину.',
+  '{0} days together today': 'Сьогодні {0} днів разом',
+  'A round date is a good reason to say it out loud.':
+      'Кругла дата — гарний привід сказати це вголос.',
+  'Write': 'Написати',
+  'Send': 'Надіслати',
+
+  // Ограничение комментариев
+  'No more than {0} comments an hour — try again in {1} min. 🌸':
+      'Не більше {0} коментарів на годину — спробуйте за {1} хв. 🌸',
+
+  // Отказы сервера при подключении пары (`lib/utils/server_message.dart`)
+  'No code entered': 'Код не вказано',
+  'This code is damaged': 'Код пошкоджено',
+  'This is your own code!': 'Це ваш власний код!',
+  'This is your own code': 'Це ваш власний код',
+  'Couldn’t accept the code': 'Не вдалося прийняти код',
+  'Code not found. Ask your partner to tap “New code” and read it out again':
+      'Код не знайдено. Нехай партнер натисне «Новий код» і продиктує ще раз',
+  'Code not found': 'Код не знайдено',
+  'This pair is already full': 'Пара вже заповнена',
+  'Enter a name': 'Впишіть ім’я',
+  'There is no request': 'Заявки немає',
+  'This place is already taken': 'Місце вже зайняте',
+  'Couldn’t save': 'Не збереглося',
+  'Couldn’t create the pair': 'Не вдалося створити пару',
+  'Couldn’t issue a code': 'Не вдалося видати код',
+  'No pair specified': 'Пару не вказано',
+  'Pair not found': 'Пару не знайдено',
+  'This is not your pair': 'Це не ваша пара',
+  'Couldn’t send the request': 'Не вдалося надіслати заявку',
+  'You already have a pair': 'У вас уже є пара',
+  'You already have a pair — leave it first': 'У вас уже є пара — спершу вийдіть із неї',
+  'Enter the code': 'Введіть код',
+  'Your session has expired — please sign in again': 'Сесія закінчилася — увійдіть знову',
+  'The server didn’t return the pair': 'Сервер не повернув пару',
+  'The server didn’t return the pair — please try again':
+      'Сервер не повернув пару — спробуйте ще раз',
+
+  // Свои раскраски
+  'My colouring page': 'Моя розмальовка',
+  'The file is lost': 'Файл загубився',
+  'This is not a picture, or it couldn’t be read': 'Це не картинка, або її не вдалося прочитати',
+  'The lines aren’t closed: the fill would spread over the whole page':
+      'Лінії не замкнені: заливка розтечеться по всьому аркушу',
+  'Something went wrong': 'Не вийшло',
+
+  // Архив воспоминаний
+  'Title': 'Назва',
+  'File': 'Файл',
+  'MEMORIES': 'СПОГАДИ',
+  'TIMERS': 'ТАЙМЕРИ',
+  'Start': 'Початок',
+  'Days passed': 'Минуло днів',
+  'Memories archive': 'Архів спогадів',
+
+  // Мелочи
+  ' & ': ' і ',
+  'cell': 'клітинка',
+  'm': 'м',
+  'km': 'км',
 };

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import '../dict_strings.dart';
 import '../utils/notification_permission.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz;
@@ -25,7 +26,10 @@ class CelebrationNotificationService {
   static const int _idBirthdayDay = 9004;
 
   static const String _channelId = 'celebrations_v1';
-  static const String _channelName = 'Праздники';
+  static String get _channelName => ruEn('Праздники', 'Celebrations');
+  static String get _channelDescription => ruEn(
+      'Напоминания о годовщинах и днях рождения',
+      'Reminders about anniversaries and birthdays');
 
   // Ключи SharedPreferences для хранения дат между сессиями.
   static const String _keyAnniversaryMs = 'celebration_anniversary_ms';
@@ -56,10 +60,10 @@ class CelebrationNotificationService {
     final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
     await androidPlugin?.createNotificationChannel(
-      const AndroidNotificationChannel(
+      AndroidNotificationChannel(
         _channelId,
         _channelName,
-        description: 'Напоминания о годовщинах и днях рождения',
+        description: _channelDescription,
         importance: Importance.high,
       ),
     );
@@ -249,11 +253,11 @@ class CelebrationNotificationService {
         title: title,
         body: body,
         scheduledDate: scheduled,
-        notificationDetails: const NotificationDetails(
+        notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
             _channelId,
             _channelName,
-            channelDescription: 'Напоминания о годовщинах и днях рождения',
+            channelDescription: _channelDescription,
             importance: Importance.high,
             priority: Priority.high,
             icon: '@drawable/ic_notification',

@@ -274,8 +274,8 @@ class MemoryLanePreview extends StatelessWidget {
       return '';
     }
     final d = Geolocator.distanceBetween(userLat!, userLng!, lat, lng);
-    if (d < 1000) return '${d.round()} м';
-    return '${(d / 1000).toStringAsFixed(1)} км';
+    if (d < 1000) return '${d.round()} ${ruEn('м', 'm')}';
+    return '${(d / 1000).toStringAsFixed(1)} ${ruEn('км', 'km')}';
   }
 }
 

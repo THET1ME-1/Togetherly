@@ -302,4 +302,115 @@ const Map<String, String> kZhByEnglish = {
   'Everyday': '日常',
   'Occasions': '有特别的理由',
   'Milestones': '重要时刻',
+
+  // Строки, которые до 23.11.2026 были только русскими. Ключи те же в uk и pt.
+  // Каналы и тексты уведомлений
+  'Mascot': '吉祥物',
+  "A reminder when you haven't opened the app for a while": '很久没有打开应用时的提醒',
+  'Your mascot misses you 🥺': '你的吉祥物想你了 🥺',
+  "It's been a while — come back and cheer up your mascot 🐾": '好久不见——回来让吉祥物开心一下吧 🐾',
+  'Invitation': '邀请',
+  'A reminder to invite your partner while you have no pair': '还没有配对时，提醒你邀请伴侣',
+  'Celebrations': '纪念日',
+  'Reminders about anniversaries and birthdays': '纪念日和生日提醒',
+  'Time capsule': '时间胶囊',
+  'A reminder when a time capsule opens': '时间胶囊开启时的提醒',
+  'A permanent counter of the days you have spent together': '常驻显示你们在一起的天数',
+  'Server connection': '服务器连接',
+  'Keeps the connection open to deliver messages, moods and “miss you” from your partner while the app is in the background.':
+      '在应用退到后台时保持连接，及时收到伴侣的消息、心情和“想你”。',
+  'Togetherly is connected': 'Togetherly 已连接',
+  'Receiving notifications from your partner': '正在接收伴侣的通知',
+
+  // Запасные подписи виджетов
+  'No data yet': '暂无数据',
+  'Rating': '评分',
+  'Photo of the day': '今日照片',
+  'My photo': '我的照片',
+  "Partner's photo": '伴侣的照片',
+  'Me': '我',
+  'Member': '成员',
+
+  // Советы паре
+  'Your partner is having a rough day': '伴侣今天过得不太好',
+  'Ask how they are and just listen. No advice needed — sometimes it is enough to have someone close.':
+      '问问对方怎么样，然后静静倾听。不一定要给建议，有时候有人陪着就够了。',
+  'You don’t know how your partner is today': '还不知道伴侣今天过得怎么样',
+  'Ask them yourself: a real question beats a mark in the calendar.': '亲自问问吧：一句真心的问候胜过日历上的标记。',
+  'These days can be hard': '这几天可能会很辛苦',
+  'Take on a chore, bring her some tea, suggest an evening with no plans. Ask what she would like.':
+      '主动分担一些家务，给她端杯茶，提议一个没有安排的夜晚。问问她想要什么。',
+  'Her period is coming soon': '她的经期快到了',
+  'A good moment to do something in advance: order her favourite treat or keep the evening free.':
+      '正好可以提前做点什么：给她点她最爱吃的，或者把晚上空出来。',
+  'The silence has gone on too long': '沉默太久了',
+  'You haven’t texted in a while': '你们很久没聊天了',
+  'Write first — it doesn’t have to be about anything. “Thinking of you” is enough.':
+      '主动发条消息吧，不一定要有事。一句“在想你”就够了。',
+  'You haven’t sent “miss you” in a while': '很久没发“想你”了',
+  'One tap and they will know. A small thing that works.': '轻点一下，对方就会知道。小事，却很管用。',
+  'No new memories for a while': '很久没有新增回忆了',
+  'Add a photo or a few lines about your week. A year from now it will mean more than it seems today.':
+      '添加一张照片，或写几句这周发生的事。一年后，它会比现在看起来更珍贵。',
+  'Your anniversary is today': '今天是纪念日',
+  'Your anniversary is tomorrow': '明天是纪念日',
+  '{0} days until your anniversary': '距离纪念日还有 {0} 天',
+  'Be the first to say it.': '先说出口吧。',
+  'There is time to plan something better than last-minute flowers.': '还来得及准备比临时买花更用心的惊喜。',
+  '{0} days together today': '今天是在一起的第 {0} 天',
+  'A round date is a good reason to say it out loud.': '整数纪念日，正好把心里话说出来。',
+  'Write': '写消息',
+  'Send': '发送',
+
+  // Ограничение комментариев
+  'No more than {0} comments an hour — try again in {1} min. 🌸': '每小时最多 {0} 条评论，请 {1} 分钟后再试 🌸',
+
+  // Отказы сервера при подключении пары (`lib/utils/server_message.dart`)
+  'No code entered': '未输入邀请码',
+  'This code is damaged': '邀请码已损坏',
+  'This is your own code!': '这是你自己的邀请码！',
+  'This is your own code': '这是你自己的邀请码',
+  'Couldn’t accept the code': '无法接受邀请码',
+  'Code not found. Ask your partner to tap “New code” and read it out again':
+      '未找到邀请码。请让伴侣点“新邀请码”，再告诉你一次',
+  'Code not found': '未找到邀请码',
+  'This pair is already full': '这个配对已满',
+  'Enter a name': '请输入名字',
+  'There is no request': '没有申请',
+  'This place is already taken': '这个位置已被占用',
+  'Couldn’t save': '保存失败',
+  'Couldn’t create the pair': '无法创建配对',
+  'Couldn’t issue a code': '无法生成邀请码',
+  'No pair specified': '未指定配对',
+  'Pair not found': '未找到配对',
+  'This is not your pair': '这不是你的配对',
+  'Couldn’t send the request': '无法发送申请',
+  'You already have a pair': '你已经有配对了',
+  'You already have a pair — leave it first': '你已经有配对了，请先退出',
+  'Enter the code': '请输入邀请码',
+  'Your session has expired — please sign in again': '登录已过期，请重新登录',
+  'The server didn’t return the pair': '服务器没有返回配对',
+  'The server didn’t return the pair — please try again': '服务器没有返回配对，请重试',
+
+  // Свои раскраски
+  'My colouring page': '我的涂色画',
+  'The file is lost': '文件丢失了',
+  'This is not a picture, or it couldn’t be read': '这不是图片，或者无法读取',
+  'The lines aren’t closed: the fill would spread over the whole page': '线条没有闭合：填色会铺满整张纸',
+  'Something went wrong': '出错了',
+
+  // Архив воспоминаний
+  'Title': '标题',
+  'File': '文件',
+  'MEMORIES': '回忆',
+  'TIMERS': '计时器',
+  'Start': '开始',
+  'Days passed': '已过天数',
+  'Memories archive': '回忆存档',
+
+  // Мелочи
+  ' & ': ' 和 ',
+  'cell': '格',
+  'm': '米',
+  'km': '公里',
 };

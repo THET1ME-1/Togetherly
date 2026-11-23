@@ -3,6 +3,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
+import '../dict_strings.dart';
+
 class MascotInactivityNotificationService {
   MascotInactivityNotificationService._();
 
@@ -11,7 +13,14 @@ class MascotInactivityNotificationService {
 
   static const int _notificationId = 9991;
   static const String _channelId = 'mascot_miss_you';
-  static const String _channelName = 'Маскот';
+
+  // Подписи на языке приложения: служба поднимается после выбора языка
+  // (`LocaleService.init` в `main`), а канал при повторном создании
+  // переименовывается у тех, кто уже видел русское название.
+  static String get _channelName => ruEn('Маскот', 'Mascot');
+  static String get _channelDescription => ruEn(
+      'Напоминание, если вы давно не открывали приложение',
+      "A reminder when you haven't opened the app for a while");
 
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
@@ -41,10 +50,10 @@ class MascotInactivityNotificationService {
         >();
 
     await androidPlugin?.createNotificationChannel(
-      const AndroidNotificationChannel(
+      AndroidNotificationChannel(
         _channelId,
         _channelName,
-        description: 'Напоминание, если вы давно не открывали приложение',
+        description: _channelDescription,
         importance: Importance.high,
       ),
     );
@@ -87,15 +96,15 @@ class MascotInactivityNotificationService {
 
       await _plugin.zonedSchedule(
         id: _notificationId,
-        title: 'Ваш маскот скучает 🥺',
-        body: 'Ты так давно не заходил — войди и обрадуй маскотика 🐾',
+        title: ruEn('Ваш маскот скучает 🥺', 'Your mascot misses you 🥺'),
+        body: ruEn('Ты так давно не заходил — войди и обрадуй маскотика 🐾',
+            "It's been a while — come back and cheer up your mascot 🐾"),
         scheduledDate: scheduledAt,
-        notificationDetails: const NotificationDetails(
+        notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
             _channelId,
             _channelName,
-            channelDescription:
-                'Напоминание, если вы давно не открывали приложение',
+            channelDescription: _channelDescription,
             importance: Importance.high,
             priority: Priority.high,
             icon: '@drawable/ic_notification',

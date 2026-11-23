@@ -1,55 +1,59 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Строки по умолчанию — английские (23.11.2026). Раньше здесь лежал русский,
+     и телефон на любом языке без своей папки (польский, турецкий, нидерландский…)
+     показывал описания виджетов и запасные подписи по-русски. Русский теперь в
+     values-ru, его копии — в values-be, values-kk, values-ky: там приложение по
+     стране тоже выбирает русский (LocaleService.detect). Правишь русский —
+     правь все четыре. Тексты на самих виджетах идут на языке приложения
+     (WidgetText, lib/services/widget_labels.dart). -->
 <resources>
-    <!-- Описания виджетов нового каталога (Android 12+ показывает их в списке) -->
-    <string name="tg_desc_together_2x2">Дни вместе и аватары пары</string>
-    <string name="tg_desc_together_4x2">Дни вместе и прогресс до круглой даты</string>
-    <string name="tg_desc_together_4x4">Дни вместе и ближайшие даты пары</string>
-    <string name="tg_desc_note_2x2">Общая заметка: пишет один — видит второй</string>
-    <string name="tg_desc_doing_4x2">Чем сейчас занят каждый из вас: Ту показывает сам</string>
-    <string name="tg_desc_note_4x2">Общая заметка на двоих, пара строк</string>
-    <string name="tg_desc_note_4x4">Общая заметка на двоих, целый список</string>
-    <string name="tg_note_empty">Нажмите, чтобы написать</string>
-    <string name="tg_note_editor_title">Заметка на двоих</string>
-    <string name="tg_note_hint">Что написать?</string>
-    <string name="tg_note_cancel">Отмена</string>
-    <string name="tg_note_save">Сохранить</string>
-    <string name="tg_desc_miss_2x2">Отправить «скучаю» одним тапом</string>
-    <string name="tg_desc_miss_4x2">Счётчики «скучаю» обоих и кнопка</string>
-    <string name="tg_desc_miss_4x1">Полоска: отправить «скучаю»</string>
-    <string name="tg_desc_mood_2x2">Настроение обоих и отметка одним тапом</string>
-    <string name="tg_desc_mood_4x2">Неделя настроений пары</string>
-    <string name="tg_desc_countdown_2x2">Сколько дней до встречи</string>
-    <string name="tg_desc_countdown_4x2">До встречи: дни, часы и минуты</string>
-    <string name="tg_desc_ring_2x2">Кольцо года: дни вместе и путь до годовщины</string>
-    <string name="tg_desc_ring_4x2">Кольцо года, счётчики и дата годовщины</string>
-    <string name="tg_desc_grid_2x2">Календарь лет: точка — месяц, ряд — год</string>
-    <string name="tg_desc_grid_4x2">Календарь лет и обратный отсчёт до годовщины</string>
-    <string name="tg_widget_no_start_date">Укажите дату начала</string>
-    <!-- Виджет «Где мы» (19.09.2026) -->
-    <string name="tg_map_label">Где мы — карта на двоих</string>
-    <string name="tg_desc_map_2x2">Вы двое и расстояние между вами</string>
-    <string name="tg_desc_map_4x2">Карта на двоих: дуга, расстояние и когда партнёр был на месте</string>
-    <string name="tg_desc_map_4x4">Карта с округой и кто где: районы и время</string>
-    <string name="tg_desc_mascot_4x1">Персонаж пары полоской: имя, ступень и серия</string>
-    <string name="tg_desc_mascot_2x2">Персонаж пары и полоса до следующей ступени</string>
-    <string name="tg_desc_mascot_4x2">Персонаж пары, серия и полоса роста</string>
-    <string name="tg_desc_mascot_4x4">Персонаж пары во весь экран: серия, рост и рекорд</string>
-    <string name="tg_mascot_empty">Выберите маскота в приложении</string>
-    <string name="tg_desc_canvas_2x2">Общий рисунок пары, квадратом</string>
-    <string name="tg_desc_canvas_2x3">Общий рисунок пары, лист целиком</string>
-    <string name="tg_desc_canvas_4x4">Общий рисунок пары во весь ряд</string>
-    <string name="tg_canvas_empty">Нарисуйте что-нибудь вдвоём</string>
-    <string name="tg_canvas_pick_title">Какой рисунок показывать</string>
-    <string name="tg_canvas_pick_subtitle">Нажмите на холст, и он встанет на стол</string>
-    <string name="tg_canvas_pick_empty">Рисунков пока нет. Откройте Togetherly и нарисуйте первый.</string>
-    <string name="tg_canvas_unnamed">Без названия</string>
-
-    <!-- Подсказки на пустой половине парного виджета (PairWidgetHint). Язык
-         приложения пишет Flutter, это запасной вариант до первой записи. -->
-    <string name="love_hint_fail_title">Фото не загрузилось</string>
-    <string name="love_hint_fail_sub">Нажмите, чтобы обновить</string>
-    <string name="love_hint_own_title">Добавьте фото и настроение</string>
-    <string name="love_hint_own_sub">Нажмите на виджет</string>
-    <string name="love_hint_partner_title">У партнёра пока пусто</string>
-    <string name="love_hint_partner_sub">Фото и настроение появятся здесь</string>
+    <string name="tg_desc_together_2x2">Days together and your avatars</string>
+    <string name="tg_desc_together_4x2">Days together and progress to the next milestone</string>
+    <string name="tg_desc_together_4x4">Days together and your upcoming dates</string>
+    <string name="tg_desc_note_2x2">Shared note: one writes, the other sees</string>
+    <string name="tg_desc_doing_4x2">What each of you is up to right now, shown by Tu</string>
+    <string name="tg_desc_note_4x2">Shared note for two, a couple of lines</string>
+    <string name="tg_desc_note_4x4">Shared note for two, a whole list</string>
+    <string name="tg_note_empty">Tap to write</string>
+    <string name="tg_note_editor_title">Note for two</string>
+    <string name="tg_note_hint">What to write?</string>
+    <string name="tg_note_cancel">Cancel</string>
+    <string name="tg_note_save">Save</string>
+    <string name="tg_desc_miss_2x2">Send “miss you” with one tap</string>
+    <string name="tg_desc_miss_4x2">Both “miss you” counters and a button</string>
+    <string name="tg_desc_miss_4x1">Strip: send “miss you”</string>
+    <string name="tg_desc_mood_2x2">Both moods and logging with one tap</string>
+    <string name="tg_desc_mood_4x2">Your week of moods</string>
+    <string name="tg_desc_countdown_2x2">How many days until you meet</string>
+    <string name="tg_desc_countdown_4x2">Until you meet: days, hours and minutes</string>
+    <string name="tg_desc_ring_2x2">Year ring: days together and the way to your anniversary</string>
+    <string name="tg_desc_ring_4x2">Year ring, counters and anniversary date</string>
+    <string name="tg_desc_grid_2x2">Years calendar: a dot is a month, a row is a year</string>
+    <string name="tg_desc_grid_4x2">Years calendar and countdown to your anniversary</string>
+    <string name="tg_widget_no_start_date">Set your start date</string>
+    <string name="tg_map_label">Where we are: a map for two</string>
+    <string name="tg_desc_map_2x2">You two and the distance between you</string>
+    <string name="tg_desc_map_4x2">Map for two: arc, distance and when your partner was there</string>
+    <string name="tg_desc_map_4x4">Map with the area and who is where: districts and time</string>
+    <string name="tg_desc_mascot_4x1">Your mascot as a strip: name, stage and streak</string>
+    <string name="tg_desc_mascot_2x2">Your mascot and progress to the next stage</string>
+    <string name="tg_desc_mascot_4x2">Your mascot, streak and growth bar</string>
+    <string name="tg_desc_mascot_4x4">Your mascot full screen: streak, growth and record</string>
+    <string name="tg_mascot_empty">Pick a mascot in the app</string>
+    <string name="tg_desc_canvas_2x2">Your shared drawing, square</string>
+    <string name="tg_desc_canvas_2x3">Your shared drawing, whole sheet</string>
+    <string name="tg_desc_canvas_4x4">Your shared drawing across the row</string>
+    <string name="tg_canvas_empty">Draw something together</string>
+    <string name="tg_canvas_pick_title">Which drawing to show</string>
+    <string name="tg_canvas_pick_subtitle">Tap a canvas to put it on your home screen</string>
+    <string name="tg_canvas_pick_empty">No drawings yet. Open Togetherly and draw the first one.</string>
+    <string name="tg_canvas_unnamed">Untitled</string>
+    <string name="love_hint_fail_title">Photo didn’t load</string>
+    <string name="love_hint_fail_sub">Tap to refresh</string>
+    <string name="love_hint_own_title">Add a photo and mood</string>
+    <string name="love_hint_own_sub">Tap the widget</string>
+    <string name="love_hint_partner_title">Nothing from your partner yet</string>
+    <string name="love_hint_partner_sub">Their photo and mood will appear here</string>
+    <string name="widget_description">Shared status, mood and messages for you and your partner</string>
+    <string name="petal_timer_widget_description">Live petal timer: years, months, days, hours, minutes, seconds</string>
 </resources>

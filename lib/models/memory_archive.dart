@@ -8,6 +8,7 @@ library;
 
 import 'dart:convert';
 
+import '../dict_strings.dart';
 import 'memory.dart';
 import 'memory_media.dart';
 
@@ -53,18 +54,24 @@ String memoriesText(List<Memory> memories, List<ArchiveEntry> entries) {
   for (final e in entries) {
     byMemory.putIfAbsent(e.memory.id, () => []).add(e.path);
   }
-  final b = StringBuffer()..writeln('=== ВОСПОМИНАНИЯ ===');
+  // Подписи выгрузки — на языке приложения, как и всё, что человек читает.
+  final title = ruEn('Название', 'Title');
+  final note = ruEn('Заметка', 'Note');
+  final place = ruEn('Место', 'Place');
+  final file = ruEn('Файл', 'File');
+  final b = StringBuffer()
+    ..writeln('=== ${ruEn('ВОСПОМИНАНИЯ', 'MEMORIES')} ===');
   for (final m in memories) {
     final d = m.createdAt;
     b.writeln('[${m.typeEmoji} ${m.typeLabel}] '
         '${_two(d.day)}.${_two(d.month)}.${d.year} — ${m.authorName}');
-    if (m.title?.trim().isNotEmpty ?? false) b.writeln('Название: ${m.title}');
-    if (m.caption?.trim().isNotEmpty ?? false) b.writeln('Заметка: ${m.caption}');
+    if (m.title?.trim().isNotEmpty ?? false) b.writeln('$title: ${m.title}');
+    if (m.caption?.trim().isNotEmpty ?? false) b.writeln('$note: ${m.caption}');
     if (m.locationName?.trim().isNotEmpty ?? false) {
-      b.writeln('Место: ${m.locationName}');
+      b.writeln('$place: ${m.locationName}');
     }
     for (final p in byMemory[m.id] ?? const <String>[]) {
-      b.writeln('Файл: $p');
+      b.writeln('$file: $p');
     }
     b.writeln('--------------------');
   }

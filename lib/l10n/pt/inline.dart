@@ -433,4 +433,126 @@ const Map<String, String> kPtByEnglish = {
   'Fish in a bubble': 'Peixinho na bolha',
   'Our story book': 'Livro da nossa história',
   'Pumpkin lantern': 'Lanterna de abóbora',
+
+  // Строки, которые до 23.11.2026 были только русскими. Ключи те же в uk и zh.
+  // Каналы и тексты уведомлений
+  'Mascot': 'Mascote',
+  "A reminder when you haven't opened the app for a while":
+      'Um lembrete quando você fica muito tempo sem abrir o app',
+  'Your mascot misses you 🥺': 'Seu mascote está com saudade 🥺',
+  "It's been a while — come back and cheer up your mascot 🐾":
+      'Faz tempo que você não aparece — volte e alegre seu mascote 🐾',
+  'Invitation': 'Convite',
+  'A reminder to invite your partner while you have no pair':
+      'Um lembrete para convidar seu par enquanto vocês não estão conectados',
+  'Celebrations': 'Datas especiais',
+  'Reminders about anniversaries and birthdays': 'Lembretes de aniversários de namoro e de nascimento',
+  'Time capsule': 'Cápsula do tempo',
+  'A reminder when a time capsule opens': 'Um lembrete quando a cápsula do tempo abrir',
+  'A permanent counter of the days you have spent together':
+      'Um contador fixo dos dias que vocês passaram juntos',
+  'Server connection': 'Conexão com o servidor',
+  'Keeps the connection open to deliver messages, moods and “miss you” from your partner while the app is in the background.':
+      'Mantém a conexão aberta para entregar mensagens, humor e “saudade” do seu par enquanto o app está em segundo plano.',
+  'Togetherly is connected': 'Togetherly conectado',
+  'Receiving notifications from your partner': 'Recebendo notificações do seu par',
+
+  // Запасные подписи виджетов
+  'No data yet': 'Ainda sem dados',
+  'Rating': 'Nota',
+  'Photo of the day': 'Foto do dia',
+  'My photo': 'Minha foto',
+  "Partner's photo": 'Foto do seu par',
+  'Me': 'Eu',
+  'Member': 'Membro',
+
+  // Советы паре
+  'Your partner is having a rough day': 'Seu par não está num dia bom',
+  'Ask how they are and just listen. No advice needed — sometimes it is enough to have someone close.':
+      'Pergunte como está e só escute. Não precisa dar conselho — às vezes basta ter alguém por perto.',
+  'You don’t know how your partner is today': 'Você ainda não sabe como seu par está hoje',
+  'Ask them yourself: a real question beats a mark in the calendar.':
+      'Pergunte você mesmo: uma pergunta sincera vale mais que uma marcação no calendário.',
+  'These days can be hard': 'Estes dias podem ser difíceis',
+  'Take on a chore, bring her some tea, suggest an evening with no plans. Ask what she would like.':
+      'Assuma alguma tarefa da casa, leve um chá, proponha uma noite sem planos. Pergunte o que ela gostaria.',
+  'Her period is coming soon': 'A menstruação dela está chegando',
+  'A good moment to do something in advance: order her favourite treat or keep the evening free.':
+      'Bom momento para se adiantar: pedir o doce favorito dela ou deixar a noite livre.',
+  'The silence has gone on too long': 'O silêncio já está longo demais',
+  'You haven’t texted in a while': 'Faz tempo que vocês não conversam',
+  'Write first — it doesn’t have to be about anything. “Thinking of you” is enough.':
+      'Escreva primeiro — não precisa ter assunto. “Pensando em você” já basta.',
+  'You haven’t sent “miss you” in a while': 'Faz tempo que você não manda “saudade”',
+  'One tap and they will know. A small thing that works.':
+      'Um toque e seu par vai saber. Coisa pequena, mas funciona.',
+  'No new memories for a while': 'Faz tempo que não entram memórias novas',
+  'Add a photo or a few lines about your week. A year from now it will mean more than it seems today.':
+      'Adicione uma foto ou algumas linhas sobre a semana. Daqui a um ano isso vai valer mais do que parece hoje.',
+  'Your anniversary is today': 'Hoje é o aniversário de vocês',
+  'Your anniversary is tomorrow': 'Amanhã é o aniversário de vocês',
+  '{0} days until your anniversary': 'Faltam {0} dias para o aniversário de vocês',
+  'Be the first to say it.': 'Seja quem fala primeiro.',
+  'There is time to plan something better than last-minute flowers.':
+      'Dá tempo de planejar algo melhor que flores de última hora.',
+  '{0} days together today': 'Hoje são {0} dias juntos',
+  'A round date is a good reason to say it out loud.':
+      'Uma data redonda é um bom motivo para dizer isso em voz alta.',
+  'Write': 'Escrever',
+  'Send': 'Enviar',
+
+  // Ограничение комментариев
+  'No more than {0} comments an hour — try again in {1} min. 🌸':
+      'No máximo {0} comentários por hora — tente de novo em {1} min. 🌸',
+
+  // Отказы сервера при подключении пары (`lib/utils/server_message.dart`)
+  'No code entered': 'Nenhum código digitado',
+  'This code is damaged': 'Este código está corrompido',
+  'This is your own code!': 'Este é o seu próprio código!',
+  'This is your own code': 'Este é o seu próprio código',
+  'Couldn’t accept the code': 'Não foi possível aceitar o código',
+  'Code not found. Ask your partner to tap “New code” and read it out again':
+      'Código não encontrado. Peça ao seu par para tocar em “Novo código” e ditar de novo',
+  'Code not found': 'Código não encontrado',
+  'This pair is already full': 'Este par já está completo',
+  'Enter a name': 'Digite um nome',
+  'There is no request': 'Não há pedido',
+  'This place is already taken': 'Este lugar já está ocupado',
+  'Couldn’t save': 'Não foi salvo',
+  'Couldn’t create the pair': 'Não foi possível criar o par',
+  'Couldn’t issue a code': 'Não foi possível gerar um código',
+  'No pair specified': 'Par não informado',
+  'Pair not found': 'Par não encontrado',
+  'This is not your pair': 'Este par não é seu',
+  'Couldn’t send the request': 'Não foi possível enviar o pedido',
+  'You already have a pair': 'Você já tem um par',
+  'You already have a pair — leave it first': 'Você já tem um par — saia dele primeiro',
+  'Enter the code': 'Digite o código',
+  'Your session has expired — please sign in again': 'Sua sessão expirou — entre de novo',
+  'The server didn’t return the pair': 'O servidor não devolveu o par',
+  'The server didn’t return the pair — please try again':
+      'O servidor não devolveu o par — tente de novo',
+
+  // Свои раскраски
+  'My colouring page': 'Meu desenho para colorir',
+  'The file is lost': 'O arquivo se perdeu',
+  'This is not a picture, or it couldn’t be read': 'Isto não é uma imagem, ou não foi possível lê-la',
+  'The lines aren’t closed: the fill would spread over the whole page':
+      'As linhas não estão fechadas: a cor vazaria pela folha toda',
+  'Something went wrong': 'Algo deu errado',
+
+  // Архив воспоминаний
+  'Title': 'Título',
+  'File': 'Arquivo',
+  'MEMORIES': 'MEMÓRIAS',
+  'TIMERS': 'CRONÔMETROS',
+  'Start': 'Início',
+  'Days passed': 'Dias passados',
+  'Memories archive': 'Arquivo de memórias',
+
+  // Мелочи
+  ' & ': ' e ',
+  'cell': 'célula',
+  'm': 'm',
+  'km': 'km',
 };

@@ -20,7 +20,9 @@ import 'pb_data_service.dart';
 import 'pb_media_service.dart';
 import 'pocketbase_service.dart';
 import 'widget_owner.dart';
+import '../dict_strings.dart';
 import '../utils/couple_days.dart';
+import '../utils/widget_dates.dart';
 import 'widget_photo_cache.dart';
 import 'widget_photo_store.dart';
 import 'widget_rows_pass.dart';
@@ -2545,7 +2547,7 @@ class HomeWidgetService {
       unawaited(syncTogether(
         groupId: groupId,
         days: timer.daysElapsed.abs(),
-        startDate: 'С ${_formatDateLong(timer.startDate)}',
+        startDate: widgetSinceLong(timer.startDate),
         start: timer.startDate,
         myInitial: _cachedMyInitial,
         partnerInitial: _cachedPartnerInitial,
@@ -2808,7 +2810,7 @@ class HomeWidgetService {
               : jsonEncode([
                   {
                     'id': 'ios_day_0',
-                    'label': caption.isEmpty ? 'Фото дня' : caption,
+                    'label': caption.isEmpty ? ruEn('Фото дня', 'Photo of the day') : caption,
                     'path': localPath,
                   }
                 ]),
@@ -3166,19 +3168,19 @@ class HomeWidgetService {
       // ── Локализованные строки для нативного виджета ──
       await HomeWidget.saveWidgetData<String>(
         'no_mood_text',
-        noMoodText.isNotEmpty ? noMoodText : 'Пока нет данных',
+        noMoodText.isNotEmpty ? noMoodText : ruEn('Пока нет данных', 'No data yet'),
       );
       await HomeWidget.saveWidgetData<String>(
         'name_fallback_me',
-        nameFallbackMe.isNotEmpty ? nameFallbackMe : 'Вы',
+        nameFallbackMe.isNotEmpty ? nameFallbackMe : ruEn('Вы', 'You'),
       );
       await HomeWidget.saveWidgetData<String>(
         'name_fallback_partner',
-        nameFallbackPartner.isNotEmpty ? nameFallbackPartner : 'Партнёр',
+        nameFallbackPartner.isNotEmpty ? nameFallbackPartner : ruEn('Партнёр', 'Partner'),
       );
       await HomeWidget.saveWidgetData<String>(
         'rating_prefix',
-        ratingPrefix.isNotEmpty ? ratingPrefix : 'Оценка',
+        ratingPrefix.isNotEmpty ? ratingPrefix : ruEn('Оценка', 'Rating'),
       );
 
       await HomeWidget.updateWidget(
@@ -3392,7 +3394,7 @@ class HomeWidgetService {
         groupId: groupId,
         start: startDate,
         memoriesCount: memoriesCount,
-        startDateLabel: startDate == null ? '' : 'с ${_formatDate(startDate)}',
+        startDateLabel: startDate == null ? '' : widgetSince(_formatDate(startDate)),
       );
     } catch (e) {
       debugPrint('HomeWidgetService.refreshRelationshipStats failed: $e');
@@ -3480,7 +3482,7 @@ class HomeWidgetService {
         await syncTogether(
           groupId: activeGroupId,
           days: days,
-          startDate: start == null ? '' : 'С ${_formatDateLong(start)}',
+          startDate: start == null ? '' : widgetSinceLong(start),
           start: start,
           myInitial: parts.isNotEmpty && parts.first.trim().isNotEmpty
               ? parts.first.trim()[0].toUpperCase()
@@ -3492,7 +3494,7 @@ class HomeWidgetService {
           // coupleNames приходит с главного экрана через «&» и раньше
           // перебивал то, что писал экран виджетов.
           names: coupleNames.replaceAll(RegExp(r'\s*[&·]\s*'), ' + '),
-          anniversary: start == null ? '' : _formatDateShort(start),
+          anniversary: start == null ? '' : widgetDateShort(start),
           myAvatarUrl: myAvatarUrl,
           partnerAvatarUrl: partnerAvatarUrl,
         );
@@ -3762,24 +3764,6 @@ class HomeWidgetService {
       ),
     );
     await syncTimer(timer, groupId: groupId, isRomantic: isRomantic, themeIndex: themeIndex);
-  }
-
-  /// «1 ноября» — без года, для строки годовщины.
-  String _formatDateShort(DateTime d) {
-    const months = [
-      'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-      'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
-    ];
-    return '${d.day} ${months[d.month - 1]}';
-  }
-
-  /// «1 ноября 2025» — как в хендофе виджета «Вместе».
-  String _formatDateLong(DateTime d) {
-    const months = [
-      'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-      'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
-    ];
-    return '${d.day} ${months[d.month - 1]} ${d.year}';
   }
 
   String _formatDate(DateTime d) =>
@@ -4374,18 +4358,20 @@ class HomeWidgetService {
 
       final mine = myPhotos == null
           ? null
-          : await catalog(myPhotos, 'ios_self', 'Моё фото');
+          : await catalog(myPhotos, 'ios_self', ruEn('Моё фото', 'My photo'));
       final theirs = partnerPhotos == null
           ? null
           : await catalog(
               partnerPhotos,
               'ios_partner',
-              partnerName.isEmpty ? 'Фото партнёра' : 'Фото · $partnerName',
+              partnerName.isEmpty
+                  ? ruEn('Фото партнёра', "Partner's photo")
+                  : '${ruEn('Фото', 'Photo')} · $partnerName',
               limit: 10,
             );
       final day = dayPhotoUrl.isEmpty
           ? <Map<String, String>>[]
-          : await catalog([dayPhotoUrl], 'ios_day', 'Фото дня');
+          : await catalog([dayPhotoUrl], 'ios_day', ruEn('Фото дня', 'Photo of the day'));
 
       Future<void> put(String key, String value) =>
           HomeWidget.saveWidgetData<String>(key, value);

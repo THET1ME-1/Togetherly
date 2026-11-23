@@ -7419,7 +7419,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     }
     final me = widget.userData?.displayName ?? '';
     final partner = widget.pairData.partnerName;
-    final title = [me, partner].where((n) => n.trim().isNotEmpty).join(' и ');
+    final title = [me, partner]
+        .where((n) => n.trim().isNotEmpty)
+        .join(ruEn(' и ', ' & '));
     if (!mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(

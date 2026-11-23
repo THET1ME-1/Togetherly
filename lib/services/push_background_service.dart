@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
+import '../dict_strings.dart';
 import 'centrifugo_service.dart';
 import 'fcm_service.dart';
 import 'home_widget_service.dart';
@@ -50,10 +51,14 @@ class PushBackgroundService {
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
         channelId: 'partner_push_service',
-        channelName: 'Связь с сервером',
-        channelDescription:
+        // Настраивается из главного изолята (`start` зовёт экран пары), там
+        // язык приложения уже прочитан, поэтому подписи на нём.
+        channelName: ruEn('Связь с сервером', 'Server connection'),
+        channelDescription: ruEn(
             'Держит соединение, чтобы доставлять сообщения, настроение и '
-            '«скучаю» от партнёра, пока приложение свёрнуто.',
+                '«скучаю» от партнёра, пока приложение свёрнуто.',
+            'Keeps the connection open to deliver messages, moods and '
+                '“miss you” from your partner while the app is in the background.'),
         // Каналу/баннеру по умолчанию LOW importance + без вибрации/бейджа —
         // постоянное уведомление сервиса не мозолит глаза.
         onlyAlertOnce: true,
@@ -163,8 +168,9 @@ class PushBackgroundService {
         await FlutterForegroundTask.startService(
           serviceId: 4711,
           serviceTypes: const [ForegroundServiceTypes.dataSync],
-          notificationTitle: 'Togetherly на связи',
-          notificationText: 'Получаем уведомления от партнёра',
+          notificationTitle: ruEn('Togetherly на связи', 'Togetherly is connected'),
+          notificationText: ruEn('Получаем уведомления от партнёра',
+              'Receiving notifications from your partner'),
           // Иконка-сердечко (та же, что у локальных уведомлений) — без неё
           // сервис ставит дефолт/чёрный квадрат в шторке.
           notificationIcon: const NotificationIcon(

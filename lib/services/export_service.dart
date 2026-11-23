@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../dict_strings.dart';
 import '../models/memory.dart';
 import '../models/memory_archive.dart';
 import '../models/timer_item.dart';
@@ -36,12 +37,13 @@ class ExportService {
 
       // 1. Таймеры. Символ в текстовую выгрузку не пишем: с версии 1.20 там
       //    лежит имя значка (`favorite`), а не эмодзи.
-      final timerBuffer = StringBuffer()..writeln('=== ТАЙМЕРЫ ===');
+      final timerBuffer = StringBuffer()
+        ..writeln('=== ${ruEn('ТАЙМЕРЫ', 'TIMERS')} ===');
       for (final t in timers) {
         timerBuffer
           ..writeln(t.title)
-          ..writeln('Начало: ${t.formattedStartDate}')
-          ..writeln('Прошло: ${t.daysElapsed} дней')
+          ..writeln('${ruEn('Начало', 'Start')}: ${t.formattedStartDate}')
+          ..writeln('${ruEn('Прошло дней', 'Days passed')}: ${t.daysElapsed}')
           ..writeln('--------------------');
       }
       final timerBytes = archiveText(timerBuffer.toString());
@@ -81,7 +83,7 @@ class ExportService {
 
       await Share.shareXFiles(
         [XFile(zipPath)],
-        text: 'Архив воспоминаний',
+        text: ruEn('Архив воспоминаний', 'Memories archive'),
         sharePositionOrigin: sharePositionOrigin,
       );
     } catch (e) {
