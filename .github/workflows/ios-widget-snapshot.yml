@@ -29,7 +29,9 @@ jobs:
 
       - name: Взять указанный коммит
         if: ${{ inputs.ref != '' }}
-        run: git checkout --detach "${{ inputs.ref }}" && git log -1 --format='проверяем: %h %s'
+        run: |
+          git checkout --detach "${{ inputs.ref }}"
+          git log -1 --format='проверяем: %h %s'
 
       - name: Самый свежий Xcode
         run: |
