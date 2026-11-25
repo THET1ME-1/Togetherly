@@ -8367,10 +8367,16 @@ class _PhotoSourceSheet extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
           // Живое фото: короткое видео или гифка вместо снимка. Кадры из файла
           // делает сервер, здесь человек просто выбирает его в галерее.
-          _liveButton(context),
+          // Только Android: кадры подсовывает WidgetAnimPlayer, а виджет
+          // iPhone ключей раскадровки не читает вовсе — на айфоне фото не
+          // вставало, а приложение писало «Живое фото в виджете» (обращение
+          // 649, 24.11.2026).
+          if (!Platform.isIOS) ...[
+            const SizedBox(height: 12),
+            _liveButton(context),
+          ],
           if (liveActive) ...[
             const SizedBox(height: 8),
             _dropLiveButton(context),
