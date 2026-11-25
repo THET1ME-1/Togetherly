@@ -55,7 +55,7 @@ import '../theme/app_theme.dart';
 import '../theme/app_palettes.dart';
 import '../theme/theme_scope.dart';
 import '../theme/profile_theme.dart';
-import '../widgets/app_icon_sheet.dart';
+import 'settings/app_icon_screen.dart';
 import '../widgets/app_sheet.dart';
 import '../widgets/morph_loader.dart';
 import '../widgets/mascot/mascot_sleep_sheet.dart';
@@ -2327,16 +2327,16 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
               appIconId:
                   AppIconService.instance.isSupported ? _appIconId : null,
-              onAppIcon: () async {
-                final picked = await showAppIconSheet(
-                  ctx,
-                  theme: widget.userData.theme,
-                  currentId: _appIconId,
-                );
-                if (picked == null || !mounted) return;
-                setState(() => _appIconId = picked);
-                safeSetSheetState(() {});
-              },
+              onAppIcon: () => openAppIconScreen(
+                ctx,
+                theme: widget.userData.theme,
+                currentId: _appIconId,
+                onChanged: (picked) {
+                  if (!mounted) return;
+                  setState(() => _appIconId = picked);
+                  safeSetSheetState(() {});
+                },
+              ),
             );
           },
         ),

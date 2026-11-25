@@ -1,6 +1,25 @@
 // Названия иконок приложения (они же имена палитр).
 
 const Map<String, Map<String, String>> appIconsStrings = {
+  // Заголовки групп в листе выбора иконки.
+  'appicon_group_art': {
+    'ru': 'Рисунки',
+    'en': 'Drawings',
+    'pt': 'Desenhos',
+    'it': 'Disegni',
+    'es': 'Dibujos',
+    'fr': 'Dessins',
+    'de': 'Bilder',
+  },
+  'appicon_group_colors': {
+    'ru': 'Цвета тем',
+    'en': 'Theme colors',
+    'pt': 'Cores do tema',
+    'it': 'Colori del tema',
+    'es': 'Colores del tema',
+    'fr': 'Couleurs du thème',
+    'de': 'Themenfarben',
+  },
   'appicon_default': {
     'ru': 'Основная',
     'en': 'Default',

@@ -6,6 +6,8 @@
 
 const Map<String, String> smallCUk = {
   // app_icons
+  'appicon_group_art': 'Малюнки',
+  'appicon_group_colors': 'Кольори тем',
   'appicon_default': 'Основна',
   'appicon_tu': 'Ту',
   'appicon_halloween': 'Гелловін 2026',
