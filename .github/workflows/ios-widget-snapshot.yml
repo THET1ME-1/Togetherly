@@ -52,7 +52,10 @@ jobs:
           set -euo pipefail
           APP=/tmp/Harness.app
           mkdir -p "$APP/fixtures"
-          SRC=$(ls ios/TogetherlyWidget/*.swift | grep -v TogetherlyWidgetBundle.swift)
+          # Бандл нужен (в нём общий RefreshProvider), но без @main: точка
+          # входа у стенда своя.
+          sed 's/^@main$//' ios/TogetherlyWidget/TogetherlyWidgetBundle.swift > /tmp/Bundle.swift
+          SRC="$(ls ios/TogetherlyWidget/*.swift | grep -v TogetherlyWidgetBundle.swift) /tmp/Bundle.swift"
           echo "файлы расширения:"; echo "$SRC"
           xcrun -sdk iphonesimulator swiftc -parse-as-library \
             -target arm64-apple-ios17.0-simulator -O \
