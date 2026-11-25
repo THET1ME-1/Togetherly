@@ -56,7 +56,7 @@ class AppIconService {
       letters: Color(0xFFF6493A),
       asset: 'assets/images/logo/app_icon.webp',
     ),
-    // Ту, нарисованный в манере значков, с глазами-сердечками. Бесплатный, как
+    // Ту таким, какой он в приложении, крупно и срезан краем. Бесплатный, как
     // все иконки; картинки делает tool/gen_tu_icon.py.
     AppIconOption(
       id: 'tu',

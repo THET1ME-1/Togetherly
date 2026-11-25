@@ -191,7 +191,7 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity-alias>
-        <!-- «Ту»: рисованный маскот с глазами-сердечками, бесплатно на выбор
+        <!-- «Ту»: маскот как в приложении, крупно и срезан краем, бесплатно на выбор
              (tool/gen_tu_icon.py, адаптивная — mipmap-anydpi-v26/ic_launcher_tu). -->
         <activity-alias
             android:name=".IconTu"
