@@ -246,6 +246,7 @@ const Map<String, String> kDeByEnglish = {
   // Живое фото в виджете
   'A live photo needs a video or a GIF': 'Ein Live-Foto braucht ein Video oder ein GIF',
   'Live photo is in the widget': 'Das Live-Foto ist im Widget',
+  'Live photo is in the widget. The home screen shows its first frame, it moves here': 'Das Live-Foto ist im Widget. Auf dem Homescreen siehst du das erste Bild, hier bewegt es sich',
   'Failed — please try again': 'Fehlgeschlagen – bitte versuch es noch einmal',
   'Live photo removed': 'Live-Foto entfernt',
   'Live photo — a video or a GIF': 'Live-Foto – ein Video oder ein GIF',

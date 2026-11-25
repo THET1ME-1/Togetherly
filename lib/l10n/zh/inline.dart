@@ -220,6 +220,7 @@ const Map<String, String> kZhByEnglish = {
   // Живое фото в виджете
   'A live photo needs a video or a GIF': '动态照片需要视频或 GIF',
   'Live photo is in the widget': '动态照片已放到小组件上',
+  'Live photo is in the widget. The home screen shows its first frame, it moves here': '动态照片已放到小组件上。桌面上显示第一帧，在这里会动起来',
   'Failed — please try again': '没成功，请再试一次',
   'Live photo removed': '动态照片已移除',
   'Live photo — a video or a GIF': '动态照片：视频或 GIF',

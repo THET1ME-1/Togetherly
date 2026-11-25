@@ -29,6 +29,7 @@ import '../models/together_milestones.dart';
 import '../models/widget_panels.dart';
 import '../models/widget_catalog_query.dart';
 import '../widgets/widget_catalog/catalog_toolbar.dart';
+import '../widgets/widget_preview/live_sheet_player.dart';
 import '../widgets/miss_widget_card.dart';
 import '../widgets/together_track_card.dart';
 import '../services/widget_theme_sync.dart';
@@ -241,6 +242,16 @@ class _WidgetScreenState extends State<WidgetScreen>
   bool _daysPhotosBusy = false;
   String? _widgetTimerId;
 
+  /// Живое фото, если стоит: превью парного виджета играет его кадры на моей
+  /// половине. На iPhone это единственное место, где оно двигается.
+  ({String path, WidgetAnimManifest manifest})? _liveSheet;
+
+  Future<void> _loadLiveSheet() async {
+    final sheet = await WidgetAnimService.instance.current();
+    if (!mounted) return;
+    setState(() => _liveSheet = sheet);
+  }
+
   int? _memoriesCount;
   int? _drawingsCount;
   int? _missYouCount;
@@ -316,6 +327,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     _ws.addListener(_onDataChanged);
     unawaited(_loadNote());
     unawaited(_loadDoing());
+    unawaited(_loadLiveSheet());
     // Холсты для карточки «Рисунок на столе»: заодно готовятся картинки для
     // виджета, чтобы он не встал пустым сразу после установки.
     unawaited(_loadCanvases());
@@ -1753,7 +1765,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     required Color panelColor,
     required bool isLeft,
   }) {
-    final hasPhoto = photoUrl.isNotEmpty;
+    final hasPhoto = photoUrl.isNotEmpty || (isLeft && _liveSheet != null);
     final textColor = hasPhoto ? Colors.white : const Color(0xCC000000);
     final subColor = hasPhoto
         ? Colors.white.withOpacity(0.85)
@@ -1764,8 +1776,10 @@ class _WidgetScreenState extends State<WidgetScreen>
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Фон: фото (cover) или цветная панель
-        if (hasPhoto)
+        // Фон: живое фото на моей половине, иначе фото (cover) или цветная панель
+        if (isLeft && _liveSheet != null)
+          LiveSheetPlayer(path: _liveSheet!.path, manifest: _liveSheet!.manifest)
+        else if (hasPhoto)
           StorageImage(
             imageUrl: photoUrl,
             fit: BoxFit.cover,
@@ -7833,18 +7847,19 @@ class _WidgetScreenState extends State<WidgetScreen>
       final ready = await WidgetAnimService.instance.fetch(mediaId);
       if (ready == null) throw Exception('prepare failed');
 
-      await HomeWidget.saveWidgetData<String>(
-        WidgetAnimService.keyPath,
-        ready.path,
-      );
-      await HomeWidget.saveWidgetData<String>(
-        WidgetAnimService.keyManifest,
-        ready.manifest,
-      );
-      await HomeWidget.updateWidget(name: 'LoveWidgetProvider');
+      if (!await WidgetAnimService.instance.install(ready, mediaId)) {
+        throw Exception('install failed');
+      }
+      await _loadLiveSheet();
       if (mounted) {
         Navigator.of(context).pop();
-        _liveSnack(ru ? 'Живое фото в виджете' : 'Live photo is in the widget');
+        // Виджет iPhone двигаться не умеет: на столе первый кадр, движение —
+        // в превью здесь. Обещать движение на столе там нельзя.
+        _liveSnack(Platform.isIOS
+            ? (ru
+                ? 'Живое фото в виджете. На экране он показывает первый кадр, двигается здесь'
+                : 'Live photo is in the widget. The home screen shows its first frame, it moves here')
+            : (ru ? 'Живое фото в виджете' : 'Live photo is in the widget'));
       }
     } catch (e) {
       debugPrint('_pickLiveVideo failed: $e');
@@ -7871,6 +7886,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     }
     if (choice == _kDropLiveVideo) {
       await WidgetAnimService.instance.clear();
+      await _loadLiveSheet();
       if (!mounted) return;
       _liveSnack(ruEn('Живое фото убрано', 'Live photo removed'));
       return;
@@ -7899,6 +7915,8 @@ class _WidgetScreenState extends State<WidgetScreen>
     if (_pair.pairId.isEmpty) {
       _showPhotoLoader();
       await _ws.updatePhoto(photoPath);
+      // Новый снимок снимает живое фото — превью должно это увидеть.
+      await _loadLiveSheet();
       if (mounted) Navigator.of(context).pop(); // закрываем лоадер
       return;
     }
@@ -7948,6 +7966,7 @@ class _WidgetScreenState extends State<WidgetScreen>
       // 1. Парный виджет (моя половина + у партнёра как фолбэк).
       if (dest.toPairWidget) {
         await _ws.updatePhotoUrl(url);
+        await _loadLiveSheet();
       }
       // 2. Виджет «Фото партнёра» — то, что осознанно показываем партнёру.
       if (dest.toPartnerWidget) {
@@ -8369,14 +8388,11 @@ class _PhotoSourceSheet extends StatelessWidget {
           ),
           // Живое фото: короткое видео или гифка вместо снимка. Кадры из файла
           // делает сервер, здесь человек просто выбирает его в галерее.
-          // Только Android: кадры подсовывает WidgetAnimPlayer, а виджет
-          // iPhone ключей раскадровки не читает вовсе — на айфоне фото не
-          // вставало, а приложение писало «Живое фото в виджете» (обращение
-          // 649, 24.11.2026).
-          if (!Platform.isIOS) ...[
-            const SizedBox(height: 12),
-            _liveButton(context),
-          ],
+          // На iPhone виджет показывает первый кадр, а играют кадры в превью
+          // приложения (обращение 649: до 25.11.2026 виджет iPhone раскадровку
+          // не читал вовсе, и фото просто не вставало).
+          const SizedBox(height: 12),
+          _liveButton(context),
           if (liveActive) ...[
             const SizedBox(height: 8),
             _dropLiveButton(context),

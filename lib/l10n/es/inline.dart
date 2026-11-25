@@ -247,6 +247,7 @@ const Map<String, String> kEsByEnglish = {
   // Живое фото в виджете
   'A live photo needs a video or a GIF': 'Una foto animada necesita un vídeo o un GIF',
   'Live photo is in the widget': 'La foto animada está en el widget',
+  'Live photo is in the widget. The home screen shows its first frame, it moves here': 'La foto animada está en el widget. En la pantalla de inicio se ve el primer fotograma, aquí se mueve',
   'Failed — please try again': 'No salió: inténtalo de nuevo',
   'Live photo removed': 'Foto animada eliminada',
   'Live photo — a video or a GIF': 'Foto animada: un vídeo o un GIF',

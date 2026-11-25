@@ -246,6 +246,7 @@ const Map<String, String> kItByEnglish = {
   // Живое фото в виджете
   'A live photo needs a video or a GIF': 'Una foto animata richiede un video o una GIF',
   'Live photo is in the widget': 'La foto animata è nel widget',
+  'Live photo is in the widget. The home screen shows its first frame, it moves here': 'La foto animata è nel widget. Nella schermata Home si vede il primo fotogramma, qui si muove',
   'Failed — please try again': 'Non riuscito: riprova',
   'Live photo removed': 'Foto animata rimossa',
   'Live photo — a video or a GIF': 'Foto animata: un video o una GIF',

@@ -1,6 +1,7 @@
 import SwiftUI
 import WidgetKit
 import UIKit
+import ImageIO
 
 // MARK: - Парный виджет «Togetherly» (дизайн 1:1 с Android love_widget.xml)
 // Данные пишет lib/services/widget_service.dart (_syncToNativeWidget).
@@ -107,8 +108,69 @@ private enum LoveWidgetImage {
     static let emoji: CGFloat = 160
 }
 
+/// Живое фото (видео или гифка) приезжает раскадровкой: один webp, клетки
+/// `cols × rows` по `cell` точек, рядом манифест json — те же ключи и тот же
+/// файл, что читает Android (`WidgetAnimPlayer.kt`). Двигаться виджет iPhone
+/// не умеет, поэтому на месте моего фото стоит первый кадр, а кадры играет
+/// превью в приложении. До 25.11.2026 ключей здесь не читал никто, и живое
+/// фото на iPhone просто не вставало (обращение 649).
+enum LiveSheet {
+    static let keyPath = "anim_sheet_path"
+    static let keyManifest = "anim_manifest"
+
+    struct Manifest {
+        let cols: Int
+        let rows: Int
+        let cell: Int
+    }
+
+    /// Числа из json сервера приходят то целыми, то дробными, то строкой.
+    static func manifest(_ json: String) -> Manifest? {
+        guard let data = json.data(using: .utf8),
+              let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        else { return nil }
+        func int(_ k: String) -> Int? {
+            if let n = obj[k] as? NSNumber { return n.intValue }
+            if let s = obj[k] as? String { return Int(s) }
+            return nil
+        }
+        guard let c = int("cols"), let r = int("rows"), let cell = int("cell"),
+              c > 0, r > 0, cell > 0
+        else { return nil }
+        return Manifest(cols: c, rows: r, cell: cell)
+    }
+
+    /// Первый кадр живого фото или nil, если его нет или файл не читается.
+    ///
+    /// Лист 1800×900 разжимается целиком (6,5 МБ на миг) — `uiImage(maxSide:)`
+    /// ужал бы весь лист, и клетка вышла бы крошечной. Кадр сразу копируется в
+    /// свой буфер: обрезка делит память с листом и держала бы его весь.
+    static func firstFrame(_ s: Store) -> UIImage? {
+        let path = s.string(keyPath)
+        guard !path.isEmpty, let m = manifest(s.string(keyManifest)),
+              FileManager.default.fileExists(atPath: path),
+              let src = CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, nil)
+        else { return nil }
+        return autoreleasepool { () -> UIImage? in
+            guard let sheet = CGImageSourceCreateImageAtIndex(src, 0, nil),
+                  sheet.width >= m.cell, sheet.height >= m.cell,
+                  let cell = sheet.cropping(to: CGRect(x: 0, y: 0, width: m.cell, height: m.cell))
+            else { return nil }
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 1
+            format.opaque = true
+            let size = CGSize(width: m.cell, height: m.cell)
+            return UIGraphicsImageRenderer(size: size, format: format).image { _ in
+                UIImage(cgImage: cell).draw(in: CGRect(origin: .zero, size: size))
+            }
+        }
+    }
+}
+
 private func loadLove() -> (me: LoveSide, partner: LoveSide) {
     let s = Store()
+    // Живое фото перекрывает моё фото, как на Android.
+    let live = LiveSheet.firstFrame(s)
     // ВАЖНО: ключи картинок = те, что реально пишет Flutter
     // (widget_service.dart: my_mood_emoji_path/my_avatar_path/my_photo_path
     // через appGroupReadablePath → путь ВНУТРИ контейнера App Group). Раньше
@@ -133,8 +195,8 @@ private func loadLove() -> (me: LoveSide, partner: LoveSide) {
         musicTitle: s.string(key("my_music_title")),
         musicArtist: s.string(key("my_music_artist")),
         avatar: s.uiImage(key("my_avatar_path"), maxSide: LoveWidgetImage.avatar),
-        photo: s.uiImage(key("my_photo_path"), maxSide: LoveWidgetImage.photo),
-        photoPath: s.string(key("my_photo_path")),
+        photo: live ?? s.uiImage(key("my_photo_path"), maxSide: LoveWidgetImage.photo),
+        photoPath: live != nil ? s.string(LiveSheet.keyPath) : s.string(key("my_photo_path")),
         mine: true
     )
     let partner = LoveSide(
@@ -334,6 +396,7 @@ struct LoveWidgetView: View {
                     ].filter { !$0.isEmpty }.count
                 ),
                 "mem": String(WidgetRenderLog.availableMemoryMB()),
+                "live": store.string(LiveSheet.keyPath).isEmpty ? "0" : "1",
             ]
         )
         // «Подключите партнёра» показываем ТОЛЬКО когда пары реально нет

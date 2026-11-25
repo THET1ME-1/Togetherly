@@ -231,6 +231,7 @@ const Map<String, String> kUkByEnglish = {
   // Живое фото в виджете
   'A live photo needs a video or a GIF': 'Для живого фото потрібне відео або GIF',
   'Live photo is in the widget': 'Живе фото вже у віджеті',
+  'Live photo is in the widget. The home screen shows its first frame, it moves here': 'Живе фото вже у віджеті. На екрані видно перший кадр, рухається воно тут',
   'Failed — please try again': 'Не вийшло, спробуйте ще раз',
   'Live photo removed': 'Живе фото прибрано',
   'Live photo — a video or a GIF': 'Живе фото: відео або GIF',

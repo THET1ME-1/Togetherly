@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'home_widget_service.dart';
 import 'pocketbase_service.dart';
 
 /// Живое фото в парном виджете: короткое видео или гифка вместо снимка.
@@ -178,6 +179,43 @@ class WidgetAnimService {
     return (path: file.path, manifest: jsonEncode(manifest.toJson()));
   }
 
+  /// Поставить живое фото на виджет: путь раскадровки и манифест в ключи.
+  ///
+  /// На iPhone расширение виджета — отдельный процесс со своей песочницей и
+  /// файл из `getApplicationSupportDirectory` не видит: раскадровка уезжает в
+  /// контейнер App Group, в ключ ложится путь ВНУТРИ него. Без этого виджет
+  /// iPhone стоял пустым (обращение 649). Виджет iPhone двигаться не умеет:
+  /// он показывает первый кадр, а кадры играет превью в приложении.
+  Future<bool> install(({String path, String manifest}) ready, String mediaId) async {
+    var path = ready.path;
+    if (Platform.isIOS) {
+      path = await HomeWidgetService.instance
+          .appGroupReadablePath(ready.path, 'widget_anim_$mediaId');
+      if (path.isEmpty) return false;
+    }
+    await HomeWidget.saveWidgetData<String>(keyPath, path);
+    await HomeWidget.saveWidgetData<String>(keyManifest, ready.manifest);
+    await HomeWidget.updateWidget(name: 'LoveWidgetProvider');
+    return true;
+  }
+
+  /// То, что стоит сейчас: файл раскадровки и манифест. Для превью в
+  /// приложении, где кадры играют и на iPhone.
+  Future<({String path, WidgetAnimManifest manifest})?> current() async {
+    try {
+      final path = await HomeWidget.getWidgetData<String>(keyPath);
+      final raw = await HomeWidget.getWidgetData<String>(keyManifest);
+      if (path == null || path.isEmpty || raw == null || raw.isEmpty) return null;
+      if (!File(path).existsSync()) return null;
+      final manifest = WidgetAnimManifest.tryParse(jsonDecode(raw));
+      if (manifest == null) return null;
+      return (path: path, manifest: manifest);
+    } catch (e) {
+      debugPrint('WidgetAnimService.current failed: $e');
+      return null;
+    }
+  }
+
   /// Стоит ли сейчас живое фото.
   Future<bool> isActive() async {
     try {
@@ -207,6 +245,8 @@ class WidgetAnimService {
       await HomeWidget.saveWidgetData<String>(keyManifest, null);
       await HomeWidget.updateWidget(name: 'LoveWidgetProvider');
       if (active != null && active.isNotEmpty) {
+        // На iPhone копия лежит ещё и в контейнере App Group.
+        await HomeWidgetService.instance.clearAppGroupMedia('widget_anim_');
         // Раскадровки копятся по одной на каждое загруженное видео, а нужна
         // всегда последняя: чистим папку целиком.
         final dir = await getApplicationSupportDirectory();
