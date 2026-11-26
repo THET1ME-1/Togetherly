@@ -24,6 +24,7 @@ import 'theme/app_theme.dart';
 import 'theme/app_palettes.dart';
 import 'theme/profile_theme.dart';
 import 'theme/theme_scope.dart';
+import 'services/age_signals.dart';
 import 'services/analytics_service.dart';
 import 'services/hint_calm.dart';
 import 'services/mascot_guide_service.dart';
@@ -843,6 +844,11 @@ class _LoveAppState extends State<LoveApp> with WidgetsBindingObserver {
         debugPrint('Старт: согласие и реклама не поднялись — $e');
       }
     }
+    // Возраст из магазина (закон Калифорнии AB 1043 с 01.01.2027: спрашивать
+    // при каждом запуске). После окна согласия: в зоне закона магазин может
+    // показать своё окно, двум сразу на iPhone не бывать. Реклама ждёт ответа
+    // сама (`AdPlatform.yandexAllowed`), старт — нет.
+    unawaited(AgeSignals.instance.check());
     try {
       await MascotInactivityNotificationService.instance.init();
       await MascotInactivityNotificationService.instance.markAppOpened();

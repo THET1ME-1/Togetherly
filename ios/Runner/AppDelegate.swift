@@ -1,5 +1,11 @@
 import AVFoundation
 import CoreLocation
+#if canImport(DeclaredAgeRange)
+// Фреймворк есть только с iOS 26, приложение — с 15: в проекте он подключён
+// слабо (`-weak_framework DeclaredAgeRange` в OTHER_LDFLAGS цели Runner),
+// иначе на старых iOS приложение не запустится вовсе.
+import DeclaredAgeRange
+#endif
 import Flutter
 import Photos
 import UIKit
@@ -68,6 +74,91 @@ import WidgetKit
     setupPushArrivedChannel(engineBridge.pluginRegistry)
     setupScreenAwakeChannel(engineBridge.pluginRegistry)
     setupAdCoverChannel(engineBridge.pluginRegistry)
+    setupAgeSignalsChannel(engineBridge.pluginRegistry)
+  }
+
+  // MARK: - Возраст из App Store
+
+  /// Канал `love_app/age_signals`, разбор ответа — `lib/services/age_signals.dart`.
+  ///
+  /// Закон Калифорнии AB 1043 с 01.01.2027 обязывает спрашивать возраст при
+  /// запуске. Спрашиваем только там, где закон обязывает
+  /// (`isEligibleForAgeFeatures`, iOS 26.2+): в остальном мире
+  /// `requestAgeRange` показал бы окно «поделиться возрастом» всем подряд.
+  /// Ответ: `{mandatory, status, lower, upper}`, при сбое `{error}`.
+  ///
+  /// Работает, только когда у App ID включена возможность Declared Age Range
+  /// и в `Runner.entitlements` стоит `com.apple.developer.declared-age-range`.
+  /// Без неё Apple отвечает ошибкой, Dart оставляет прошлый ответ.
+  private func setupAgeSignalsChannel(_ registry: FlutterPluginRegistry) {
+    guard let messenger = registry
+      .registrar(forPlugin: "TogetherlyAgeSignals")?
+      .messenger()
+    else { return }
+
+    let channel = FlutterMethodChannel(
+      name: "love_app/age_signals",
+      binaryMessenger: messenger
+    )
+    channel.setMethodCallHandler { [weak self] call, result in
+      switch call.method {
+      case "check":
+        Task { @MainActor in
+          let answer = await self?.checkAgeRange() ?? ["error": "no_app"]
+          result(answer)
+        }
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
+  }
+
+  @MainActor
+  private func checkAgeRange() async -> [String: Any] {
+    #if canImport(DeclaredAgeRange)
+    guard #available(iOS 26.2, *) else {
+      return ["mandatory": false, "status": "not_asked"]
+    }
+    do {
+      let eligible = try await AgeRangeService.shared.isEligibleForAgeFeatures
+      guard eligible else {
+        return ["mandatory": false, "status": "not_asked"]
+      }
+      guard let host = topController() else {
+        return ["error": "no_controller"]
+      }
+      // Пороги — как группы Google: до 13, 13–15, 16–17, 18+. В зоне закона
+      // система может поставить свои.
+      let response = try await AgeRangeService.shared.requestAgeRange(
+        ageGates: 13, 16, 18,
+        in: host
+      )
+      switch response {
+      case let .sharing(range):
+        var answer: [String: Any] = ["mandatory": true, "status": "shared"]
+        if let lower = range.lowerBound { answer["lower"] = lower }
+        if let upper = range.upperBound { answer["upper"] = upper }
+        return answer
+      case .declinedSharing:
+        return ["mandatory": true, "status": "not_shared"]
+      @unknown default:
+        return ["mandatory": true, "status": "not_shared"]
+      }
+    } catch {
+      return ["error": String(describing: error)]
+    }
+    #else
+    return ["mandatory": false, "status": "not_asked"]
+    #endif
+  }
+
+  /// Верхний показанный контроллер: системное окно Apple встаёт поверх него.
+  private func topController() -> UIViewController? {
+    var top = activeSceneWindow?.rootViewController
+    while let next = top?.presentedViewController {
+      top = next
+    }
+    return top
   }
 
   // MARK: - Реклама поверх Flutter

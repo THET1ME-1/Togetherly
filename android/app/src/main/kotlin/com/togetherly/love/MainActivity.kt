@@ -175,6 +175,13 @@ class MainActivity : FlutterActivity() {
             SoundClipChannel.CHANNEL
         ).setMethodCallHandler(SoundClipChannel())
 
+        // Возраст из Google Play (AgeSignalsBridge.kt): окну Play нужна живая
+        // активность, поэтому канал живёт здесь, а не в фоновом движке.
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            AgeSignalsBridge.CHANNEL
+        ).setMethodCallHandler(AgeSignalsBridge { if (isFinishing || isDestroyed) null else this })
+
         // Запись номеров фото-виджетов для фонового Dart: виджеты, стоявшие
         // до обновления, ещё не успели записать себя сами.
         WidgetIdRegistry.refresh(applicationContext)

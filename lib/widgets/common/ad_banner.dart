@@ -146,7 +146,19 @@ class _AdBannerState extends State<AdBanner> {
     super.dispose();
   }
 
-  void _loadAd() => _loadYandex();
+  void _loadAd() => unawaited(_loadCascade());
+
+  /// Яндекс, при отказе AdMob. Кому подстройка рекламы запрещена по
+  /// возрасту, — сразу AdMob без неё (`AdPlatform.yandexAllowed`).
+  Future<void> _loadCascade() async {
+    final yandexAllowed = await AdPlatform.yandexAllowed();
+    if (!mounted) return;
+    if (yandexAllowed) {
+      _loadYandex();
+    } else {
+      _yandexGaveUp();
+    }
+  }
 
   /// Яндекс отказал — баннер AdMob на то же место.
   void _yandexGaveUp() {
@@ -175,7 +187,7 @@ class _AdBannerState extends State<AdBanner> {
         width,
         widget.height.truncate(),
       ),
-      request: const admob.AdRequest(),
+      request: AdPlatform.admobRequest(),
       listener: admob.BannerAdListener(
         onAdLoaded: (_) {
           _admobFails = 0;

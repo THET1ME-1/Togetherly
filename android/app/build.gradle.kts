@@ -117,6 +117,11 @@ dependencies {
     // приложению он без этой строки не виден. Версия — как у плагина.
     implementation("androidx.work:work-runtime:2.10.2")
 
+    // Возраст из Google Play (AgeSignalsBridge.kt): закон Калифорнии AB 1043
+    // с 01.01.2027 и бразильский ECA Digital. Библиотека в бете, Google просит
+    // держать последнюю версию; getApplicableAgeFeatures появился в 0.0.6.
+    implementation("com.google.android.play:age-signals:0.0.6")
+
     // Проверка вырезки звука на эмуляторе CI: в приложение не попадает.
     // Версии те же, что уже тянет integration_test: тестовый APK обязан
     // совпадать с приложением, и 1.6.2 падала на строгом 1.3.0.

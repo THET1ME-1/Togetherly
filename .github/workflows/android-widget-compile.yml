@@ -9,6 +9,7 @@ on:
     paths:
       - 'android/app/src/main/kotlin/**'
       - 'android/app/src/main/res/layout/**'
+      - 'android/app/build.gradle.kts'
       - '.github/workflows/android-widget-compile.yml'
   workflow_dispatch:
 
@@ -53,6 +54,8 @@ jobs:
           flutter pub get
           flutter build apk --config-only --debug
 
+      # Слияние манифестов — вместе с Kotlin: библиотека Google Play Age
+      # Signals требует minSdk 24, и несовпадение всплыло бы только в релизе.
       - name: Компиляция Kotlin
         working-directory: android
-        run: ./gradlew :app:compileDebugKotlin --no-daemon --stacktrace
+        run: ./gradlew :app:processDebugMainManifest :app:compileDebugKotlin --no-daemon --stacktrace

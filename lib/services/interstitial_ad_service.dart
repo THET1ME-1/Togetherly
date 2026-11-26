@@ -59,7 +59,7 @@ class InterstitialAdService {
     if (!AdPlatform.supported) return;
     _isLoading = true;
     try {
-      await _loadYandex();
+      if (await AdPlatform.yandexAllowed()) await _loadYandex();
       if (!_disposed && _yandexAd == null) await _loadAdmob();
     } finally {
       _isLoading = false;
@@ -73,7 +73,7 @@ class InterstitialAdService {
     try {
       await admob.InterstitialAd.load(
         adUnitId: _admobUnit,
-        request: const admob.AdRequest(),
+        request: AdPlatform.admobRequest(),
         adLoadCallback: admob.InterstitialAdLoadCallback(
           onAdLoaded: (ad) {
             if (_disposed) {

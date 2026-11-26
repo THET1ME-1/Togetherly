@@ -1,6 +1,10 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart' as admob;
+
+import 'age_signals.dart';
 
 /// Реклама Яндекса есть только на телефоне.
 ///
@@ -29,5 +33,26 @@ class AdPlatform {
   static bool admobTurn() {
     admobAttempts++;
     return !admobOff;
+  }
+
+  /// Запрос AdMob. Ребёнку, подростку и человеку без подтверждённого возраста
+  /// в зоне закона — без подстройки под интересы (`npa=1`): COPPA и
+  /// бразильский ECA Digital запрещают профилировать несовершеннолетних под
+  /// рекламу. Сам возраст в сеть не уходит: условия Google Play Age Signals
+  /// запрещают отдавать его третьим лицам.
+  static admob.AdRequest admobRequest() =>
+      admob.AdRequest(nonPersonalizedAds: AgeSignals.instance.restrictedAds);
+
+  /// Яндекс в каскаде. Без подстройки под интересы он умеет работать только
+  /// по флагу «пользователь младше 18» (`setAgeRestricted`), а это и есть
+  /// возраст, отданный чужой сети. Поэтому тем, кому подстройка запрещена,
+  /// каскад начинается сразу с AdMob в режиме `npa`.
+  ///
+  /// Ждёт первую проверку возраста за запуск: на самом первом запуске
+  /// сохранённого ответа ещё нет. Срок у проверки свой, здесь — страховка.
+  static Future<bool> yandexAllowed() async {
+    await AgeSignals.instance.settled
+        .timeout(const Duration(seconds: 15), onTimeout: () {});
+    return !AgeSignals.instance.restrictedAds;
   }
 }

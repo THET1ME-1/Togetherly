@@ -50,3 +50,29 @@ jobs:
       # значков таймера собирается на ходу.
       - name: Сборка под симулятор
         run: flutter build ios --simulator --debug --no-tree-shake-icons --dart-define=STORE=github
+
+      # DeclaredAgeRange (возраст из App Store) есть только с iOS 26, а
+      # приложение ставится с 15. Сильная связь с фреймворком роняла бы запуск
+      # на старых iOS, поэтому он подключён слабо (-weak_framework в
+      # OTHER_LDFLAGS цели Runner). Сверяем по самому бинарнику: в отладочной
+      # сборке код приложения лежит в Runner.debug.dylib.
+      - name: DeclaredAgeRange подключён слабо
+        run: |
+          set -euo pipefail
+          APP=build/ios/iphonesimulator/Runner.app
+          FOUND=0
+          for BIN in "$APP/Runner" "$APP/Runner.debug.dylib"; do
+            [ -f "$BIN" ] || continue
+            if otool -l "$BIN" | grep -A2 -E "cmd LC_LOAD(_WEAK)?_DYLIB" | grep -B2 "DeclaredAgeRange" > /tmp/dar.txt; then
+              echo "$BIN:"; cat /tmp/dar.txt
+              if ! grep -q "LC_LOAD_WEAK_DYLIB" /tmp/dar.txt; then
+                echo "::error::$BIN связан с DeclaredAgeRange сильно — на iOS ниже 26 приложение не запустится"
+                exit 1
+              fi
+              FOUND=1
+            fi
+          done
+          if [ "$FOUND" != 1 ]; then
+            echo "::error::DeclaredAgeRange в бинарнике нет — запрос возраста на iPhone не собран"
+            exit 1
+          fi

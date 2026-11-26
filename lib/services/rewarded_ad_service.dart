@@ -129,7 +129,17 @@ class RewardedAdService {
     if (!AdPlatform.supported) return;
     _retryTimer?.cancel();
     _isLoading = true;
-    unawaited(_loadYandex());
+    unawaited(_loadCascade());
+  }
+
+  /// Яндекс, при отказе AdMob. Кому подстройка рекламы запрещена по
+  /// возрасту, — сразу AdMob без неё (`AdPlatform.yandexAllowed`).
+  Future<void> _loadCascade() async {
+    if (await AdPlatform.yandexAllowed()) {
+      await _loadYandex();
+    } else {
+      await _fallBackToAdmob();
+    }
   }
 
   /// Планирует фоновую перезагрузку каскада после полного провала обеих сетей.
@@ -194,7 +204,7 @@ class RewardedAdService {
     try {
       await admob.RewardedAd.load(
         adUnitId: _admobAdUnitId,
-        request: const admob.AdRequest(),
+        request: AdPlatform.admobRequest(),
         rewardedAdLoadCallback: admob.RewardedAdLoadCallback(
           onAdLoaded: (ad) {
             if (_disposed) {
