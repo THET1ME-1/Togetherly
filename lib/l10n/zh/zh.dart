@@ -36,6 +36,7 @@ import 'hour_ranks.dart';
 import 'login_methods.dart';
 import 'feedback.dart';
 import 'doing.dart';
+import 'xmas.dart';
 import 'chat_pins.dart';
 
 const Map<String, String> kZhStrings = {
@@ -44,6 +45,7 @@ const Map<String, String> kZhStrings = {
   ...loginMethodsZh,
   ...feedbackZh,
   ...doingZh,
+  ...xmasZh,
   ...chatPinsZh,
   ...smallAZh,
   ...smallBZh,
