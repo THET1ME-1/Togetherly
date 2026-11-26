@@ -3591,7 +3591,13 @@ class _DrawScreenState extends State<DrawScreen>
           image.dispose();
           return;
         }
+        // Прежний лист 1600×1600 отпускаем, когда кадр с новым уже нарисован:
+        // фигуру меняют сколько угодно раз, и каждый держал бы 10 МБ.
+        final previous = _coloringOutline;
         setState(() => _coloringOutline = image);
+        if (previous != null && !identical(previous, image)) {
+          WidgetsBinding.instance.addPostFrameCallback((_) => previous.dispose());
+        }
         return;
       } else {
         final data = await rootBundle.load(picture.outlineAsset);
@@ -3642,8 +3648,27 @@ class _DrawScreenState extends State<DrawScreen>
       _coloringDone = const {};
       if (figures != null) _coloringFigures = figures;
     });
+    final write = _writeColoringStart(pictureId, mode, figures);
+    _coloringStartWrite = write;
+    // Начальная отметка по полу — только догадка (пол партнёра здесь не
+    // известен), поэтому выбор открывается сразу, не дожидаясь сервера: на
+    // медленной связи лист выбора иначе всплыл бы, когда человек уже красит.
+    if (figures != null && mounted) {
+      await WidgetsBinding.instance.endOfFrame;
+      if (mounted) unawaited(_openFiguresSheet());
+    }
     await _loadColoringOutline();
-    if (_hasSharedCanvas) {
+    await write;
+  }
+
+  /// Первая запись листа. Правки фигур из листа выбора ждут её: долети она
+  /// позже, она вернула бы на половину начальную фигуру поверх выбранной.
+  Future<void>? _coloringStartWrite;
+
+  Future<void> _writeColoringStart(
+      String pictureId, ColoringMode mode, ColoringFigures? figures) async {
+    if (!_hasSharedCanvas) return;
+    try {
       await CanvasRepository().setColoring(
         _groupId,
         _canvasId,
@@ -3652,12 +3677,8 @@ class _DrawScreenState extends State<DrawScreen>
         outlineRef: await _shareOwnOutline(pictureId),
         figures: figures,
       );
-    }
-    // Начальная отметка по полу — только догадка (пол партнёра здесь не
-    // известен), поэтому выбор открывается сразу.
-    if (figures != null && mounted) {
-      await WidgetsBinding.instance.endOfFrame;
-      if (mounted) await _openFiguresSheet();
+    } catch (e) {
+      debugPrint('Раскраска: лист не заведён на сервере — $e');
     }
   }
 
@@ -3684,24 +3705,36 @@ class _DrawScreenState extends State<DrawScreen>
           hasPaint: coloringSideHasPaint(strokes, side),
         );
     final split = coloringSplitApplies(widget.pairData.partnerUid);
+    // С чем лист открыли. Сравнивать выбор надо с этим, а не с тем, что
+    // стоит к закрытию: пока лист был открыт, партнёр мог сменить другую
+    // половину, и запись «как было при открытии» вернула бы её назад.
+    final opened = _coloringFigures;
     final result = await showColoringFiguresSheet(
       context,
       theme: widget.theme,
       picture: picture,
-      initial: _coloringFigures,
+      initial: opened,
       mySide: split ? _mySide : null,
       leftLocked: locked(ColoringSide.left),
       rightLocked: locked(ColoringSide.right),
     );
-    if (result == null || !mounted || result == _coloringFigures) return;
-    final before = _coloringFigures;
-    setState(() => _coloringFigures = result);
+    if (result == null || !mounted) return;
+    final changed = [
+      for (final side in ColoringSide.values)
+        if (result.on(side) != opened.on(side)) side,
+    ];
+    if (changed.isEmpty) return;
+    var next = _coloringFigures;
+    for (final side in changed) {
+      next = next.withSide(side, result.on(side));
+    }
+    setState(() => _coloringFigures = next);
     unawaited(_loadColoringOutline());
     if (!_hasSharedCanvas) return;
+    await _coloringStartWrite;
     // Каждая сменённая половина пишется отдельно: второй человек мог в ту же
     // секунду поменять другую.
-    for (final side in ColoringSide.values) {
-      if (result.on(side) == before.on(side)) continue;
+    for (final side in changed) {
       try {
         await CanvasRepository().setColoringFigure(_groupId, _canvasId,
             side: side, figure: result.on(side), pictureId: _coloringId);

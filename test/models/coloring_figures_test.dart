@@ -87,6 +87,17 @@ void main() {
       expect(coloringSideHasPaint(const [], ColoringSide.left), isFalse);
     });
 
+    test('краска в разделителе посередине не запирает ни одну половину', () {
+      // Верёвка «Снеговика» шириной 44 точки из 1600 стоит на середине, её
+      // перекрученные звенья — ячейки под заливку.
+      expect(coloringSideHasPaint([fill(0.5, 0.02)], ColoringSide.left), isFalse);
+      expect(coloringSideHasPaint([fill(0.5, 0.02)], ColoringSide.right), isFalse);
+      expect(coloringSideHasPaint([fill(0.505, 0.012)], ColoringSide.right), isFalse);
+      expect(coloringSideHasPaint([line(0.497)], ColoringSide.left), isFalse);
+      // А заливка, ушедшая за верёвку, — уже краска на половине.
+      expect(coloringSideHasPaint([fill(0.45, 0.06)], ColoringSide.left), isTrue);
+    });
+
     test('замок: владелец половины нажал «Готово» или на ней есть краска', () {
       expect(coloringFigureLocked(ownerDone: false, hasPaint: false), isFalse);
       expect(coloringFigureLocked(ownerDone: true, hasPaint: false), isTrue);
@@ -127,10 +138,12 @@ void main() {
         expect(sheet.height, 1600);
         final data = (await sheet.toByteData(format: ui.ImageByteFormat.rawRgba))!;
         int alphaAt(int x, int y) => data.getUint8((y * 1600 + x) * 4 + 3);
-        // Края верёвки — сплошные линии по обе стороны от середины.
-        final ropeRows = [for (var y = 100; y < 1500; y += 50) y];
-        expect(ropeRows.where((y) => alphaAt(779, y) > 200).length, greaterThan(ropeRows.length * 0.8));
-        expect(ropeRows.where((y) => alphaAt(820, y) > 200).length, greaterThan(ropeRows.length * 0.8));
+        // Края верёвки — сплошные линии по всей высоте: через них заливка не
+        // перетечёт на половину партнёра.
+        for (var y = 0; y < 1600; y++) {
+          expect(alphaAt(779, y), greaterThan(200), reason: 'дыра в левом крае верёвки, y=$y');
+          expect(alphaAt(820, y), greaterThan(200), reason: 'дыра в правом крае верёвки, y=$y');
+        }
         // Белая бумага вокруг прозрачна: контур лежит поверх мазков. Точка
         // выбрана в просвете между снежинками, пустом у обеих левых половин.
         expect(alphaAt(160, 200), 0);

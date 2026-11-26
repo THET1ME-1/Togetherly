@@ -86,10 +86,18 @@ ColoringFigures coloringFiguresForStart({
       : ColoringFigures(left: partner, right: mine);
 }
 
+/// Полуширина разделителя посередине листа, в долях ширины. Верёвка
+/// «Снеговика» — 44 точки из 1600 (0,486…0,514), и её перекрученные звенья —
+/// ячейки под заливку: краска в них не принадлежит ни одной половине.
+const double kColoringDividerHalfWidth = 0.016;
+
 /// Есть ли на половине краска: мазок или заливка. Точки в долях листа, у
-/// заливки и картинки `imageX` — середина. Стёрка краской не считается.
+/// заливки и картинки `imageX` — середина. Стёрка краской не считается, и
+/// полоса разделителя посередине тоже ([kColoringDividerHalfWidth]).
 bool coloringSideHasPaint(Iterable<DrawStroke> strokes, ColoringSide side) {
-  bool onSide(double x) => side == ColoringSide.left ? x < 0.5 : x > 0.5;
+  bool onSide(double x) => side == ColoringSide.left
+      ? x < 0.5 - kColoringDividerHalfWidth
+      : x > 0.5 + kColoringDividerHalfWidth;
   for (final stroke in strokes) {
     if (stroke.isEraser) continue;
     final x = stroke.imageX;
