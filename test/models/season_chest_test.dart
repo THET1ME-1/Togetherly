@@ -158,4 +158,32 @@ void main() {
     expect(none.homeSeason, isNull, reason: 'без флага на главной обычный сундук');
     expect(SeasonChest.fromJson({..._hw(), 'home': true})!.home, isTrue);
   });
+
+  // Метель зимнего сундука (winter_switch.js): не лист, который едет, а
+  // анимация поверх экрана; страница меняется, когда метель закрыла экран.
+  test('занавес-анимация: файл, миг подмены и длина', () {
+    final s = SeasonChest.fromJson({
+      ..._hw(),
+      'curtain': {
+        'night': {'anim': 'wsw_in', 'coverMs': 1490, 'totalMs': 3800},
+        'day': {'anim': 'wsw_out', 'coverMs': 1490, 'totalMs': 3800},
+      },
+      'files': {..._hw()['files'] as Map, 'wsw_in': 'u/in.webp', 'wsw_out': 'u/out.webp'},
+    })!;
+    expect(s.curtainNight!.isAnim, isTrue);
+    expect(s.curtainNight!.sheetUrl, 'u/in.webp');
+    expect(s.curtainNight!.coverMs, 1490);
+    expect(s.curtainNight!.totalMs, 3800);
+    expect(s.curtainDay!.sheetUrl, 'u/out.webp');
+    // лист Хэллоуина остаётся листом
+    expect(SeasonChest.fromJson(_hw())!.curtainNight!.isAnim, isFalse);
+  });
+
+  test('занавес-анимация без файла — занавеса нет, страница меняется сразу', () {
+    final s = SeasonChest.fromJson({
+      ..._hw(),
+      'curtain': {'night': {'anim': 'wsw_in', 'coverMs': 1490, 'totalMs': 3800}},
+    })!;
+    expect(s.curtainNight, isNull);
+  });
 }

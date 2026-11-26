@@ -51,6 +51,7 @@ import '../widgets/home/onboarding_card.dart';
 import '../models/mascot_anim.dart';
 import '../models/mascot_sleep.dart';
 import '../services/catalog_service.dart';
+import '../services/season_preview.dart';
 import '../services/app_time_service.dart';
 import '../services/push_arrivals.dart';
 import '../widgets/auth/login_nudge.dart';
@@ -2507,7 +2508,9 @@ class _HomeScreenState extends State<HomeScreen> {
       valueListenable: mascotHiddenNotifier,
       builder: (context, isHidden, _) {
         return ListenableBuilder(
-          listenable: _mascotService,
+          // и смена дня предпросмотра сезона: декабрь приходит с сервера уже
+          // после первой отрисовки главной
+          listenable: Listenable.merge([_mascotService, SeasonPreview.changes]),
           builder: (context, _) {
             // Весь декабрь блок делится пополам: справа ёлка пары (макет
             // «Наряжаем ёлку», 26.11.2026). С 1 января — снова во всю ширину.

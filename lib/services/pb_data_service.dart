@@ -3514,6 +3514,17 @@ class PbDataService {
     return res.items;
   }
 
+  /// Все записи сезонных наборов [sets] (`data.set`), включая спрятанные до
+  /// сезона: предпросмотр догружает их, не перекачивая весь каталог.
+  Future<List<RecordModel>> loadCatalogBySets(Iterable<String> sets) async {
+    final safe = [for (final s in sets) if (RegExp(r'^[a-z0-9_]+$').hasMatch(s)) s];
+    if (safe.isEmpty) return const [];
+    return _pb.collection('catalog_items').getFullList(
+          filter: safe.map((s) => "data.set = '$s'").join(' || '),
+          sort: 'sort',
+        );
+  }
+
   /// Минимально поддерживаемая сборка (force-update) из коллекции `app_config`.
   /// 0 = не блокировать (нет записи / ошибка / пустое поле). Заменяет
   /// `SupabaseService.fetchMinSupportedBuild` на cutover.

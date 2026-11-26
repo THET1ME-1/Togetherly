@@ -261,8 +261,28 @@ class CatalogService extends ChangeNotifier {
     //    Ошибки/офлайн — тихо остаёмся на кэше/бандле.
     unawaited(refresh());
     // 3) Предпросмотр сезона (только аккаунты из списка на сервере): узнали
-    //    свой день и спрятанные наборы — каталог перечитывается уже с ними.
-    unawaited(SeasonPreview.refresh().then((changed) => changed ? refresh() : null));
+    //    свой день и спрятанные наборы — догружаем только их записи (весь
+    //    каталог — 7 тысяч записей, на телефоне это долго).
+    unawaited(SeasonPreview.refresh().then((changed) => changed ? ensureSets(SeasonPreview.sets) : null));
+  }
+
+  /// Дописать записи сезонных наборов [sets], включая спрятанные до сезона.
+  Future<void> ensureSets(List<String> sets) async {
+    if (sets.isEmpty) return;
+    try {
+      final recs = await PbDataService.instance.loadCatalogBySets(sets);
+      await _merge([for (final r in recs) {...r.data, 'id': r.id}]);
+    } catch (e) {
+      debugPrint('CatalogService.ensureSets failed: $e');
+    }
+  }
+
+  /// Дотянуть записи каталога по id, которых телефон ещё не знает (таблица
+  /// шансов сундука показывает вещи, которых нет в неполном каталоге:
+  /// без записи строка выходила кодовым именем без картинки).
+  Future<void> ensureCatalogIds(Iterable<String> ids) async {
+    final known = {for (final r in _rows) if (r is Map) r['id']};
+    await _ensureIds([for (final id in ids) if (!known.contains(id)) id]);
   }
 
   /// Подтянуть свежий каталог из PocketBase и закэшировать. Безопасно при офлайне.
@@ -314,10 +334,12 @@ class CatalogService extends ChangeNotifier {
   Future<void> _ensureIds(List<String> ids) async {
     if (ids.isEmpty) return;
     final recs = await PbDataService.instance.loadCatalogByIds(ids);
-    if (recs.isEmpty) return;
-    final added = [
-      for (final r in recs) {...r.data, 'id': r.id},
-    ];
+    await _merge([for (final r in recs) {...r.data, 'id': r.id}]);
+  }
+
+  /// Положить строки [added] в каталог поверх прежних с тем же id и в кэш.
+  Future<void> _merge(List<Map<String, dynamic>> added) async {
+    if (added.isEmpty) return;
     final got = {for (final a in added) a['id']};
     final rows = [
       for (final r in _rows)

@@ -193,11 +193,19 @@ class SeasonCurtain {
     required this.from,
     required this.mid,
     required this.to,
+    this.isAnim = false,
   });
 
+  /// Лист занавеса или, у [isAnim], файл анимации.
   final String sheetUrl;
   final int inMs, holdMs, outMs;
   final double from, mid, to;
+
+  /// Занавес-анимация (метель зимнего сундука, 26.11.2026): анимированный
+  /// WebP поверх всего экрана, проигрывается один раз; страница меняется в
+  /// [coverMs], когда метель закрыла экран. Файл — малый (360×720): кадры во
+  /// весь экран в полном размере телефон не успевал декодировать (1.35.0+245).
+  final bool isAnim;
 
   int get totalMs => inMs + holdMs + outMs;
 
@@ -220,6 +228,21 @@ class SeasonCurtain {
 
   static SeasonCurtain? fromJson(Object? raw, Map<String, String> files) {
     if (raw is! Map) return null;
+    // занавес-анимация: `{anim: <файл>, coverMs, totalMs}`
+    if (raw['anim'] != null) {
+      final anim = files['${raw['anim']}'];
+      final cover = raw['coverMs'], total = raw['totalMs'];
+      if (anim == null || cover is! num || total is! num || total <= cover) return null;
+      return SeasonCurtain(
+        sheetUrl: anim,
+        inMs: cover.toInt().clamp(0, 10000),
+        outMs: (total - cover).toInt().clamp(0, 10000),
+        from: 0,
+        mid: 0,
+        to: 0,
+        isAnim: true,
+      );
+    }
     final url = files['${raw['sheet'] ?? ''}'];
     double? d(String k) => raw[k] is num ? (raw[k] as num).toDouble() : null;
     int i(String k, int def) => raw[k] is num ? (raw[k] as num).toInt().clamp(0, 5000) : def;

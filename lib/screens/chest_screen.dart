@@ -386,6 +386,7 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
         _slots.first.state = st;
         if (widget.debugSeasons == null) _applySeasons(st.seasons);
       });
+      unawaited(_ensureOddsArt(st.odds));
       for (final slot in _slots.skip(1)) {
         unawaited(_loadSeason(slot));
       }
@@ -445,6 +446,19 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
   Future<void> _loadSeason(_Slot slot) async {
     final st = await ChestService.instance.state(groupId: widget.groupId, chest: slot.chest);
     if (mounted && st != null) setState(() => slot.state = st);
+    if (st != null) unawaited(_ensureOddsArt(st.odds));
+  }
+
+  /// Записи рамок, значков и вещей из таблицы шансов, которых нет в каталоге
+  /// телефона: без них строка выходила кодовым именем без картинки (зимний
+  /// сундук в предпросмотре, неполный каталог на плохой сети).
+  Future<void> _ensureOddsArt(List<ChestPrize> odds) async {
+    final ids = [
+      for (final p in odds)
+        if (p.kind == ChestPrizeKind.frame || p.kind == ChestPrizeKind.badge || p.kind == ChestPrizeKind.wear) p.key,
+    ];
+    await CatalogService.instance.ensureCatalogIds(ids);
+    if (mounted) setState(() {});
   }
 
   /// Сезонные сундуки с сервера: новые встают в ленту, кончившиеся уходят.
@@ -1079,6 +1093,18 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
   Widget _curtainLayer(_Curtain c, ColorScheme base, Size size) {
     final bytes = ChestFrames.bytesOf(c.spec.sheetUrl);
     if (bytes == null) return const SizedBox.shrink();
+    // Метель зимнего сундука: анимация поверх всего экрана, один раз, каждый
+    // запуск с первого кадра (свой ключ картинки у каждого перехода).
+    if (c.spec.isAnim) {
+      return Image(
+        image: _OnceMemoryImage(bytes, c.run),
+        width: size.width,
+        height: size.height,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        filterQuality: FilterQuality.medium,
+      );
+    }
     final w = size.width * 1.04, h = size.height * 1.35;
     Widget sheet = Image.memory(bytes, width: w, height: h, fit: BoxFit.fill, gaplessPlayback: true);
     // Дневной занавес нарисован белым: красим его в цвет страницы темы.
@@ -2052,9 +2078,27 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
   }
 }
 
+/// Картинка из памяти с номером запуска в ключе: анимированный WebP играет с
+/// первого кадра при каждом переходе, а не продолжает прошлый из кэша.
+class _OnceMemoryImage extends MemoryImage {
+  const _OnceMemoryImage(super.bytes, this.run);
+  final int run;
+
+  @override
+  bool operator ==(Object other) => other is _OnceMemoryImage && other.run == run && identical(other.bytes, bytes);
+
+  @override
+  int get hashCode => Object.hash(identityHashCode(bytes), run);
+}
+
 /// Занавес смены страницы, пока он идёт.
 class _Curtain {
-  _Curtain({required this.to, required this.spec, required this.night, required this.jump});
+  _Curtain({required this.to, required this.spec, required this.night, required this.jump}) : run = ++_runs;
+
+  static int _runs = 0;
+
+  /// Номер перехода: у анимации свой ключ картинки, чтобы играть с начала.
+  final int run;
 
   final int to;
   final SeasonCurtain spec;

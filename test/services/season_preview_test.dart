@@ -36,6 +36,20 @@ void main() {
     expect(xtNow().day, DateTime.now().day);
   });
 
+  test('смена дня будит экраны: главная перерисовывается без перезапуска', () async {
+    var calls = 0;
+    void hit() => calls++;
+    SeasonPreview.changes.addListener(hit);
+    addTearDown(() => SeasonPreview.changes.removeListener(hit));
+    await SeasonPreview.apply({'ok': true, 'day': '2026-12-01', 'sets': ['winter']});
+    expect(calls, 1);
+    // тот же ответ ещё раз — будить незачем
+    await SeasonPreview.apply({'ok': true, 'day': '2026-12-01', 'sets': ['winter']});
+    expect(calls, 1);
+    await SeasonPreview.apply({'ok': true, 'day': '', 'sets': []});
+    expect(calls, 2);
+  });
+
   test('день переживает перезапуск: читается из prefs до сети', () async {
     await SeasonPreview.apply({'ok': true, 'day': '2026-12-01', 'sets': ['winter']});
     SeasonPreview.debugReset();

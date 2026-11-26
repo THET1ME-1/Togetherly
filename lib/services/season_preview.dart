@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/xmas_tree.dart';
@@ -38,6 +39,10 @@ class SeasonPreview {
   static List<String> get sets => _sets;
   static bool get active => _day != null;
 
+  /// Растёт, когда день или наборы поменялись: главная и экраны, зависящие
+  /// от даты (ёлка), перерисовываются сразу, без перезапуска приложения.
+  static final ValueNotifier<int> changes = ValueNotifier<int>(0);
+
   static void _install() {
     final day = _day;
     xtNow = day == null ? DateTime.now : () => previewClock(day, DateTime.now());
@@ -55,9 +60,11 @@ class SeasonPreview {
   static Future<void> apply(Map<String, dynamic> res) async {
     final day = DateTime.tryParse('${res['day'] ?? ''}');
     final sets = [for (final s in (res['sets'] as List? ?? const [])) '$s'];
+    final before = '${_day?.toIso8601String()}|${_sets.join(',')}';
     _day = day;
     _sets = day == null ? const [] : sets;
     _install();
+    if (before != '${_day?.toIso8601String()}|${_sets.join(',')}') changes.value++;
     final p = await SharedPreferences.getInstance();
     if (day == null) {
       await p.remove(_kDay);
