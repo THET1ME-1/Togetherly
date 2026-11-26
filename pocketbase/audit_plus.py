@@ -20,6 +20,17 @@ DB = os.environ.get("PB_DB", "/opt/pocketbase/pb_data/data.db")
 КЕШ_ПИСЕМ = "/opt/income/.lava_mail_cache.json"
 ТОВАР_ПЛЮСА_PLAY = "togetherly_plus"
 
+# Возвраты Google Play: строки «<id записи iap_purchases> <номер заказа GPA>».
+# Деньги вернули, Плюс сняли руками — такая покупка доступа больше не даёт.
+# Сервер возвратов Play сам не узнаёт: уведомлений от Play нет, а чек после
+# возврата Google отклоняет, поэтому повторная отправка Плюс не вернёт.
+ВОЗВРАТЫ_PLAY = os.environ.get("PLAY_REFUNDS", "/opt/pocketbase/pb_data/.play_refunds")
+try:
+    with open(ВОЗВРАТЫ_PLAY, encoding="utf-8") as f:
+        возвращено = {line.split()[0] for line in f if line.strip() and not line.startswith("#")}
+except OSError:
+    возвращено = set()
+
 lite = sqlite3.connect(f"file:{DB}?mode=ro", uri=True, timeout=30)
 lite.row_factory = sqlite3.Row
 
@@ -43,9 +54,11 @@ def есть_плюс(uid: str) -> bool:
 
 # ── 1. Google Play и RuStore ────────────────────────────────────────────────
 покупки = lite.execute(
-    "SELECT user_uid, product_id, at FROM iap_purchases "
+    "SELECT id, user_uid, product_id, at FROM iap_purchases "
     "WHERE product_id = ?", (ТОВАР_ПЛЮСА_PLAY,)).fetchall()
 for п in покупки:
+    if п["id"] in возвращено:
+        continue
     if not есть_плюс(п["user_uid"]):
         кто = люди.get(п["user_uid"])
         беда.append(("магазин", п["user_uid"],
