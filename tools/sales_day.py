@@ -13,7 +13,13 @@
 - РСЯ — API партнёрки, один день API не отдаёт, поэтому берётся два.
 - AdMob — отчёт сети (`networkReport:generate`, доход в долларах); сутки
   аккаунта — по Кишинёву, как у продаж. Ключ — refresh-токен OAuth
-  (`admob.readonly`). Не ответил — строка «нет данных», остальное считается.
+  (`admob.readonly`). Не ответил с трёх попыток — крон оставляет прошлое
+  полученное число (`admob` в `SAVED`), а «нет данных» пишется, только
+  если за этот день числа ещё не было.
+
+Связь сервера с Google рвётся на рукопожатии каждый десятый раз, поэтому
+всё, что идёт в Google, ходит через `google_retry`, токены доступа (час
+жизни) лежат в файлах, а цены прошлых сделок Play — в `PLAY_PRICES`.
 
 Курс — open.er-api.com. Ответ — три строки: продажи, РСЯ, AdMob.
 
@@ -33,6 +39,7 @@ import os
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from zoneinfo import ZoneInfo
@@ -43,6 +50,9 @@ KEY_PLAY = '/opt/play-service-account.json' if ON_SERVER else os.path.expanduser
 KEY_RSYA = '/opt/pocketbase/pb_data/.rsya_token' if ON_SERVER else os.path.expanduser('~/keys/yandex_partner_token')
 KEY_ADMOB = '/opt/pocketbase/pb_data/.admob_oauth.json' if ON_SERVER else os.path.expanduser('~/keys/admob_oauth.json')
 SAVED = '/opt/income/.sales_days.json'
+ADMOB_ACCESS = '/opt/income/.admob_access.json'
+PLAY_ACCESS = '/opt/income/.play_access.json'
+PLAY_PRICES = '/opt/income/.play_prices.json'
 RATES = '/opt/income/.usd_rates.json' if ON_SERVER else os.path.expanduser('~/.cache/usd_rates.json')
 PACKAGE = 'com.togetherly.love'
 TZ = ZoneInfo('Europe/Chisinau')
@@ -98,20 +108,57 @@ def apple_price(token: str):
         return None
 
 
+def google_retry(what: str, call):
+    """Три попытки с паузой: связь сервера с Google рвётся на рукопожатии
+    каждый десятый раз, а подряд — по нескольку минут."""
+    for attempt in range(3):
+        try:
+            return call()
+        except Exception as e:                                  # noqa: BLE001
+            # отказ по существу (нет такой покупки, нет прав) повтором не лечится
+            refused = isinstance(e, urllib.error.HTTPError) and 400 <= e.code < 500 and e.code != 429
+            if refused or attempt == 2:
+                raise
+            print(f'{what} не ответил (попытка {attempt + 1}): {e}', file=sys.stderr)
+            time.sleep(5)
+
+
+def cached_token(path: str, fetch) -> str:
+    """Токен доступа Google живёт час: на сервере берётся из файла, пока не протух.
+    fetch() отдаёт (токен, сколько секунд живёт)."""
+    if ON_SERVER and os.path.exists(path):
+        cached = json.load(open(path))
+        if cached['until'] > time.time() + 60:
+            return cached['token']
+    token, lives = fetch()
+    if ON_SERVER:
+        json.dump({'token': token, 'until': time.time() + lives}, open(path, 'w'))
+    return token
+
+
 def play_auth() -> str:
     """Токен Google по ключу сервисного аккаунта: подпись JWT своими руками."""
     import jwt
-    k = json.load(open(KEY_PLAY))
-    now = int(time.time())
-    claim = {'iss': k['client_email'], 'scope': 'https://www.googleapis.com/auth/androidpublisher',
-             'aud': 'https://oauth2.googleapis.com/token', 'iat': now, 'exp': now + 3000}
-    body = urllib.parse.urlencode({'grant_type': 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-                                   'assertion': jwt.encode(claim, k['private_key'], algorithm='RS256')}).encode()
-    with urllib.request.urlopen(urllib.request.Request('https://oauth2.googleapis.com/token', data=body), timeout=30) as r:
-        return json.load(r)['access_token']
+
+    def fetch():
+        k = json.load(open(KEY_PLAY))
+        now = int(time.time())
+        claim = {'iss': k['client_email'], 'scope': 'https://www.googleapis.com/auth/androidpublisher',
+                 'aud': 'https://oauth2.googleapis.com/token', 'iat': now, 'exp': now + 3000}
+        body = urllib.parse.urlencode({'grant_type': 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+                                       'assertion': jwt.encode(claim, k['private_key'], algorithm='RS256')}).encode()
+        with urllib.request.urlopen(urllib.request.Request('https://oauth2.googleapis.com/token', data=body), timeout=30) as r:
+            got = json.load(r)
+        return got['access_token'], got.get('expires_in', 3000)
+    return google_retry('Вход в Google Play', lambda: cached_token(PLAY_ACCESS, fetch))
 
 
 def play_price(product: str, token: str, auth: str):
+    # Цена сделки не меняется: однажды узнанная берётся из файла,
+    # и крон раз в пять минут не ходит в Google за каждой покупкой дня заново
+    known = json.load(open(PLAY_PRICES)) if ON_SERVER and os.path.exists(PLAY_PRICES) else {}
+    if token in known:
+        return tuple(known[token])
     base = f'https://androidpublisher.googleapis.com/androidpublisher/v3/applications/{PACKAGE}'
 
     def get(url):
@@ -119,11 +166,17 @@ def play_price(product: str, token: str, auth: str):
         with urllib.request.urlopen(req, timeout=30) as r:
             return json.load(r)
     try:
-        p = get(f'{base}/purchases/products/{product}/tokens/{urllib.parse.quote(token)}')
-        total = get(f'{base}/orders/{p["orderId"]}')['total']
-        return int(total.get('units', 0)) + total.get('nanos', 0) / 1e9, total['currencyCode']
+        p = google_retry('Покупка Google Play', lambda: get(f'{base}/purchases/products/{product}/tokens/{urllib.parse.quote(token)}'))
+        total = google_retry('Заказ Google Play', lambda: get(f'{base}/orders/{p["orderId"]}'))['total']
+        price = int(total.get('units', 0)) + total.get('nanos', 0) / 1e9, total['currencyCode']
     except Exception:                                           # noqa: BLE001
         return None
+    if ON_SERVER:
+        known[token] = price
+        tmp = PLAY_PRICES + '.tmp'
+        json.dump(known, open(tmp, 'w'))
+        os.replace(tmp, PLAY_PRICES)
+    return price
 
 
 def rates() -> dict:
@@ -133,8 +186,14 @@ def rates() -> dict:
             return json.load(open(RATES))
     except OSError:
         pass
-    with urllib.request.urlopen('https://open.er-api.com/v6/latest/USD', timeout=30) as r:
-        data = json.load(r)['rates']
+    try:
+        with urllib.request.urlopen('https://open.er-api.com/v6/latest/USD', timeout=30) as r:
+            data = json.load(r)['rates']
+    except Exception:                                           # noqa: BLE001
+        # сайт курса не ответил — вчерашний курс лучше, чем упавший итог дня
+        if os.path.exists(RATES):
+            return json.load(open(RATES))
+        raise
     os.makedirs(os.path.dirname(RATES), exist_ok=True)
     json.dump(data, open(RATES, 'w'))
     return data
@@ -154,10 +213,9 @@ def rsya(days: list[dt.date]) -> dict:
     return {row['dimensions']['date'][0]: float(row['measures'][0]['partner_wo_nds']) for row in data['data']['points']}
 
 
-def admob(days: list[dt.date]) -> dict | None:
-    """Доход AdMob в долларах по дням. None — AdMob не ответил."""
-    try:
-        key = json.load(open(KEY_ADMOB))
+def admob_access(key: dict) -> str:
+    """Токен доступа AdMob по refresh-токену."""
+    def fetch():
         form = urllib.parse.urlencode({
             'client_id': key['client_id'],
             'client_secret': key['client_secret'],
@@ -165,21 +223,32 @@ def admob(days: list[dt.date]) -> dict | None:
             'grant_type': 'refresh_token',
         }).encode()
         with urllib.request.urlopen('https://oauth2.googleapis.com/token', form, timeout=30) as r:
-            access = json.load(r)['access_token']
-        date = lambda d: {'year': d.year, 'month': d.month, 'day': d.day}
-        spec = {'reportSpec': {
-            'dateRange': {'startDate': date(min(days)), 'endDate': date(max(days))},
-            'dimensions': ['DATE'],
-            'metrics': ['ESTIMATED_EARNINGS'],
-            'localizationSettings': {'currencyCode': 'USD'},
-        }}
+            got = json.load(r)
+        return got['access_token'], got.get('expires_in', 3600)
+    return cached_token(ADMOB_ACCESS, fetch)
+
+
+def admob(days: list[dt.date]) -> dict | None:
+    """Доход AdMob в долларах по дням. None — AdMob не ответил."""
+    key = json.load(open(KEY_ADMOB))
+    date = lambda d: {'year': d.year, 'month': d.month, 'day': d.day}
+    spec = {'reportSpec': {
+        'dateRange': {'startDate': date(min(days)), 'endDate': date(max(days))},
+        'dimensions': ['DATE'],
+        'metrics': ['ESTIMATED_EARNINGS'],
+        'localizationSettings': {'currencyCode': 'USD'},
+    }}
+
+    def report():
         req = urllib.request.Request(
             f"https://admob.googleapis.com/v1/accounts/{key['publisher_id']}/networkReport:generate",
             json.dumps(spec).encode(),
-            {'Authorization': f'Bearer {access}', 'Content-Type': 'application/json'},
+            {'Authorization': f'Bearer {admob_access(key)}', 'Content-Type': 'application/json'},
         )
-        with urllib.request.urlopen(req, timeout=60) as r:
-            rows = json.load(r)
+        with urllib.request.urlopen(req, timeout=40) as r:
+            return json.load(r)
+    try:
+        rows = google_retry('AdMob', report)
     except Exception as e:  # отчёт AdMob не должен ронять продажи и РСЯ
         print(f'AdMob не ответил: {e}', file=sys.stderr)
         return None
@@ -233,13 +302,32 @@ def main():
     if '--save' in sys.argv:
         days = [today, today - dt.timedelta(days=1)]
         ads, google = rsya(days), admob(days)
-        out = {'at': time.time(), 'days': {str(d): answer(d, rate, ads, auth, google) for d in days}}
+        # AdMob не ответил — оставить прошлое полученное число, а не «нет данных»:
+        # сбой сети на пять минут не должен стирать уже известный доход
+        # (дня в прошлом итоге нет, например сразу после полуночи — честное «нет данных»)
+        if google is None:
+            google = {k: v for k, v in (previous_admob() or {}).items() if k in map(str, days)}
+            day_google = lambda d: google if str(d) in google else None
+        else:
+            day_google = lambda d: google
+        out = {'at': time.time(), 'admob': google,
+               'days': {str(d): answer(d, rate, ads, auth, day_google(d)) for d in days}}
         tmp = SAVED + '.tmp'
         json.dump(out, open(tmp, 'w'), ensure_ascii=False)
         os.replace(tmp, SAVED)
         return
     day = dt.date.fromisoformat(sys.argv[1]) if len(sys.argv) > 1 else today
-    print(answer(day, rate, rsya([day]), auth, admob([day])))
+    google = admob([day])
+    if google is None and str(day) in (previous_admob() or {}):
+        google = previous_admob()
+    print(answer(day, rate, rsya([day]), auth, google))
+
+
+def previous_admob() -> dict | None:
+    """Доход AdMob из прошлого сохранённого итога крона (только на сервере)."""
+    if not ON_SERVER or not os.path.exists(SAVED):
+        return None
+    return json.load(open(SAVED)).get('admob')
 
 
 if __name__ == '__main__':
