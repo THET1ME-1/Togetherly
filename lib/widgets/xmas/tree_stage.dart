@@ -6,6 +6,7 @@ import '../../models/xmas_tree_geometry.dart';
 import '../../services/catalog_service.dart';
 import '../../services/offline/media_view_cache.dart';
 import '../common/guide_mascot.dart' show CatalogArtAnim;
+import 'tree_draw.dart';
 
 /// Холст ёлки: −8…108 единиц на сторону картинки (116).
 const double kXtSpan = 116;
@@ -72,10 +73,14 @@ class TreeStage extends StatelessWidget {
     this.ghost,
     this.hidden,
     this.still = false,
+    this.yaw = kXtYaw,
   });
 
   /// Миниатюра (главная, профиль, архив): игрушки неподвижными кадрами.
   final bool still;
+
+  /// Поворот ёлки вокруг оси: качание (`XtSway`) или обычный.
+  final double yaw;
 
   final double side;
   final PairTree tree;
@@ -94,7 +99,7 @@ class TreeStage extends StatelessWidget {
       if (t.id == hidden) continue;
       final a = xtAnchor(kind, t.x, t.y);
       if (a == null) continue;
-      final h = xtHangPoint(kind, a);
+      final h = xtHangPoint(kind, a, yaw: yaw);
       if (h.visible < -0.05) continue;
       (byTier[h.tier] ??= []).add((t, h));
     }
@@ -102,10 +107,7 @@ class TreeStage extends StatelessWidget {
     for (final l in byTier.values) {
       l.sort((a, b) => a.$2.screen.dy.compareTo(b.$2.screen.dy));
     }
-    String layer(String part) {
-      final g = (part == 't1' || part == 't2' || part == 't3') ? (tree.garland ? '_g1' : '_g0') : '';
-      return 'xt3_${kind}_$part$g';
-    }
+    Widget layer(String part) => _Layer(kind, part, tree.garland, yaw);
 
     final tiers = xtTiers(kind).length;
     return ListenableBuilder(
@@ -115,13 +117,13 @@ class TreeStage extends StatelessWidget {
         child: Stack(
           clipBehavior: Clip.none,
           children: [
-            _Layer(layer('base'), side),
+            layer('base'),
             for (var i = tiers - 1; i >= 0; i--) ...[
-              _Layer(layer('t$i'), side),
+              layer('t$i'),
               for (final (t, h) in byTier[i] ?? const <(TreeToy, XtHang)>[])
                 _toy(f, t.toy, h.screen, h.scale, key: ValueKey(t.id)),
             ],
-            if (tree.star) _Layer(layer('star'), side),
+            if (tree.star) layer('star'),
             if (ghost != null)
               Opacity(
                 opacity: xtCanHang(kind, ghost!.at.dx, ghost!.at.dy) ? 1 : 0.4,
@@ -150,44 +152,55 @@ class TreeStage extends StatelessWidget {
   }
 }
 
-/// Слой ёлки: неподвижная картинка 1200 точек из каталога.
+/// Слой ёлки, нарисованный кодом при повороте [yaw] (`tree_draw.dart`).
 class _Layer extends StatelessWidget {
-  const _Layer(this.artKey, this.side);
-  final String artKey;
-  final double side;
+  const _Layer(this.kind, this.part, this.garland, this.yaw);
+  final String kind, part;
+  final bool garland;
+  final double yaw;
 
   @override
   Widget build(BuildContext context) {
-    final debug = xtDebugArt;
-    if (debug != null) return Positioned.fill(child: Image(image: debug(artKey), fit: BoxFit.contain));
-    final art = CatalogService.instance.giftArt(artKey);
-    final url = art?.stillUrl ?? art?.lgUrl;
-    if (url == null) return const SizedBox.shrink();
-    final dpr = MediaQuery.maybeDevicePixelRatioOf(context) ?? 2.0;
-    final decode = (side * dpr).clamp(240, 1200).round();
     return Positioned.fill(
       child: IgnorePointer(
-        child: Image(
-          image: ResizeImage(CachedNetworkImageProvider(url, cacheManager: OfflineImageCacheManager.instance), width: decode, height: decode),
-          gaplessPlayback: true,
-          filterQuality: FilterQuality.medium,
-          fit: BoxFit.contain,
-          errorBuilder: (_, _, _) => const SizedBox.shrink(),
-        ),
+        child: CustomPaint(painter: _LayerPainter(kind, part, garland, yaw)),
       ),
     );
   }
 }
 
+class _LayerPainter extends CustomPainter {
+  _LayerPainter(this.kind, this.part, this.garland, this.yaw);
+  final String kind, part;
+  final bool garland;
+  final double yaw;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final pic = xtTreePictures(kind, yaw, garland: garland).layers[part];
+    if (pic == null) return;
+    canvas.save();
+    canvas.scale(size.width / kXtSpan);
+    canvas.translate(8, 8);
+    canvas.drawPicture(pic);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_LayerPainter old) =>
+      old.yaw != yaw || old.kind != kind || old.part != part || old.garland != garland;
+}
+
 /// Какая игрушка под пальцем: точка касания попала в тело игрушки (подвес и
-/// чуть ниже). Верхние по рисунку проверяются первыми.
-TreeToy? xtToyAt(String kind, List<TreeToy> toys, Offset units) {
+/// чуть ниже) на ёлке, повёрнутой на [yaw]. Верхние по рисунку проверяются
+/// первыми.
+TreeToy? xtToyAt(String kind, List<TreeToy> toys, Offset units, {double yaw = kXtYaw}) {
   TreeToy? best;
   var bd = 1e9;
   for (final t in toys) {
     final a = xtAnchor(kind, t.x, t.y);
     if (a == null) continue;
-    final h = xtHangPoint(kind, a);
+    final h = xtHangPoint(kind, a, yaw: yaw);
     if (h.visible < -0.05) continue;
     final c = h.screen + Offset(0, 7 * h.scale / 0.15);
     final d = (c - units).distanceSquared;

@@ -29,6 +29,7 @@ import '../services/season_music.dart';
 import '../theme/app_theme.dart';
 import '../theme/profile_theme.dart';
 import '../utils/readable_text.dart';
+import '../widgets/chest/anim_curtain.dart';
 import '../widgets/chest/chest_frames.dart';
 import '../widgets/chest/chest_keep_confirm.dart';
 import '../widgets/chest/chest_prize_image.dart';
@@ -481,7 +482,8 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
           unawaited(
             ChestFrames.prefetch(c.sheetUrl).then((_) {
               final bytes = ChestFrames.bytesOf(c.sheetUrl);
-              if (bytes != null && mounted) unawaited(precacheImage(MemoryImage(bytes), context));
+              // метель разжимается по кадру сама (AnimCurtain), лист — заранее целиком
+              if (bytes != null && mounted && !c.isAnim) unawaited(precacheImage(MemoryImage(bytes), context));
             }),
           );
         }
@@ -871,6 +873,10 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
       return;
     }
     setState(() => _curtain = _Curtain(to: to, spec: curtain, night: toNight, jump: jump));
+    // Метель ведёт себя сама: страницу меняет кадр, закрывший экран
+    // (`AnimCurtain`), иначе на медленном телефоне сундук сменился бы раньше,
+    // чем метель успела разжаться и закрыть его.
+    if (curtain.isAnim) return;
     _curtainRun
       ..duration = Duration(milliseconds: curtain.totalMs)
       ..forward(from: 0);
@@ -886,6 +892,13 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     final c = _curtain;
     if (c == null || c.covered) return;
     if (_curtainRun.value * c.spec.totalMs < c.spec.coverMs) return;
+    _curtainCover();
+  }
+
+  /// Экран закрыт занавесом: страница под ним меняется.
+  void _curtainCover() {
+    final c = _curtain;
+    if (c == null || c.covered || !mounted) return;
     c.covered = true;
     setState(() => _shown = c.to);
     if (c.jump && _pager.hasClients) _pager.jumpToPage(c.to);
@@ -1096,13 +1109,12 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     // Метель зимнего сундука: анимация поверх всего экрана, один раз, каждый
     // запуск с первого кадра (свой ключ картинки у каждого перехода).
     if (c.spec.isAnim) {
-      return Image(
-        image: _OnceMemoryImage(bytes, c.run),
-        width: size.width,
-        height: size.height,
-        fit: BoxFit.cover,
-        gaplessPlayback: true,
-        filterQuality: FilterQuality.medium,
+      return AnimCurtain(
+        key: ValueKey(c.run),
+        bytes: bytes,
+        coverMs: c.spec.coverMs,
+        onCover: _curtainCover,
+        onDone: _curtainDone,
       );
     }
     final w = size.width * 1.04, h = size.height * 1.35;
@@ -2078,26 +2090,13 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
   }
 }
 
-/// Картинка из памяти с номером запуска в ключе: анимированный WebP играет с
-/// первого кадра при каждом переходе, а не продолжает прошлый из кэша.
-class _OnceMemoryImage extends MemoryImage {
-  const _OnceMemoryImage(super.bytes, this.run);
-  final int run;
-
-  @override
-  bool operator ==(Object other) => other is _OnceMemoryImage && other.run == run && identical(other.bytes, bytes);
-
-  @override
-  int get hashCode => Object.hash(identityHashCode(bytes), run);
-}
-
 /// Занавес смены страницы, пока он идёт.
 class _Curtain {
   _Curtain({required this.to, required this.spec, required this.night, required this.jump}) : run = ++_runs;
 
   static int _runs = 0;
 
-  /// Номер перехода: у анимации свой ключ картинки, чтобы играть с начала.
+  /// Номер перехода: метель каждого перехода — свой виджет, с первого кадра.
   final int run;
 
   final int to;

@@ -17,6 +17,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/profile_theme.dart';
 import '../../widgets/xmas/toy_sheets.dart';
 import '../../widgets/xmas/tree_stage.dart';
+import '../../widgets/xmas/tree_sway.dart';
 import '../chest_screen.dart';
 
 /// Комната из Gemini (`xt_room_day` / `xt_room_dusk`), 704×1520. Ёлка встаёт
@@ -120,10 +121,16 @@ class _XmasTreeScreenState extends State<XmasTreeScreen> with TickerProviderStat
     return box == null ? null : XtFrame(box.size.width);
   }
 
+  /// Поворот ёлки в последнем кадре: палец касается качающейся ёлки.
+  double _yaw = kXtYaw;
+
+  /// Точка касания → место на ёлке в обычном повороте (так хранятся игрушки).
+  Offset _still(Offset u) => xtUnsway(_svc.state?.tree.kind ?? 'fir', u.dx, u.dy, _yaw);
+
   Offset? _unitsFromGlobal(Offset global) {
     final box = _stageKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null) return null;
-    return XtFrame(box.size.width).toUnits(box.globalToLocal(global));
+    return _still(XtFrame(box.size.width).toUnits(box.globalToLocal(global)));
   }
 
   Future<void> _hangAt(String toy, Offset u) async {
@@ -146,8 +153,8 @@ class _XmasTreeScreenState extends State<XmasTreeScreen> with TickerProviderStat
     if (f == null || s == null) return;
     final u = f.toUnits(d.localPosition);
     if (_pick != null) {
-      unawaited(_hangAt(_pick!, u - const Offset(0, 5)));
-    } else if (xtToyAt(s.tree.kind, s.toys, u) == null) {
+      unawaited(_hangAt(_pick!, _still(u - const Offset(0, 5))));
+    } else if (xtToyAt(s.tree.kind, s.toys, u, yaw: _yaw) == null) {
       _say(xt('xt.pickFirst'));
     }
   }
@@ -155,7 +162,7 @@ class _XmasTreeScreenState extends State<XmasTreeScreen> with TickerProviderStat
   Future<void> _onLongPress(LongPressStartDetails d) async {
     final f = _frame, s = _svc.state;
     if (f == null || s == null) return;
-    final t = xtToyAt(s.tree.kind, s.toys, f.toUnits(d.localPosition));
+    final t = xtToyAt(s.tree.kind, s.toys, f.toUnits(d.localPosition), yaw: _yaw);
     if (t == null) return;
     HapticFeedback.mediumImpact();
     final who = t.author == _me ? (widget.userData?.displayName ?? '') : widget.partnerName;
@@ -172,11 +179,11 @@ class _XmasTreeScreenState extends State<XmasTreeScreen> with TickerProviderStat
     final f = _frame, s = _svc.state;
     if (f == null || s == null) return;
     final u = f.toUnits(d.localPosition);
-    final t = xtToyAt(s.tree.kind, s.toys, u);
+    final t = xtToyAt(s.tree.kind, s.toys, u, yaw: _yaw);
     if (t == null) return;
     setState(() {
       _dragId = t.id;
-      _dragOffset = Offset(t.x, t.y) - u;
+      _dragOffset = Offset(t.x, t.y) - _still(u);
       _ghost = XtGhost(t.toy, Offset(t.x, t.y));
     });
   }
@@ -184,7 +191,7 @@ class _XmasTreeScreenState extends State<XmasTreeScreen> with TickerProviderStat
   void _onPanUpdate(DragUpdateDetails d) {
     final f = _frame;
     if (_dragId == null || f == null || _ghost == null) return;
-    setState(() => _ghost = XtGhost(_ghost!.toy, f.toUnits(d.localPosition) + _dragOffset));
+    setState(() => _ghost = XtGhost(_ghost!.toy, _still(f.toUnits(d.localPosition)) + _dragOffset));
   }
 
   void _onPanEnd(DragEndDetails _) {
@@ -282,7 +289,14 @@ class _XmasTreeScreenState extends State<XmasTreeScreen> with TickerProviderStat
                   onPanStart: _onPanStart,
                   onPanUpdate: _onPanUpdate,
                   onPanEnd: _onPanEnd,
-                  child: TreeStage(side: side, tree: tree, toys: toys, ghost: _ghost, hidden: _dragId),
+                  // игрушка в руке — ёлка перестаёт качаться, чтобы вешать было точно
+                  child: XtSway(
+                    calm: _pick != null || _ghost != null,
+                    builder: (context, yaw) {
+                      _yaw = yaw;
+                      return TreeStage(side: side, tree: tree, toys: toys, ghost: _ghost, hidden: _dragId, yaw: yaw);
+                    },
+                  ),
                 ),
               ),
               Positioned(

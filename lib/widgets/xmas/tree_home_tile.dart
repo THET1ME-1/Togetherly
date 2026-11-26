@@ -9,6 +9,7 @@ import '../../services/xmas_tree_service.dart';
 import '../../theme/profile_theme.dart';
 import 'home_half_tile.dart';
 import 'tree_stage.dart';
+import 'tree_sway.dart';
 
 /// Плитка ёлки на главной (декабрь): правая половина блока маскота. Крупно —
 /// сколько игрушек, у пустой — круглая «+», после новой игрушки партнёра —
@@ -84,7 +85,10 @@ class _TreeHomeTileState extends State<TreeHomeTile> {
                   right: -20,
                   bottom: -4,
                   child: IgnorePointer(
-                    child: TreeStage(side: 100, tree: s?.tree ?? const PairTree(), toys: toys, still: true),
+                    child: XtSway(
+                      builder: (context, yaw) =>
+                          TreeStage(side: 100, tree: s?.tree ?? const PairTree(), toys: toys, still: true, yaw: yaw),
+                    ),
                   ),
                 ),
                 HomeHalfTile(

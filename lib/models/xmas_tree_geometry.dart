@@ -38,8 +38,8 @@ _V _norm(_V a) {
 }
 
 /// Камера: поворот вокруг оси ёлки, взгляд сверху, лёгкая перспектива.
-class _Cam {
-  _Cam(double yaw)
+class XtCam {
+  XtCam(double yaw)
       : _c = math.cos(yaw),
         _s = math.sin(yaw),
         _cp = math.cos(kXtPitch),
@@ -58,8 +58,8 @@ class _Cam {
   _V get view => [-_s * _cp, _sp, _c * _cp];
 }
 
-class _Tier {
-  _Tier(List<double> t)
+class XtTier {
+  XtTier(List<double> t)
       : top = t[0],
         bot = t[1],
         r = t[2],
@@ -88,7 +88,7 @@ class _Tier {
 }
 
 /// Силуэт яруса на холсте: верхушка и передний край лап (с полосой толщины).
-List<List<double>> _silhouette(_Tier t, _Cam cam) {
+List<List<double>> _silhouette(XtTier t, XtCam cam) {
   final band = 2.2 + t.r * 0.03;
   final ring = <_V>[];
   for (var i = 0; i < _ns; i++) {
@@ -129,10 +129,10 @@ bool _inside(double x, double y, List<List<double>> poly) {
 /// не на горшке, звезде или в воздухе, и не у самой макушки.
 bool xtCanHang(String kind, double x, double y, {double yaw = kXtYaw}) {
   final tiers = xtTiers(kind);
-  final cam = _Cam(yaw);
+  final cam = XtCam(yaw);
   if (!(y > tiers[0][0] + 6)) return false;
   for (final t in tiers) {
-    if (_inside(x, y, _silhouette(_Tier(t), cam))) return true;
+    if (_inside(x, y, _silhouette(XtTier(t), cam))) return true;
   }
   return false;
 }
@@ -176,11 +176,22 @@ XtAnchor? xtAnchor(String kind, double x, double y) {
 
 final Map<String, XtAnchor?> _anchors = {};
 
-XtAnchor? _findAnchor(String kind, double x, double y) {
+/// Точка (x, y) ёлки, повёрнутой на [yaw], → та же точка хвои при обычном
+/// повороте: место игрушки хранится в обычном повороте, а палец касается
+/// качающейся ёлки. Точка мимо хвои остаётся как есть.
+Offset xtUnsway(String kind, double x, double y, double yaw) {
+  if (yaw == kXtYaw) return Offset(x, y);
+  final a = _findAnchor(kind, x, y, yaw);
+  if (a == null) return Offset(x, y);
+  final s = XtCam(kXtYaw).project(XtTier(xtTiers(kind)[a.tier]).p(a.th, a.u));
+  return Offset(s[0], s[1]);
+}
+
+XtAnchor? _findAnchor(String kind, double x, double y, [double yaw = kXtYaw]) {
   final tiers = xtTiers(kind);
-  final cam = _Cam(kXtYaw), v = cam.view;
+  final cam = XtCam(yaw), v = cam.view;
   for (var i = 0; i < tiers.length; i++) {
-    final t = _Tier(tiers[i]);
+    final t = XtTier(tiers[i]);
     if (!_inside(x, y, _silhouette(t, cam))) continue;
     XtAnchor? best;
     var bd = 1e9;
@@ -202,7 +213,7 @@ XtAnchor? _findAnchor(String kind, double x, double y) {
   XtAnchor? best;
   var bd = 1e9;
   for (var i = 0; i < tiers.length; i++) {
-    final t = _Tier(tiers[i]);
+    final t = XtTier(tiers[i]);
     for (var a = 0; a < 72; a++) {
       final th = a / 72 * math.pi * 2;
       for (var k = 12; k <= 40; k += 2) {
@@ -222,8 +233,8 @@ XtAnchor? _findAnchor(String kind, double x, double y) {
 
 /// Точка подвеса игрушки на картинке ёлки (чуть над хвоей, по нормали).
 XtHang xtHangPoint(String kind, XtAnchor a, {double yaw = kXtYaw}) {
-  final t = _Tier(xtTiers(kind)[a.tier]);
-  final cam = _Cam(yaw);
+  final t = XtTier(xtTiers(kind)[a.tier]);
+  final cam = XtCam(yaw);
   final n = t.n(a.th, a.u);
   final s = cam.project(_add(t.p(a.th, a.u), _mul(n, 0.8)));
   return XtHang(screen: Offset(s[0], s[1]), depth: s[2], visible: _dot(n, cam.view), tier: a.tier);

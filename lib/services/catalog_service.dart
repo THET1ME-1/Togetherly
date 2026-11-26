@@ -113,11 +113,8 @@ class CatalogService extends ChangeNotifier {
       'mandarin', 'tv', 'clock', 'bird', 'valenok', 'matryoshka', 'cucumber', 'corn', 'samovar', 'snowman', 'sled',
       'house', 'style_snowy'];
     await _ensureIds([for (final k in first) if (xmasToy(k) == null) 'toy_$k']);
+    // сама ёлка рисуется кодом (tree_draw.dart), её слоёв качать не нужно
     final keys = <String>[
-      for (final k in const ['fir', 'snowy']) ...[
-        'xt3_${k}_base', 'xt3_${k}_star', 'xt3_${k}_t0',
-        for (final t in const ['t1', 't2', 't3']) ...['xt3_${k}_${t}_g0', 'xt3_${k}_${t}_g1'],
-      ],
       'xt_room_day', 'xt_room_dusk', 'xt_pick_style_fir',
       for (final t in _toys) ...[t.pickArt, t.treeArt],
     ];

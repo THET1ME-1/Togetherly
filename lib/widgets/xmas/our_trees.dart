@@ -12,6 +12,7 @@ import '../../services/xmas_tree_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/profile_theme.dart';
 import 'tree_stage.dart';
+import 'tree_sway.dart';
 
 /// Строка «Наши ёлки» в профиле, раздел «Отношения»: видна в декабре и потом,
 /// когда у пары уже есть хоть одна ёлка.
@@ -201,7 +202,10 @@ class _OurTreesScreenState extends State<OurTreesScreen> {
                 height: 236,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(color: cs.tertiaryContainer, borderRadius: BorderRadius.circular(22)),
-                child: TreeStage(side: 230, tree: st?.tree ?? const PairTree(), toys: toys, still: true),
+                child: XtSway(
+                  builder: (context, yaw) =>
+                      TreeStage(side: 230, tree: st?.tree ?? const PairTree(), toys: toys, still: true, yaw: yaw),
+                ),
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
