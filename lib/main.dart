@@ -25,6 +25,7 @@ import 'theme/app_palettes.dart';
 import 'theme/profile_theme.dart';
 import 'theme/theme_scope.dart';
 import 'services/age_signals.dart';
+import 'services/season_preview.dart';
 import 'services/analytics_service.dart';
 import 'services/hint_calm.dart';
 import 'services/mascot_guide_service.dart';
@@ -311,6 +312,9 @@ void main() async {
   // Прошлый ответ магазина о возрасте: с ним реклама не ждёт свежую проверку
   // (сама проверка — после окна согласия, `_initDeferredStartup`).
   unawaited(AgeSignals.instance.loadSaved());
+  // Предпросмотр сезона из прошлого запуска: ёлка живёт в своём дне сразу,
+  // до ответа сервера (только аккаунты из списка, см. SeasonPreview).
+  await SeasonPreview.loadSaved();
 
   // Android отдаёт приложению 60 Гц, даже когда экран умеет 120: анимации и
   // перемотка видео на глаз становятся ступенчатыми. Просим максимум.

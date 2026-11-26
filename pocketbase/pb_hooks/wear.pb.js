@@ -29,7 +29,9 @@ routerAdd("POST", "/api/wear/buy", (e) => {
 
   let item = null;
   try { item = slug ? $app.findRecordById("catalog_items", "wear_" + slug) : null; } catch (_) { item = null; }
-  if (!item || item.getString("kind") !== "wear" || !item.getBool("enabled")) {
+  // спрятанная до сезона вещь продаётся только тем, кто в предпросмотре сезона
+  const preview = !!require(`${__hooks}/season_preview.js`).dayFor(e.auth.id);
+  if (!item || item.getString("kind") !== "wear" || (!item.getBool("enabled") && !preview)) {
     return e.json(400, { ok: false, error: "not_for_sale" });
   }
   const data = safeParse(item.getString("data"), {});

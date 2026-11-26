@@ -19,6 +19,7 @@ import 'love_test_id.dart';
 import 'offline/local_store.dart';
 import 'pb_errors.dart';
 import 'pocketbase_service.dart';
+import 'season_preview.dart';
 import 'upsert_backoff.dart';
 import 'upsert_id_cache.dart';
 import 'mascot_guide_service.dart';
@@ -3491,8 +3492,9 @@ class PbDataService {
     try {
       // Вещи Ту приходят и выключенными: снятая с сервера вещь остаётся у
       // тех, кому досталась (`TuWear.retired`), из сундука она уже не выпадает.
+      // В предпросмотре сезона — ещё и спрятанные вещи его наборов.
       return await _pb.collection('catalog_items').getFullList(
-            filter: "enabled = true || kind = 'wear'",
+            filter: catalogFilter(SeasonPreview.sets),
             sort: 'sort',
           );
     } catch (e) {

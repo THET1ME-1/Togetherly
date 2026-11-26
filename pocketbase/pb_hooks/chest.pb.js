@@ -91,7 +91,9 @@ routerAdd("GET", "/api/chest/state", (e) => {
   // гардеробах такого раздела нет, вещь пропала бы. Их доля — в «5 монет».
   const withOutfits = (q.get("outfits") || "") === "1";
   const shifted = new Date(Date.now() + tz * 60 * 1000);
-  const day = shifted.toISOString().slice(0, 10);
+  // предпросмотр сезона: для людей из списка «сегодня» — их день (season_preview.js)
+  const previewDay = require(`${__hooks}/season_preview.js`).dayFor(me);
+  const day = previewDay || shifted.toISOString().slice(0, 10);
   const toySeason = (q.get("toys") || "") === "1" && (day.slice(5, 7) === "12" || day.slice(5, 7) === "01");
   // Сезонные сундуки из каталога; активные уходят приложению списком.
   const chestKey = String(q.get("chest") || "").replace(/[^a-z0-9_]/g, "");
@@ -166,7 +168,7 @@ routerAdd("GET", "/api/chest/state", (e) => {
     if (!hw) items.push([GIFTS[i][0], "gift", GIFTS[i][1], true, GIFTS[i][0]]);
   }
   try {
-    const recs = $app.findRecordsByFilter("catalog_items", "enabled = true && (kind = 'frame' || kind = 'badge' || kind = 'gift' || kind = 'wear' || kind = 'toy')", "sort", 500, 0);
+    const recs = $app.findRecordsByFilter("catalog_items", (previewDay ? "(enabled = true || data.set != '')" : "enabled = true") + " && (kind = 'frame' || kind = 'badge' || kind = 'gift' || kind = 'wear' || kind = 'toy')", "sort", 500, 0);
     for (let i = 0; i < recs.length; i++) {
       let d = {};
       try { d = JSON.parse(recs[i].getString("data") || "{}") || {}; } catch (_) { d = {}; }
@@ -378,7 +380,8 @@ routerAdd("POST", "/api/chest/open", (e) => {
 
   const me = e.auth.id;
   const now = Date.now();
-  const day = new Date(now + tz * 60 * 1000).toISOString().slice(0, 10);
+  const previewDay = require(`${__hooks}/season_preview.js`).dayFor(me);
+  const day = previewDay || new Date(now + tz * 60 * 1000).toISOString().slice(0, 10);
   const toySeason = body.toys === true && (day.slice(5, 7) === "12" || day.slice(5, 7) === "01");
   const chestKey = String(body.chest || "").replace(/[^a-z0-9_]/g, "");
   let season = null;
@@ -516,7 +519,7 @@ routerAdd("POST", "/api/chest/open", (e) => {
         if (!hw) items.push([GIFTS[i][0], "gift", GIFTS[i][1], true, GIFTS[i][0]]);
       }
       try {
-        const recs = txApp.findRecordsByFilter("catalog_items", "enabled = true && (kind = 'frame' || kind = 'badge' || kind = 'gift' || kind = 'wear' || kind = 'toy')", "sort", 500, 0);
+        const recs = txApp.findRecordsByFilter("catalog_items", (previewDay ? "(enabled = true || data.set != '')" : "enabled = true") + " && (kind = 'frame' || kind = 'badge' || kind = 'gift' || kind = 'wear' || kind = 'toy')", "sort", 500, 0);
         for (let i = 0; i < recs.length; i++) {
           let d = {};
           try { d = JSON.parse(recs[i].getString("data") || "{}") || {}; } catch (_) { d = {}; }

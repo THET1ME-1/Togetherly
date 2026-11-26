@@ -63,7 +63,9 @@ routerAdd("POST", "/api/coins/purchase-icon", (e) => {
   const slug = iconId.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
   let item = null;
   try { item = slug ? $app.findRecordById("catalog_items", "badge_" + slug) : null; } catch (_) { item = null; }
-  if (!item || item.getString("kind") !== "badge" || !item.getBool("enabled")) {
+  // спрятанный сезонный значок продаётся только тем, кто в предпросмотре сезона
+  const preview = !!require(`${__hooks}/season_preview.js`).dayFor(e.auth.id);
+  if (!item || item.getString("kind") !== "badge" || (!item.getBool("enabled") && !preview)) {
     return e.json(400, { ok: false, error: "not for sale" });
   }
   const data = safeParse(item.getString("data"), {});
@@ -128,7 +130,8 @@ routerAdd("POST", "/api/coins/purchase-feature", (e) => {
     try { item = $app.findRecordById("catalog_items", itemId); } catch (_) { item = null; }
     if (!item) return e.json(400, { ok: false, error: "not for sale" });
     if (item.getString("kind") !== wantKind) return e.json(400, { ok: false, error: "not for sale" });
-    if (!item.getBool("enabled")) return e.json(400, { ok: false, error: "not for sale" });
+    // спрятанное до сезона продаётся только тем, кто в предпросмотре сезона
+    if (!item.getBool("enabled") && !require(`${__hooks}/season_preview.js`).dayFor(e.auth.id)) return e.json(400, { ok: false, error: "not for sale" });
     if (item.getBool("is_free")) return e.json(400, { ok: false, error: "already free" });
 
     price = item.getInt("price") || 0;

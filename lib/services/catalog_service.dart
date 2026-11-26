@@ -25,6 +25,7 @@ import '../models/rank_art.dart';
 import 'launch_splash_service.dart';
 import 'pb_data_service.dart';
 import 'pocketbase_service.dart';
+import 'season_preview.dart';
 
 /// Удалённый КАТАЛОГ контента (паки настроений + маскоты-награды за уровень).
 ///
@@ -259,6 +260,9 @@ class CatalogService extends ChangeNotifier {
     // 2) Свежий каталог из PocketBase — В ФОНЕ, не блокируем старт приложения.
     //    Ошибки/офлайн — тихо остаёмся на кэше/бандле.
     unawaited(refresh());
+    // 3) Предпросмотр сезона (только аккаунты из списка на сервере): узнали
+    //    свой день и спрятанные наборы — каталог перечитывается уже с ними.
+    unawaited(SeasonPreview.refresh().then((changed) => changed ? refresh() : null));
   }
 
   /// Подтянуть свежий каталог из PocketBase и закэшировать. Безопасно при офлайне.
