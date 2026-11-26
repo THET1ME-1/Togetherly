@@ -302,6 +302,8 @@ COLLECTIONS = {
             "coloring_id": "text", "coloring_mode": "text",
             "coloring_done": "json", "coloring_swap": "bool",
             "coloring_outline": "text",
+            # Кто нарисован на половинах раскраски: girl / boy (26.11.2026).
+            "coloring_figure_left": "text", "coloring_figure_right": "text",
         },
         "sortable": {"updated_at", "id"},
         "filterable": {"id", "group_id", "canvas_id"},

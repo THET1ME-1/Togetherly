@@ -12,9 +12,12 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import '../models/coloring_clamp.dart';
+import '../models/coloring_figures.dart';
 import '../models/coloring_meta.dart';
 import '../models/live_stroke_wire.dart';
 import '../models/coloring_picture.dart';
+import '../utils/coloring_halves.dart';
+import '../widgets/coloring/coloring_figures_sheet.dart';
 import '../services/coloring_upload_queue.dart';
 import '../services/pb_media_service.dart';
 import '../utils/canvas_clear.dart';
@@ -363,6 +366,11 @@ class _DrawScreenState extends State<DrawScreen>
   /// слева и девочка справа, а порядок uid об этом не знает — «у меня выходит
   /// сторона мальчика, а у него наоборот».
   bool _coloringSwap = false;
+
+  /// Кто нарисован на половинах у картинки с выбором фигур
+  /// (`ColoringPicture.figures`): девушка или парень, по половинам отдельно.
+  /// Общий на пару, живёт в мете холста.
+  ColoringFigures _coloringFigures = ColoringFigures.drawn;
 
   /// Кто уже нажал «Готово»: uid → true.
   Map<String, bool> _coloringDone = const {};
@@ -1117,6 +1125,19 @@ class _DrawScreenState extends State<DrawScreen>
     if (remoteSwap != null && remoteSwap != _coloringSwap) {
       _coloringSwap = remoteSwap;
       coloringChanged = true;
+    }
+    // Кто на половинах. Пустое поле не трогает своё: запись автора могла ещё
+    // не долететь, а «как нарисовано» уже стоит у того, кто лист не заводил.
+    final remoteLeft = ColoringFigure.fromStorage(meta.coloringFigureLeft);
+    final remoteRight = ColoringFigure.fromStorage(meta.coloringFigureRight);
+    final figures = ColoringFigures(
+      left: remoteLeft ?? _coloringFigures.left,
+      right: remoteRight ?? _coloringFigures.right,
+    );
+    if (figures != _coloringFigures) {
+      _coloringFigures = figures;
+      coloringChanged = true;
+      if (_coloring?.figures == true) unawaited(_loadColoringOutline());
     }
     final done = meta.coloringDone;
     if (done != null) {
@@ -3560,6 +3581,18 @@ class _DrawScreenState extends State<DrawScreen>
           return;
         }
         raw = await file.readAsBytes();
+      } else if (picture.figures) {
+        // Картинка с выбором фигур: лист склеивается из двух половин.
+        final figures = _coloringFigures;
+        final image = await _composeFigureOutline(picture, figures);
+        // Пока клеили, фигуру сменили: этот лист уже не нужен, свежий
+        // собирает следующий вызов.
+        if (!mounted || figures != _coloringFigures || picture.id != _coloringId) {
+          image.dispose();
+          return;
+        }
+        setState(() => _coloringOutline = image);
+        return;
       } else {
         final data = await rootBundle.load(picture.outlineAsset);
         raw = data.buffer.asUint8List();
@@ -3573,12 +3606,41 @@ class _DrawScreenState extends State<DrawScreen>
     }
   }
 
+  /// Контур картинки с выбором фигур: две половины по 800×1600 из ассетов,
+  /// склеенные в лист.
+  Future<ui.Image> _composeFigureOutline(
+      ColoringPicture picture, ColoringFigures figures) async {
+    Future<ui.Image> half(ColoringSide side) async {
+      final data = await rootBundle.load(picture.halfAsset(side, figures.on(side)));
+      final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
+      return (await codec.getNextFrame()).image;
+    }
+
+    final left = await half(ColoringSide.left);
+    final right = await half(ColoringSide.right);
+    try {
+      return await composeColoringHalves(left, right);
+    } finally {
+      left.dispose();
+      right.dispose();
+    }
+  }
+
   /// Заводит раскраску на этом холсте (или подхватывает уже заведённую).
   Future<void> _startColoring(String pictureId, ColoringMode mode) async {
+    // Кто на половинах: своя — по своему полу, вторая — противоположная.
+    // Пишется той же записью, что заводит лист, чтобы оба телефона сразу
+    // видели одно и то же; поправить можно в листе, который откроется следом.
+    final picture = ColoringPicture.byId(pictureId, own: _ownColorings);
+    final figures = picture != null && picture.figures
+        ? coloringFiguresForStart(
+            mySide: _mySide, myGender: widget.userData.genderToStorage())
+        : null;
     setState(() {
       _coloringId = pictureId;
       _coloringMode = mode;
       _coloringDone = const {};
+      if (figures != null) _coloringFigures = figures;
     });
     await _loadColoringOutline();
     if (_hasSharedCanvas) {
@@ -3588,7 +3650,64 @@ class _DrawScreenState extends State<DrawScreen>
         pictureId: pictureId,
         mode: mode.storage,
         outlineRef: await _shareOwnOutline(pictureId),
+        figures: figures,
       );
+    }
+    // Начальная отметка по полу — только догадка (пол партнёра здесь не
+    // известен), поэтому выбор открывается сразу.
+    if (figures != null && mounted) {
+      await WidgetsBinding.instance.endOfFrame;
+      if (mounted) await _openFiguresSheet();
+    }
+  }
+
+  /// Нажал ли «Готово» тот, кто красит эту половину.
+  bool _sideOwnerDone(ColoringSide side) {
+    final owner = side == _mySide ? _myUid : widget.pairData.partnerUid;
+    return owner.isNotEmpty && _coloringDone[owner] == true;
+  }
+
+  /// Лист «Кто на рисунке». Половину с краской или с «Готово» хозяина не
+  /// поменять: заливки легли бы мимо линий другого рисунка. Краска считается
+  /// по всем мазкам, и по закрытым вуалью тоже — иначе в «сюрпризе» можно
+  /// было бы сменить фигуру прямо под рисунком партнёра.
+  Future<void> _openFiguresSheet() async {
+    final picture = _coloring;
+    if (picture == null || !picture.figures) return;
+    final strokes = <DrawStroke>[
+      ..._remoteStrokes,
+      ..._pendingLocalStrokes.values,
+      ..._partnerCommitted.values,
+    ];
+    bool locked(ColoringSide side) => coloringFigureLocked(
+          ownerDone: _sideOwnerDone(side),
+          hasPaint: coloringSideHasPaint(strokes, side),
+        );
+    final split = coloringSplitApplies(widget.pairData.partnerUid);
+    final result = await showColoringFiguresSheet(
+      context,
+      theme: widget.theme,
+      picture: picture,
+      initial: _coloringFigures,
+      mySide: split ? _mySide : null,
+      leftLocked: locked(ColoringSide.left),
+      rightLocked: locked(ColoringSide.right),
+    );
+    if (result == null || !mounted || result == _coloringFigures) return;
+    final before = _coloringFigures;
+    setState(() => _coloringFigures = result);
+    unawaited(_loadColoringOutline());
+    if (!_hasSharedCanvas) return;
+    // Каждая сменённая половина пишется отдельно: второй человек мог в ту же
+    // секунду поменять другую.
+    for (final side in ColoringSide.values) {
+      if (result.on(side) == before.on(side)) continue;
+      try {
+        await CanvasRepository().setColoringFigure(_groupId, _canvasId,
+            side: side, figure: result.on(side), pictureId: _coloringId);
+      } catch (e) {
+        debugPrint('Раскраска: фигура не сохранилась — $e');
+      }
     }
   }
 
@@ -3621,12 +3740,16 @@ class _DrawScreenState extends State<DrawScreen>
   Future<void> _resendColoringPicture() async {
     final id = _coloringId;
     if (id == null) return;
+    // Выбор фигур едет вместе с картинкой: запись при заведении листа не
+    // дошла целиком, и без него партнёр увидел бы лист «как нарисовано».
+    final figures = _coloring?.figures == true ? _coloringFigures : null;
     final ok = await CanvasRepository().restoreColoring(
       _groupId,
       _canvasId,
       pictureId: id,
       mode: _coloringMode.storage,
       outlineRef: await _shareOwnOutline(id),
+      figures: figures,
     );
     if (!ok) _coloringPictureSent = false;
   }
@@ -4131,6 +4254,16 @@ class _DrawScreenState extends State<DrawScreen>
           // Поменяться половинками: пока никто не закончил, это безобидно —
           // мазки остаются на своих местах, меняется лишь то, кому какая
           // сторона принадлежит.
+          // Кто на рисунке: девушка или парень на каждой половине. Половины
+          // с краской лист сам закроет замком.
+          if (!bothDone && _coloring?.figures == true)
+            IconButton(
+              key: const ValueKey('coloring-figures-button'),
+              tooltip: trKey('coloringFiguresTitle'),
+              onPressed: _openFiguresSheet,
+              icon: const Icon(Icons.people_alt_rounded, size: 22),
+              color: t.textSecondary,
+            ),
           if (!bothDone && !_iAmDone && _groupId.isNotEmpty)
             IconButton(
               tooltip: s.coloringSwapSides,

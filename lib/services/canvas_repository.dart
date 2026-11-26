@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:pocketbase/pocketbase.dart';
 
 import '../models/canvas_meta.dart';
+import '../models/coloring_figures.dart';
 import '../models/coloring_join.dart';
+import '../models/coloring_picture.dart' show ColoringSide;
 import '../models/draw_stroke.dart';
 import 'centrifugo_service.dart';
 import 'pb_data_service.dart';
@@ -44,6 +46,11 @@ class CanvasMetaUpdate {
   /// телефона, и без этой ссылки партнёру доставался пустой лист.
   final String? coloringOutline;
 
+  /// Кто нарисован на левой и правой половине (`girl` / `boy`), у картинок с
+  /// выбором фигур. Пусто — как нарисовано (`ColoringFigures.drawn`).
+  final String? coloringFigureLeft;
+  final String? coloringFigureRight;
+
   /// Запись меты на сервере уже есть. Без неё все поля пусты, и пустая
   /// картинка тогда ещё ничего не значит.
   final bool exists;
@@ -56,6 +63,8 @@ class CanvasMetaUpdate {
     this.coloringSwap,
     this.coloringDone,
     this.coloringOutline,
+    this.coloringFigureLeft,
+    this.coloringFigureRight,
     this.exists = false,
   });
 }
@@ -237,6 +246,8 @@ class CanvasRepository {
           coloringSwap: d['coloring_swap'] == true,
           coloringDone: done is Map ? Map<String, dynamic>.from(done) : null,
           coloringOutline: (d['coloring_outline'] as String?)?.trim(),
+          coloringFigureLeft: (d['coloring_figure_left'] as String?)?.trim(),
+          coloringFigureRight: (d['coloring_figure_right'] as String?)?.trim(),
           exists: true,
         );
       });
@@ -248,18 +259,42 @@ class CanvasRepository {
   ///
   /// [outlineRef] — ссылка на контур своей раскраски. У встроенных её нет:
   /// контур лежит в ассетах приложения и одинаков у обоих.
+  ///
+  /// [figures] — кто на половинах у картинки с выбором фигур. Пишется той же
+  /// записью, что заводит лист: иначе партнёр, открывший лист в эту секунду,
+  /// увидел бы рисунок «как нарисовано», а автор — свой выбор.
   Future<void> setColoring(
     String groupId,
     String canvasId, {
     required String pictureId,
     required String mode,
     String? outlineRef,
+    ColoringFigures? figures,
   }) =>
       _data.upsertCanvasMeta(groupId, canvasId,
           coloringId: pictureId,
           coloringMode: mode,
           coloringDone: const {},
-          coloringOutline: outlineRef);
+          coloringOutline: outlineRef,
+          coloringFigureLeft: figures?.left.storage,
+          coloringFigureRight: figures?.right.storage);
+
+  /// Сменить, кто нарисован на одной половине. Пишется только поле этой
+  /// половины: второй человек в ту же секунду мог сменить свою, и запись
+  /// обеих разом затёрла бы его выбор. «Готово» не трогается.
+  ///
+  /// [pictureId] едет рядом по той же причине, что у [setColoringSwap].
+  Future<void> setColoringFigure(
+    String groupId,
+    String canvasId, {
+    required ColoringSide side,
+    required ColoringFigure figure,
+    String? pictureId,
+  }) =>
+      _data.upsertCanvasMeta(groupId, canvasId,
+          coloringId: pictureId,
+          coloringFigureLeft: side == ColoringSide.left ? figure.storage : null,
+          coloringFigureRight: side == ColoringSide.right ? figure.storage : null);
 
   /// Дописывает картинку раскраски в мету, не трогая «Готово»: запись при
   /// заведении листа могла не дойти (см. [coloringMetaNeedsPicture]).
@@ -269,9 +304,14 @@ class CanvasRepository {
     required String pictureId,
     required String mode,
     String? outlineRef,
+    ColoringFigures? figures,
   }) =>
       _data.upsertCanvasMeta(groupId, canvasId,
-          coloringId: pictureId, coloringMode: mode, coloringOutline: outlineRef);
+          coloringId: pictureId,
+          coloringMode: mode,
+          coloringOutline: outlineRef,
+          coloringFigureLeft: figures?.left.storage,
+          coloringFigureRight: figures?.right.storage);
 
   /// Отмечает готовность одного из двоих. Карта целиком, а не поле: правку
   /// одного ключа PocketBase в json-поле не умеет.

@@ -306,6 +306,7 @@ const Map<String, String> kDeByEnglish = {
   'Castle': 'Schloss',
   'Rain': 'Regen',
   'Ferris wheel': 'Riesenrad',
+  'Snowman': 'Schneemann',
   'Metro': 'U-Bahn',
   'Camping': 'Camping',
   'Festival': 'Festival',

@@ -1336,6 +1336,18 @@
           "type": "text",
           "required": false,
           "max": 500
+        },
+        {
+          "name": "coloring_figure_left",
+          "type": "text",
+          "required": false,
+          "max": 10
+        },
+        {
+          "name": "coloring_figure_right",
+          "type": "text",
+          "required": false,
+          "max": 10
         }
       ],
       "indexes": [

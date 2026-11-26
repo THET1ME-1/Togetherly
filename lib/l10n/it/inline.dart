@@ -306,6 +306,7 @@ const Map<String, String> kItByEnglish = {
   'Castle': 'Castello',
   'Rain': 'Pioggia',
   'Ferris wheel': 'Ruota panoramica',
+  'Snowman': 'Pupazzo di neve',
   'Metro': 'Metro',
   'Camping': 'Campeggio',
   'Festival': 'Festival',

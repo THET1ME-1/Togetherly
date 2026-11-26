@@ -308,6 +308,7 @@ const Map<String, String> kPtByEnglish = {
   'Castle': 'Castelo',
   'Rain': 'Chuva',
   'Ferris wheel': 'Roda-gigante',
+  'Snowman': 'Boneco de neve',
   'Metro': 'Metrô',
   'Camping': 'Acampamento',
   'Festival': 'Festival',

@@ -307,6 +307,7 @@ const Map<String, String> kEsByEnglish = {
   'Castle': 'Castillo',
   'Rain': 'Lluvia',
   'Ferris wheel': 'Noria',
+  'Snowman': 'Muñeco de nieve',
   'Metro': 'Metro',
   'Camping': 'Acampada',
   'Festival': 'Festival',

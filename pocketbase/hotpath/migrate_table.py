@@ -61,6 +61,8 @@ TABLES = {
         "clear_version": "num", "group_id": "text", "updated_at": "text",
         "coloring_id": "text", "coloring_mode": "text",
         "coloring_done": "json", "coloring_swap": "bool",
+        "coloring_outline": "text",
+        "coloring_figure_left": "text", "coloring_figure_right": "text",
     },
     "mood_entries": {
         "group_id": "text", "image_path": "text", "label": "text",

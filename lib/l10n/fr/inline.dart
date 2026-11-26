@@ -307,6 +307,7 @@ const Map<String, String> kFrByEnglish = {
   'Castle': 'Château',
   'Rain': 'Pluie',
   'Ferris wheel': 'Grande roue',
+  'Snowman': 'Bonhomme de neige',
   'Metro': 'Métro',
   'Camping': 'Camping',
   'Festival': 'Festival',

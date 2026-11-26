@@ -295,6 +295,7 @@ const Map<String, String> kUkByEnglish = {
   'Castle': 'Замок',
   'Rain': 'Дощ',
   'Ferris wheel': 'Оглядове колесо',
+  'Snowman': 'Сніговик',
   'Metro': 'Метро',
   'Camping': 'Намет',
   'Festival': 'Фестиваль',

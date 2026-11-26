@@ -2480,7 +2480,9 @@ class PbDataService {
       String? coloringMode,
       bool? coloringSwap,
       Map<String, dynamic>? coloringDone,
-      String? coloringOutline}) async {
+      String? coloringOutline,
+      String? coloringFigureLeft,
+      String? coloringFigureRight}) async {
     if (groupId.isEmpty) return false;
     final body = <String, dynamic>{
       'group_id': groupId,
@@ -2498,6 +2500,10 @@ class PbDataService {
     if (coloringOutline != null) body['coloring_outline'] = coloringOutline;
     // Половины поменяны местами — общее решение пары, иначе стороны разъедутся.
     if (coloringSwap != null) body['coloring_swap'] = coloringSwap;
+    // Кто нарисован на половинах (`girl` / `boy`): каждое поле пишется
+    // отдельно, чтобы правки двух людей в одну секунду не затирали друг друга.
+    if (coloringFigureLeft != null) body['coloring_figure_left'] = coloringFigureLeft;
+    if (coloringFigureRight != null) body['coloring_figure_right'] = coloringFigureRight;
     return _upsertByFilter('canvas_meta',
         'group_id = {:g} && canvas_id = {:c}', {'g': groupId, 'c': canvasId},
         body, op: 'upsertCanvasMeta');

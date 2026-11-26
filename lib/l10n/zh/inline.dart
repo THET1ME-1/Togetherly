@@ -282,6 +282,7 @@ const Map<String, String> kZhByEnglish = {
   'Castle': '城堡',
   'Rain': '雨天',
   'Ferris wheel': '摩天轮',
+  'Snowman': '雪人',
   'Metro': '地铁',
   'Camping': '露营',
   'Festival': '音乐节',

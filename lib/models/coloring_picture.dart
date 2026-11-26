@@ -1,4 +1,5 @@
 import '../dict_strings.dart' show ruEn;
+import 'coloring_figures.dart';
 
 /// Кто какую половину раскраски красит.
 enum ColoringSide {
@@ -63,7 +64,18 @@ class ColoringPicture {
     required this.titleRu,
     required this.titleEn,
     this.ownRatio,
+    this.figures = false,
   });
+
+  /// На половинах нарисованы люди, и пара выбирает, кто где: девушка или
+  /// парень (`ColoringFigures`). Контура одним файлом тогда нет — он
+  /// собирается из двух половин [halfAsset], по 800×1600 каждая. Верёвка или
+  /// черта посередине во всех вариантах одна и та же, поэтому шов не виден.
+  final bool figures;
+
+  /// Половина контура с выбранной фигурой.
+  String halfAsset(ColoringSide side, ColoringFigure figure) =>
+      'assets/coloring/${id}_${side.name}_${figure.name}.png';
 
   /// Своя раскраска: контур человек загрузил сам, лист любой пропорции.
   /// Граница половин при этом остаётся вертикальной по центру — доли равные
@@ -112,6 +124,8 @@ class ColoringPicture {
     ColoringPicture(id: 'baking', titleRu: 'Готовим вместе', titleEn: 'Baking'),
     ColoringPicture(id: 'beach', titleRu: 'Пляж', titleEn: 'Beach'),
     ColoringPicture(id: 'gaming', titleRu: 'Приставка', titleEn: 'Gaming'),
+    ColoringPicture(
+        id: 'snowman', titleRu: 'Снеговик', titleEn: 'Snowman', figures: true),
   ];
 
   /// Картинка по id.
