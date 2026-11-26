@@ -1,0 +1,21 @@
+{
+  "name": "pair_trees",
+  "type": "base",
+  "listRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
+  "viewRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
+  "createRule": null,
+  "updateRule": null,
+  "deleteRule": null,
+  "fields": [
+    {"name": "group_id", "type": "text", "max": 40},
+    {"name": "season", "type": "number", "onlyInt": true},
+    {"name": "kind", "type": "text", "max": 12},
+    {"name": "star", "type": "bool"},
+    {"name": "garland", "type": "bool"},
+    {"name": "created", "type": "autodate", "onCreate": true, "onUpdate": false},
+    {"name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true}
+  ],
+  "indexes": [
+    "CREATE UNIQUE INDEX `idx_pair_trees_group_season` ON `pair_trees` (`group_id`, `season`)"
+  ]
+}

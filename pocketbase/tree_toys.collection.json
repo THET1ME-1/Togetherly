@@ -1,0 +1,22 @@
+{
+  "name": "tree_toys",
+  "type": "base",
+  "listRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
+  "viewRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
+  "createRule": null,
+  "updateRule": null,
+  "deleteRule": null,
+  "fields": [
+    {"name": "group_id", "type": "text", "max": 40},
+    {"name": "season", "type": "number", "onlyInt": true},
+    {"name": "toy", "type": "text", "max": 30},
+    {"name": "x", "type": "number"},
+    {"name": "y", "type": "number"},
+    {"name": "author", "type": "text", "max": 40},
+    {"name": "created", "type": "autodate", "onCreate": true, "onUpdate": false},
+    {"name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true}
+  ],
+  "indexes": [
+    "CREATE INDEX `idx_tree_toys_group_season` ON `tree_toys` (`group_id`, `season`)"
+  ]
+}

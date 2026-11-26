@@ -79,6 +79,8 @@ USERS_CUSTOM = [
     jsonf("owned_themes"), jsonf("owned_icons"), jsonf("owned_features"),
     # Вещи Ту из гардероба (ключи вещей). Пишет только сервер: сундук.
     jsonf("owned_wear"),
+    # Коробка ёлочных игрушек {ключ: штук} (tree.pb.js, 26.11.2026)
+    jsonf("owned_toys"),
     # Досмотренные ролики за вещи гардероба: {ключ: {n, at}}. Пишет только
     # сервер (/api/wear/buy), клиент читает.
     jsonf("wear_ad_views"),
