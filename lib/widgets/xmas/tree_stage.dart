@@ -16,14 +16,28 @@ ImageProvider Function(String artKey)? xtDebugArt;
 
 /// Картинка ёлки из каталога (игрушка, стиль, слой) квадратом [side].
 class XtArt extends StatelessWidget {
-  const XtArt(this.artKey, {super.key, required this.side});
+  const XtArt(this.artKey, {super.key, required this.side, this.still = false});
   final String artKey;
   final double side;
+
+  /// Неподвижный кадр вместо анимации: для миниатюр, где игрушка в 8–14 точек.
+  final bool still;
 
   @override
   Widget build(BuildContext context) {
     final debug = xtDebugArt;
     if (debug != null) return Image(image: debug(artKey), width: side, height: side, fit: BoxFit.contain);
+    if (still) {
+      final url = CatalogService.instance.giftArt(artKey)?.stillUrl;
+      if (url == null) return SizedBox.square(dimension: side);
+      return Image(
+        image: CachedNetworkImageProvider(url, cacheManager: OfflineImageCacheManager.instance),
+        width: side,
+        height: side,
+        gaplessPlayback: true,
+        errorBuilder: (_, _, _) => SizedBox.square(dimension: side),
+      );
+    }
     return CatalogArtAnim(artKey, side: side);
   }
 }
@@ -57,7 +71,11 @@ class TreeStage extends StatelessWidget {
     required this.toys,
     this.ghost,
     this.hidden,
+    this.still = false,
   });
+
+  /// Миниатюра (главная, профиль, архив): игрушки неподвижными кадрами.
+  final bool still;
 
   final double side;
   final PairTree tree;
@@ -127,7 +145,7 @@ class TreeStage extends StatelessWidget {
       top: f.px(hang.dy - 7 * k),
       width: box,
       height: box,
-      child: IgnorePointer(child: XtArt(art, side: box)),
+      child: IgnorePointer(child: XtArt(art, side: box, still: still)),
     );
   }
 }

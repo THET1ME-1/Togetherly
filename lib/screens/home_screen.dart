@@ -144,7 +144,8 @@ import '../services/mascot_service.dart';
 import '../services/live_location_service.dart';
 import '../widgets/active_mascot_widget.dart';
 import '../widgets/xmas/tree_home_tile.dart';
-import '../models/xmas_tree.dart' show xtActiveSeason;
+import '../widgets/xmas/home_half_tile.dart';
+import '../models/xmas_tree.dart' show xtActiveSeason, xtNow;
 import '../l10n/xmas_text.dart';
 import 'xmas/xmas_tree_screen.dart';
 import '../models/cloud_mascot.dart' show CloudEvent, kCloudMascotId;
@@ -2510,7 +2511,7 @@ class _HomeScreenState extends State<HomeScreen> {
           builder: (context, _) {
             // Весь декабрь блок делится пополам: справа ёлка пары (макет
             // «Наряжаем ёлку», 26.11.2026). С 1 января — снова во всю ширину.
-            final season = xtActiveSeason(DateTime.now());
+            final season = xtActiveSeason(xtNow());
             final pairId = _pairData.pairId;
             if (season != null && pairId.isNotEmpty) {
               return Row(
@@ -5031,41 +5032,29 @@ class _MascotButtonState extends State<_MascotButton>
         style: TextStyle(fontSize: 12, color: cs.onSecondaryContainer.withValues(alpha: 0.7)),
       );
     }
-    return GestureDetector(
+    return HomeHalfTile(
+      color: cs.secondaryContainer,
       onTap: widget.onTap,
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) => setState(() => _pressed = false),
-      onTapCancel: () => setState(() => _pressed = false),
-      child: AnimatedScale(
-        scale: _pressed ? 0.97 : 1.0,
-        duration: const Duration(milliseconds: 80),
-        curve: Curves.easeOut,
-        child: Container(
-          height: 116,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: cs.secondaryContainer, borderRadius: BorderRadius.circular(24)),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: 48,
-                height: 48,
-                child: mascot != null
-                    ? _MascotPreviewWidget(mascot: mascot, service: widget.service, color: cs.onSecondaryContainer, sleep: widget.sleepOf(mascot.id))
-                    : Center(child: M3Loading(size: 36, color: cs.onSecondaryContainer.withValues(alpha: 0.55))),
-              ),
-              const Spacer(),
-              Text(
-                mascot != null ? mascot.localizedName : LocaleService.current.groupMascot,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontFamily: ProfileTheme.displayFont, fontWeight: FontWeight.w700, fontSize: 14, color: cs.onSecondaryContainer),
-              ),
-              const SizedBox(height: 4),
-              second,
-            ],
+      top: SizedBox(
+        width: 48,
+        height: 48,
+        child: mascot != null
+            ? _MascotPreviewWidget(mascot: mascot, service: widget.service, color: cs.onSecondaryContainer, sleep: widget.sleepOf(mascot.id))
+            : Center(child: M3Loading(size: 36, color: cs.onSecondaryContainer.withValues(alpha: 0.55))),
+      ),
+      bottom: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            mascot != null ? mascot.localizedName : LocaleService.current.groupMascot,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontFamily: ProfileTheme.displayFont, fontWeight: FontWeight.w700, fontSize: 14, color: cs.onSecondaryContainer),
           ),
-        ),
+          const SizedBox(height: 4),
+          second,
+        ],
       ),
     );
   }

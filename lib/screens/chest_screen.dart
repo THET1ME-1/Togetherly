@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import '../dict_strings.dart' show ruEn, trKey;
 import '../l10n/xmas_text.dart';
 import '../services/xmas_tree_service.dart';
+import '../models/xmas_tree.dart' show xtNow;
 import '../models/chest.dart';
 import '../models/chest_pending.dart';
 import '../models/gift.dart';
@@ -251,6 +252,10 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Декабрь — январь: в таблице призов есть ёлочные игрушки, их записи и
+    // картинки нужны строкам таблицы.
+    final month = xtNow().month;
+    if (month == 12 || month == 1) unawaited(CatalogService.instance.ensureXmasArt());
     final debugSeasons = widget.debugSeasons;
     final entry = widget.initialSeason;
     if (debugSeasons != null) {
@@ -701,7 +706,12 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     if (res.ownedWear != null) TuWearService.instance.setOwned(res.ownedWear!);
     if (res.prize?.kind == ChestPrizeKind.wear && res.prize?.wearKey != null) TuWearService.instance.setOwned([res.prize!.wearKey!]);
     // ёлочная игрушка легла в коробку на сервере — ёлка перечитает коробку
-    if (res.prize?.kind == ChestPrizeKind.toy) unawaited(XmasTreeService.instance.refresh());
+    // Каталог доходит не у всех (обращение 653): запись игрушки дотягивается,
+    // иначе приз вышел бы сырым ключом «toy_red».
+    if (res.prize?.kind == ChestPrizeKind.toy) {
+      unawaited(XmasTreeService.instance.refresh());
+      unawaited(CatalogService.instance.ensureXmasArt());
+    }
     if (res.plusTrialUntil != null) PlusService.instance.setTrialUntil(res.plusTrialUntil!);
     setState(() {
       slot.opening = res.prize;

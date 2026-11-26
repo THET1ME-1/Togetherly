@@ -68,6 +68,44 @@ def signup(tag):
     return {"uid": auth["record"]["id"], "token": auth["token"]}
 
 
+WS = "wss://rt.togetherly.day:8443/connection/websocket"
+
+
+def listen_pair(who, pair, action, wait=4.0):
+    """Подписаться на `pair:<группа>` как телефон, выполнить [action] и вернуть
+    пойманные события за [wait] секунд. Нужен `pip install websockets`."""
+    import asyncio
+    import ssl
+    import websockets
+
+    async def run():
+        got = []
+        st, ct = api("/api/centrifugo/connection-token", {}, who["token"])
+        st2, sub = api("/api/centrifugo/subscription-token", {"channel": f"pair:{pair}"}, who["token"])
+        async with websockets.connect(WS, ssl=ssl.create_default_context(), ping_interval=None) as ws:
+            await ws.send(json.dumps({"id": 1, "connect": {"token": ct["token"], "name": "probe"}}))
+            await ws.send(json.dumps({"id": 2, "subscribe": {"channel": f"pair:{pair}", "token": sub["token"]}}))
+            await asyncio.sleep(0.8)
+            await asyncio.get_running_loop().run_in_executor(None, action)
+            end = time.time() + wait
+            while time.time() < end:
+                try:
+                    raw = await asyncio.wait_for(ws.recv(), timeout=0.5)
+                except asyncio.TimeoutError:
+                    continue
+                for line in str(raw).splitlines():
+                    if not line.strip():
+                        continue
+                    m = json.loads(line)
+                    if m == {}:
+                        await ws.send("{}")
+                    elif "push" in m:
+                        got.append(m["push"].get("pub", {}).get("data", {}))
+        return got
+
+    return asyncio.run(run())
+
+
 def main():
     her, him, other = signup("ona"), signup("on"), signup("chuzhoy")
     log(f"она={her['uid']} он={him['uid']} чужой={other['uid']}")
@@ -146,6 +184,24 @@ def main():
         st, s = api(f"/api/tree/state?group={pair}&season={S}", None, him["token"])
         check("партнёр видит выключенную гирлянду", s.get("tree", {}).get("garland") is False, str(s.get("tree")))
         check("сезон в списке ёлок пары", S in (s.get("seasons") or []), str(s.get("seasons")))
+
+        log("=== 5б. партнёр слышит правки каналом пары ===")
+        got = listen_pair(him, pair, lambda: (
+            api("/api/tree/hang", {"group": pair, "season": S, "toy": "gold", "x": 47, "y": 58}, her["token"]),
+        ))
+        made = [d for d in got if d.get("collection") == "tree_toys" and d.get("event") == "create"]
+        check("повешенная игрушка пришла партнёру", bool(made), str([(d.get("event"), d.get("collection")) for d in got]))
+        rec = made[0]["record"] if made else {}
+        check("в событии пара и сезон числом", rec.get("group_id") == pair and rec.get("season") == S, str(rec))
+        if rec.get("id"):
+            hung.append(rec["id"])
+            got = listen_pair(him, pair, lambda: (
+                api("/api/tree/move", {"id": rec["id"], "x": 46, "y": 59}, her["token"]),
+                api("/api/tree/set", {"group": pair, "season": S, "star": False}, her["token"]),
+                api("/api/tree/remove", {"id": rec["id"]}, her["token"]),
+            ))
+            ev = [(d.get("event"), d.get("collection")) for d in got]
+            check("сдвиг, звезда и снятие пришли партнёру", ("update", "tree_toys") in ev and ("update", "pair_trees") in ev and ("delete", "tree_toys") in ev, str(ev))
 
         log("=== 6. покупка и закрытые поля ===")
         st, r = api("/api/toys/buy", {"key": "disco"}, her["token"])

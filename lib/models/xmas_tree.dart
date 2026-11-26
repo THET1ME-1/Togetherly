@@ -2,6 +2,9 @@
 /// Решения — `docs/superpowers/specs/2026-11-26-xmas-tree-design.md`.
 library;
 
+/// Часы ёлки. Подменяется в тестах, чтобы проверить 1 декабря и 1 января.
+DateTime Function() xtNow = DateTime.now;
+
 /// Сезон ёлки по дате: ёлка «2026» — Новый 2027 год, её наряжают в декабре
 /// 2026-го. В январе последней остаётся прошлогодняя ёлка.
 int xtLatestSeason(DateTime d) => d.month == 12 ? d.year : d.year - 1;

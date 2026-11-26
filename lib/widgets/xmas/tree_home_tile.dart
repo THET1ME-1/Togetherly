@@ -7,6 +7,7 @@ import '../../models/xmas_tree.dart';
 import '../../services/catalog_service.dart';
 import '../../services/xmas_tree_service.dart';
 import '../../theme/profile_theme.dart';
+import 'home_half_tile.dart';
 import 'tree_stage.dart';
 
 /// Плитка ёлки на главной (декабрь): правая половина блока маскота. Крупно —
@@ -35,7 +36,6 @@ class TreeHomeTile extends StatefulWidget {
 }
 
 class _TreeHomeTileState extends State<TreeHomeTile> {
-  bool _pressed = false;
 
   @override
   void initState() {
@@ -68,66 +68,71 @@ class _TreeHomeTileState extends State<TreeHomeTile> {
         final fresh = bound ? svc.newFromPartner : 0;
         final empty = s != null && n == 0;
         final fg = cs.onTertiaryContainer;
+        // подписи слева, на 62% ширины: справа стоит ёлка
+        Widget left(Widget child) => LayoutBuilder(
+              builder: (context, c) => ConstrainedBox(constraints: BoxConstraints(maxWidth: c.maxWidth * 0.62), child: child),
+            );
         return Semantics(
           button: true,
           label: xt('xt.tree'),
-          child: GestureDetector(
-            onTap: widget.onOpen,
-            onTapDown: (_) => setState(() => _pressed = true),
-            onTapUp: (_) => setState(() => _pressed = false),
-            onTapCancel: () => setState(() => _pressed = false),
-            child: AnimatedScale(
-              scale: _pressed ? 0.97 : 1,
-              duration: const Duration(milliseconds: 80),
-              curve: Curves.easeOut,
-              child: Container(
-                height: widget.height,
-                clipBehavior: Clip.antiAlias,
-                decoration: BoxDecoration(color: cs.tertiaryContainer, borderRadius: BorderRadius.circular(24)),
-                child: Stack(
-                  children: [
-                    Positioned(
-                      right: -20,
-                      bottom: -4,
-                      child: IgnorePointer(
-                        child: TreeStage(side: 100, tree: s?.tree ?? const PairTree(), toys: toys),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(xt('xt.tree'), style: TextStyle(fontFamily: ProfileTheme.displayFont, fontSize: 14, fontWeight: FontWeight.w700, color: fg)),
-                          if (empty)
-                            Text(xt('xt.empty'), style: TextStyle(fontSize: 12, color: fg.withValues(alpha: 0.75)))
-                          else if (fresh > 0)
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(width: 8, height: 8, decoration: BoxDecoration(color: cs.primary, shape: BoxShape.circle)),
-                                const SizedBox(width: 5),
-                                Text('${widget.partnerName} +$fresh', style: TextStyle(fontSize: 12, color: fg.withValues(alpha: 0.8))),
-                              ],
-                            ),
-                          const Spacer(),
-                          if (empty)
-                            Container(
-                              width: 34,
-                              height: 34,
-                              decoration: BoxDecoration(color: cs.primary, shape: BoxShape.circle),
-                              child: Icon(Icons.add_rounded, size: 20, color: cs.onPrimary),
-                            )
-                          else if (s != null) ...[
-                            Text('$n', style: TextStyle(fontFamily: ProfileTheme.displayFont, fontSize: 24, fontWeight: FontWeight.w800, height: 1, color: fg)),
-                            Text(xtWord(n, 'xt.toys'), style: TextStyle(fontSize: 12, color: fg.withValues(alpha: 0.75))),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ],
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: Stack(
+              children: [
+                Positioned.fill(child: ColoredBox(color: cs.tertiaryContainer)),
+                Positioned(
+                  right: -20,
+                  bottom: -4,
+                  child: IgnorePointer(
+                    child: TreeStage(side: 100, tree: s?.tree ?? const PairTree(), toys: toys, still: true),
+                  ),
                 ),
-              ),
+                HomeHalfTile(
+                  color: Colors.transparent,
+                  height: widget.height,
+                  onTap: widget.onOpen,
+                  top: left(Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(xt('xt.tree'), maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontFamily: ProfileTheme.displayFont, fontSize: 14, fontWeight: FontWeight.w700, color: fg)),
+                      if (empty)
+                        Text(xt('xt.empty'), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: fg.withValues(alpha: 0.75)))
+                      else if (fresh > 0)
+                        Row(
+                          children: [
+                            Container(width: 8, height: 8, decoration: BoxDecoration(color: cs.primary, shape: BoxShape.circle)),
+                            const SizedBox(width: 5),
+                            Flexible(
+                              child: Text('${widget.partnerName} +$fresh', maxLines: 1, overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 12, color: fg.withValues(alpha: 0.8))),
+                            ),
+                          ],
+                        ),
+                    ],
+                  )),
+                  bottom: empty
+                      ? Align(
+                          alignment: Alignment.centerLeft,
+                          child: Container(
+                            width: 34,
+                            height: 34,
+                            decoration: BoxDecoration(color: cs.primary, shape: BoxShape.circle),
+                            child: Icon(Icons.add_rounded, size: 20, color: cs.onPrimary),
+                          ),
+                        )
+                      : Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (s != null) ...[
+                              Text('$n', style: TextStyle(fontFamily: ProfileTheme.displayFont, fontSize: 24, fontWeight: FontWeight.w800, height: 1, color: fg)),
+                              Text(xtWord(n, 'xt.toys'), style: TextStyle(fontSize: 12, color: fg.withValues(alpha: 0.75))),
+                            ],
+                          ],
+                        ),
+                ),
+              ],
             ),
           ),
         );

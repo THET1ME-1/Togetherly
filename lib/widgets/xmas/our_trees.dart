@@ -34,7 +34,7 @@ class _OurTreesRowState extends State<OurTreesRow> {
     final svc = XmasTreeService.instance;
     // На главной в декабре сервис уже привязан к этой паре — не дёргаем зря.
     if (svc.groupId != widget.groupId) {
-      unawaited(svc.bind(widget.groupId, xtLatestSeason(DateTime.now()), widget.userData.uid));
+      unawaited(svc.bind(widget.groupId, xtLatestSeason(xtNow()), widget.userData.uid));
     }
     unawaited(CatalogService.instance.ensureXmasArt());
   }
@@ -47,7 +47,7 @@ class _OurTreesRowState extends State<OurTreesRow> {
       builder: (context, _) {
         final svc = XmasTreeService.instance;
         final seasons = svc.groupId == widget.groupId ? (svc.state?.seasons ?? const <int>[]) : const <int>[];
-        final active = xtActiveSeason(DateTime.now());
+        final active = xtActiveSeason(xtNow());
         if (active == null && seasons.isEmpty) return const SizedBox.shrink();
         final latest = active ?? seasons.reduce((a, b) => a > b ? a : b);
         final s = svc.season == latest ? svc.state : null;
@@ -77,7 +77,7 @@ class _OurTreesRowState extends State<OurTreesRow> {
                         maxWidth: 56,
                         maxHeight: 56,
                         alignment: const Alignment(0, -0.2),
-                        child: TreeStage(side: 56, tree: s?.tree ?? const PairTree(), toys: s?.toys ?? const []),
+                        child: TreeStage(side: 56, tree: s?.tree ?? const PairTree(), toys: s?.toys ?? const [], still: true),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -122,7 +122,7 @@ class _OurTreesScreenState extends State<OurTreesScreen> {
   List<int> get _seasons {
     final svc = XmasTreeService.instance;
     final set = <int>{...?(svc.groupId == widget.groupId ? svc.state?.seasons : null)};
-    final a = xtActiveSeason(DateTime.now());
+    final a = xtActiveSeason(xtNow());
     if (a != null) set.add(a);
     return set.toList()..sort((x, y) => y.compareTo(x));
   }
@@ -147,7 +147,7 @@ class _OurTreesScreenState extends State<OurTreesScreen> {
   Widget build(BuildContext context) {
     final theme = ProfileTheme.themeFor(widget.theme);
     final cs = theme.colorScheme;
-    final active = xtActiveSeason(DateTime.now());
+    final active = xtActiveSeason(xtNow());
     return Theme(
       data: theme,
       child: Scaffold(
@@ -201,7 +201,7 @@ class _OurTreesScreenState extends State<OurTreesScreen> {
                 height: 236,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(color: cs.tertiaryContainer, borderRadius: BorderRadius.circular(22)),
-                child: TreeStage(side: 230, tree: st?.tree ?? const PairTree(), toys: toys),
+                child: TreeStage(side: 230, tree: st?.tree ?? const PairTree(), toys: toys, still: true),
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),

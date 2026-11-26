@@ -155,6 +155,8 @@ routerAdd("GET", "/api/chest/state", (e) => {
   try { ownedW = JSON.parse(user.getString("owned_wear") || "[]") || []; } catch (_) { ownedW = []; }
   let ownedT = {};
   try { ownedT = JSON.parse(user.getString("owned_toys") || "{}") || {}; } catch (_) { ownedT = {}; }
+  // игрушки — только тем, у кого есть пара: без пары ёлку не нарядить
+  const paired = (user.getStringSlice("group_ids") || []).length > 0;
   // [id приза, вид, ярус, можно ли выдать, ключ во владении]
   const items = [];
   // Редкие призы обоих сундуков — для общей гарантии редкого.
@@ -181,7 +183,7 @@ routerAdd("GET", "/api/chest/state", (e) => {
       if (kind === "badge" && d.chest !== true) continue;
       // Ёлочные игрушки (tree.pb.js) — только в обычном сундуке, с 1 декабря по
       // 31 января и только сборкам с `toys=1`: старым показать их нечем.
-      if (kind === "toy" && (hw || !toySeason || d.chest !== true)) continue;
+      if (kind === "toy" && (hw || !toySeason || !paired || d.chest !== true)) continue;
       const t = TIER_POOL[d.rarity] ? d.rarity : "common";
       const id = kind === "gift" ? String(d.key) : recs[i].id;
       if (t !== "common") rareAll[id] = 1;
@@ -501,6 +503,7 @@ routerAdd("POST", "/api/chest/open", (e) => {
       try { ownedW = JSON.parse(user.getString("owned_wear") || "[]") || []; } catch (_) { ownedW = []; }
       let ownedT = {};
       try { ownedT = JSON.parse(user.getString("owned_toys") || "{}") || {}; } catch (_) { ownedT = {}; }
+      const paired = (user.getStringSlice("group_ids") || []).length > 0;
       // [id приза, вид, ярус, можно ли выдать, ключ во владении]
       const items = [];
       // Редкие призы обоих сундуков — для общей гарантии редкого.
@@ -521,7 +524,7 @@ routerAdd("POST", "/api/chest/open", (e) => {
           if ((kind === "gift" || kind === "wear") && !set && !outfit) continue;
           if (kind === "badge" && d.chest !== true) continue;
           // ёлочные игрушки — как в /api/chest/state
-          if (kind === "toy" && (hw || !toySeason || d.chest !== true)) continue;
+          if (kind === "toy" && (hw || !toySeason || !paired || d.chest !== true)) continue;
           const t = TIER_POOL[d.rarity] ? d.rarity : "common";
           const id = kind === "gift" ? String(d.key) : recs[i].id;
           if (t !== "common") rareAll[id] = 1;

@@ -111,7 +111,7 @@ class _XmasTreeScreenState extends State<XmasTreeScreen> with TickerProviderStat
     });
   }
 
-  bool get _archived => xtActiveSeason(DateTime.now()) != widget.season;
+  bool get _archived => xtActiveSeason(xtNow()) != widget.season;
 
   // ── касания по ёлке ──
 
