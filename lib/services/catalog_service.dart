@@ -20,6 +20,7 @@ import '../models/profile_icon.dart';
 import '../models/launch_splash.dart';
 import '../models/season_backdrop.dart';
 import '../models/tu_wear.dart';
+import '../models/xmas_tree.dart';
 import '../models/rank_art.dart';
 import 'launch_splash_service.dart';
 import 'pb_data_service.dart';
@@ -75,6 +76,37 @@ class CatalogService extends ChangeNotifier {
 
   /// Вещи гардероба Ту (kind='wear'), по полю `sort`.
   List<TuWear> get wearItems => _wear;
+
+  /// Ёлочные игрушки и стили ёлки (kind='toy'), по полю `sort`.
+  List<XtToy> get xmasToys => _toys;
+  List<XtToy> _toys = const [];
+
+  XtToy? xmasToy(String key) {
+    for (final t in _toys) {
+      if (t.key == key) return t;
+    }
+    return null;
+  }
+
+  /// Картинки ёлки пары: слои двух стилей, комнаты и стили для листа. Каталог
+  /// целиком доходит не у всех (обращение 653), поэтому экран ёлки дотягивает
+  /// своё по записи, не дожидаясь следующего старта.
+  Future<void> ensureXmasArt() async {
+    // Записи игрушек первой зимы: новые придут с полным каталогом.
+    const first = ['red', 'blue', 'gold', 'mint', 'disco', 'tu', 'tupair', 'window', 'cane', 'flake', 'icicle', 'cone',
+      'mandarin', 'tv', 'clock', 'bird', 'valenok', 'matryoshka', 'cucumber', 'corn', 'samovar', 'snowman', 'sled',
+      'house', 'style_snowy'];
+    await _ensureIds([for (final k in first) if (xmasToy(k) == null) 'toy_$k']);
+    final keys = <String>[
+      for (final k in const ['fir', 'snowy']) ...[
+        'xt3_${k}_base', 'xt3_${k}_star', 'xt3_${k}_t0',
+        for (final t in const ['t1', 't2', 't3']) ...['xt3_${k}_${t}_g0', 'xt3_${k}_${t}_g1'],
+      ],
+      'xt_room_day', 'xt_room_dusk', 'xt_pick_style_fir',
+      for (final t in _toys) ...[t.pickArt, t.treeArt],
+    ];
+    await _ensureIds([for (final k in keys) if (k.isNotEmpty && _giftArt[k]?.lgUrl == null) 'art_$k']);
+  }
 
   /// Вещь Ту по ключу (`scarf`) или по id записи (`wear_scarf`).
   TuWear? wearItem(String key) {
@@ -374,6 +406,7 @@ class CatalogService extends ChangeNotifier {
     final backdrops = <SeasonBackdrop>[];
     final splashes = <LaunchSplash>[];
     final wear = <TuWear>[];
+    final toys = <XtToy>[];
     final ranks = <int, RankArt>{};
 
     for (final raw in rows) {
@@ -390,6 +423,11 @@ class CatalogService extends ChangeNotifier {
       if (row['kind'] == 'wear') {
         final w = TuWear.fromCatalog(row);
         if (w != null) wear.add(w);
+        continue;
+      }
+      if (row['kind'] == 'toy') {
+        final t = XtToy.fromCatalog(row);
+        if (t != null) toys.add(t);
         continue;
       }
 
@@ -500,6 +538,8 @@ class CatalogService extends ChangeNotifier {
     _backdrops = List.unmodifiable(backdrops);
     wear.sort((a, b) => a.sort.compareTo(b.sort));
     _wear = List.unmodifiable(wear);
+    toys.sort((a, b) => a.sort.compareTo(b.sort));
+    _toys = List.unmodifiable(toys);
     _ranks = Map.unmodifiable(ranks);
     splashes.sort((a, b) => a.sort.compareTo(b.sort));
     _splashes = List.unmodifiable(splashes);
