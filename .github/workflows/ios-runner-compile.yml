@@ -51,28 +51,34 @@ jobs:
       - name: Сборка под симулятор
         run: flutter build ios --simulator --debug --no-tree-shake-icons --dart-define=STORE=github
 
+      # Релизная сборка под устройство, без подписи: так собирается магазинная.
+      # Нужна ради проверки ниже — в релизе код приложения лежит в самом Runner.
+      - name: Релизная сборка без подписи
+        run: flutter build ios --release --no-codesign --no-tree-shake-icons --dart-define=STORE=github
+
       # DeclaredAgeRange (возраст из App Store) есть только с iOS 26, а
       # приложение ставится с 15. Сильная связь с фреймворком роняла бы запуск
       # на старых iOS, поэтому он подключён слабо (-weak_framework в
-      # OTHER_LDFLAGS цели Runner). Сверяем по самому бинарнику: в отладочной
-      # сборке код приложения лежит в Runner.debug.dylib.
+      # OTHER_LDFLAGS цели Runner). Сверяем по самим бинарникам обеих сборок:
+      # в отладочной код приложения лежит в Runner.debug.dylib, в релизной — в Runner.
       - name: DeclaredAgeRange подключён слабо
         run: |
           set -euo pipefail
-          APP=build/ios/iphonesimulator/Runner.app
-          FOUND=0
-          for BIN in "$APP/Runner" "$APP/Runner.debug.dylib"; do
-            [ -f "$BIN" ] || continue
-            if otool -l "$BIN" | grep -A2 -E "cmd LC_LOAD(_WEAK)?_DYLIB" | grep -B2 "DeclaredAgeRange" > /tmp/dar.txt; then
-              echo "$BIN:"; cat /tmp/dar.txt
-              if ! grep -q "LC_LOAD_WEAK_DYLIB" /tmp/dar.txt; then
-                echo "::error::$BIN связан с DeclaredAgeRange сильно — на iOS ниже 26 приложение не запустится"
-                exit 1
+          for APP in build/ios/iphonesimulator/Runner.app build/ios/iphoneos/Runner.app; do
+            FOUND=0
+            for BIN in "$APP/Runner" "$APP/Runner.debug.dylib"; do
+              [ -f "$BIN" ] || continue
+              if otool -l "$BIN" | grep -A2 -E "cmd LC_LOAD(_WEAK)?_DYLIB" | grep -B2 "DeclaredAgeRange" > /tmp/dar.txt; then
+                echo "$BIN:"; cat /tmp/dar.txt
+                if ! grep -q "LC_LOAD_WEAK_DYLIB" /tmp/dar.txt; then
+                  echo "::error::$BIN связан с DeclaredAgeRange сильно — на iOS ниже 26 приложение не запустится"
+                  exit 1
+                fi
+                FOUND=1
               fi
-              FOUND=1
+            done
+            if [ "$FOUND" != 1 ]; then
+              echo "::error::в $APP нет DeclaredAgeRange — запрос возраста на iPhone не собран"
+              exit 1
             fi
           done
-          if [ "$FOUND" != 1 ]; then
-            echo "::error::DeclaredAgeRange в бинарнике нет — запрос возраста на iPhone не собран"
-            exit 1
-          fi

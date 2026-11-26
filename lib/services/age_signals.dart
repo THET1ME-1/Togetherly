@@ -132,45 +132,66 @@ class AgeSignals {
 
   bool get restrictedAds => _verdict.restrictedAds;
 
-  /// Кончилась первая проверка этого запуска (или вышел её срок). Реклама
-  /// ждёт её перед первым запросом: на самом первом запуске сохранённого
-  /// ответа ещё нет.
+  /// Ответом уже можно пользоваться. Реклама ждёт его перед запросом, но
+  /// ждать магазин приходится лишь на самом первом запуске: дальше сразу
+  /// годится сохранённый ответ, а свежий заменит его, когда придёт.
   Future<void> get settled => _settled.future;
 
-  /// Прошлый ответ с диска.
+  /// Прошлый ответ с диска. Звать как можно раньше при запуске.
   Future<void> loadSaved() async {
     if (_loaded) return;
     _loaded = true;
     try {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString(_prefsKey);
-      if (raw != null) _verdict = AgeVerdict.fromJson(raw);
+      if (raw != null) {
+        _verdict = AgeVerdict.fromJson(raw);
+        _settle();
+      }
     } catch (e) {
       debugPrint('AgeSignals: prefs не прочитались — $e');
     }
   }
 
+  void _settle() {
+    if (!_settled.isCompleted) _settled.complete();
+  }
+
+  /// Сохранить текущий ответ. После отказа магазина на первом запуске
+  /// пишется «неизвестно»: иначе сборки из RuStore и с сайта, которым Play
+  /// отказывает всегда, ждали бы магазин на каждом запуске.
+  Future<void> _save() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_prefsKey, _verdict.toJson());
+    } catch (e) {
+      debugPrint('AgeSignals: prefs не записались — $e');
+    }
+  }
+
   /// Спросить магазин. Ошибок наружу не бросает.
   Future<void> check() async {
+    await loadSaved();
+    if (!_supported) return;
+    final hadSaved = _settled.isCompleted;
+    var answered = false;
     try {
-      await loadSaved();
-      if (!_supported) return;
       final answer = await _channel
           .invokeMethod<Map<Object?, Object?>>('check')
           .timeout(_timeout);
       if (answer == null || answer['error'] != null) {
         debugPrint('AgeSignals: магазин не ответил — ${answer?['error']}');
-        return;
+      } else {
+        _verdict = AgeVerdict.fromPlatform(answer);
+        answered = true;
       }
-      _verdict = AgeVerdict.fromPlatform(answer);
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_prefsKey, _verdict.toJson());
     } on TimeoutException {
       debugPrint('AgeSignals: магазин молчит дольше ${_timeout.inSeconds} с');
     } catch (e) {
       debugPrint('AgeSignals: проверка сорвалась — $e');
-    } finally {
-      if (!_settled.isCompleted) _settled.complete();
     }
+    // Сбой прошлый ответ не трогает; без прошлого ответа пишется «неизвестно».
+    if (answered || !hadSaved) await _save();
+    _settle();
   }
 }

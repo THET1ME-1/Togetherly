@@ -138,6 +138,36 @@ void main() {
       expect(hanging.restrictedAds, isFalse);
     });
 
+    test('есть сохранённый ответ — реклама не ждёт магазин', () async {
+      SharedPreferences.setMockInitialValues({
+        'age_signals_v1': const AgeVerdict(mandatory: true, band: AgeBand.teen).toJson(),
+      });
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        (call) => Completer<Object?>().future,
+      );
+      final signals = AgeSignals.forTest(supported: true, timeout: const Duration(seconds: 30));
+      await signals.loadSaved();
+      unawaited(signals.check());
+      await signals.settled.timeout(const Duration(milliseconds: 200));
+      expect(signals.restrictedAds, isTrue);
+    });
+
+    test('сборка не из Play: после первого отказа реклама больше не ждёт', () async {
+      answer = (_) => {'error': -9};
+      final first = AgeSignals.forTest(supported: true);
+      await first.check();
+
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        (call) => Completer<Object?>().future,
+      );
+      final next = AgeSignals.forTest(supported: true, timeout: const Duration(seconds: 30));
+      await next.loadSaved();
+      await next.settled.timeout(const Duration(milliseconds: 200));
+      expect(next.restrictedAds, isFalse);
+    });
+
     test('на ноутбуке и в вебе канал не трогается', () async {
       var asked = false;
       answer = (_) {
@@ -223,8 +253,13 @@ void main() {
       }
     });
 
-    test('проверка стартует при запуске приложения', () {
-      expect(read('lib/main.dart').contains('AgeSignals.instance.check()'), isTrue);
+    test('проверка стартует при запуске приложения, прошлый ответ читается сразу', () {
+      final main = read('lib/main.dart');
+      expect(main.contains('AgeSignals.instance.check()'), isTrue);
+      final start = main.indexOf('void main() async {');
+      final load = main.indexOf('AgeSignals.instance.loadSaved()');
+      expect(load, greaterThan(start), reason: 'прошлый ответ не читается в main()');
+      expect(load, lessThan(main.indexOf('runApp(')), reason: 'прошлый ответ читается после runApp');
     });
   });
 }
