@@ -116,9 +116,11 @@ routerAdd("POST", "/api/coins/purchase-feature", (e) => {
     // Вид ключа владения → значение `kind` в каталоге. Новый вид платного
     // добавляется сюда одной строкой; сами элементы по-прежнему заводятся
     // записью в `catalog_items`, без сборки.
-    // Рамок аватарки тут нет намеренно: они не продаются, а выпадают из
-    // сундука (`chest.pb.js`), который и кладёт ключ `frame:frame_<ключ>`.
-    const KINDS = { "mascot": "mascot_anim", "mood_pack": "mood_pack" };
+    // Рамки аватарки продаются только те, у кого в записи цена (с 26.11.2026:
+    // треть зимних, решение владельца); остальные выпадают из сундука, ключ
+    // владения у обоих путей один — `frame:frame_<ключ>`. Рамка без цены
+    // отсюда не купится: ниже `price` берётся из записи и 0 даёт отказ.
+    const KINDS = { "mascot": "mascot_anim", "mood_pack": "mood_pack", "frame": "frame" };
     const wantKind = KINDS[kind];
     if (!wantKind || !itemId) return e.json(400, { ok: false, error: "not for sale" });
 

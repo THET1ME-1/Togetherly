@@ -181,6 +181,9 @@ routerAdd("GET", "/api/chest/state", (e) => {
       const outfit = kind === "wear" && !set && d.chest === true;
       if ((kind === "gift" || kind === "wear") && !set && !outfit) continue;
       if (kind === "badge" && d.chest !== true) continue;
+      // Вещи из магазина (рамка с ценой, одежда Ту за монеты) не разыгрываются:
+      // треть зимних продаётся, а не выпадает (решение владельца 26.11.2026).
+      if ((kind === "frame" && recs[i].getInt("price") > 0) || (kind === "wear" && d.src === "coins")) continue;
       // Ёлочные игрушки (tree.pb.js) — только в обычном сундуке, с 1 декабря по
       // 31 января и только сборкам с `toys=1`: старым показать их нечем.
       if (kind === "toy" && (hw || !toySeason || !paired || d.chest !== true)) continue;
@@ -523,6 +526,7 @@ routerAdd("POST", "/api/chest/open", (e) => {
           const outfit = kind === "wear" && !set && d.chest === true;
           if ((kind === "gift" || kind === "wear") && !set && !outfit) continue;
           if (kind === "badge" && d.chest !== true) continue;
+          if ((kind === "frame" && recs[i].getInt("price") > 0) || (kind === "wear" && d.src === "coins")) continue;
           // ёлочные игрушки — как в /api/chest/state
           if (kind === "toy" && (hw || !toySeason || !paired || d.chest !== true)) continue;
           const t = TIER_POOL[d.rarity] ? d.rarity : "common";

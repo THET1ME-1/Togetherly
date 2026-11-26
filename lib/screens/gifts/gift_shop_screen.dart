@@ -768,11 +768,14 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
                   final f = shown[i];
                   final owns = ud.ownsFrame(f.key);
                   final worn = ud.equippedFrame == f.key;
+                  final affordable = _wallet >= f.price;
                   return _ShopCard(
                     tag: worn
                         ? _LabelTag(trKey('shopWornFrame'), filled: true)
                         : owns
                         ? _LabelTag(trKey('shopMineFrame'))
+                        : f.forSale
+                        ? _PriceTag(price: f.price, affordable: affordable)
                         : _LabelTag(
                             trKey('shopFromChest'),
                             icon: Icons.redeem_rounded,
@@ -780,7 +783,7 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
                     art: (side) => _framedMe(f.key, side),
                     title: f.name,
                     selected: worn,
-                    muted: !owns,
+                    muted: !owns && (!f.forSale || !affordable),
                     busy: _busyItem == f.key,
                     reduce: reduce,
                     onTap: () => _openFrame(f),
@@ -799,7 +802,10 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
     if (_busyItem != null) return;
     final owns = ud.ownsFrame(f.key);
     final worn = ud.equippedFrame == f.key;
-    final chest = !owns && widget.groupId.isNotEmpty;
+    // Рамка из магазина покупается за монеты, остальные — только из сундука.
+    final canBuy = !owns && f.forSale;
+    final affordable = _wallet >= f.price;
+    final chest = !owns && !f.forSale && widget.groupId.isNotEmpty;
     // Свою рамку можно отдать партнёру: она переходит к нему целиком.
     final give = owns && widget.groupId.isNotEmpty;
     final action = await showAppSheet<String>(
@@ -811,19 +817,33 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
           lines: [
             if (f.description.isNotEmpty) f.description,
             trKey('shopFrameHint'),
-            if (!owns) trKey('shopFrameChestHint'),
-            if (!owns && !chest) trKey('shopChestNeedsPair'),
+            if (!owns && !f.forSale) trKey('shopFrameChestHint'),
+            if (!owns && !f.forSale && !chest) trKey('shopChestNeedsPair'),
+            if (canBuy && !affordable) LocaleService.current.giftNotEnoughCoins,
           ],
           actions: [
             if (worn) ('off', trKey('shopTakeOff'), false, true),
             if (owns && !worn) ('wear', trKey('shopWear'), true, true),
             if (give) ('give', trKey('frameGive'), false, true),
+            if (canBuy)
+              (
+                'buy',
+                trKey('shopBuyFor').replaceAll('{n}', '${f.price}'),
+                true,
+                affordable,
+              ),
+            if (canBuy && !affordable && widget.onOpenCoins != null)
+              ('coins', LocaleService.current.coinBalance, false, true),
             if (chest) ('chest', trKey('shopOpenChest'), true, true),
           ],
         ),
       ),
     );
     if (action == null || !mounted) return;
+    if (action == 'coins') {
+      widget.onOpenCoins?.call();
+      return;
+    }
     if (action == 'chest') {
       await _openChest();
       return;
@@ -833,9 +853,19 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
       return;
     }
     setState(() => _busyItem = f.key);
-    await ud.setFrame(action == 'off' ? null : f.key);
+    var ok = true;
+    if (action == 'buy') {
+      ok = await ud.purchaseFrame(f);
+      // купленная рамка сразу надевается: ради этого её и брали
+      if (ok) await ud.setFrame(f.key);
+    } else {
+      await ud.setFrame(action == 'off' ? null : f.key);
+    }
     if (!mounted) return;
     setState(() => _busyItem = null);
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(trKey('shopFailed'))));
+    }
   }
 
   /// Отдать рамку партнёру за монеты или ролик (с Плюсом — бесплатно).

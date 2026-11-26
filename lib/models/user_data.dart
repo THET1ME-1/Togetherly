@@ -446,10 +446,21 @@ class UserData extends ChangeNotifier {
   String? get equippedFrame =>
       (_frame != null && _frame!.isNotEmpty) ? _frame : null;
 
-  /// Получена ли рамка. Выдаёт её только сундук: ключ `frame:frame_<ключ>`
-  /// в `owned_features` пишет сервер.
+  /// Получена ли рамка. Выдаёт её сундук или магазин: ключ
+  /// `frame:frame_<ключ>` в `owned_features` пишет сервер.
   bool ownsFrame(String key) =>
       _ownedFeatures.contains(AvatarFrame.featureKeyOf(key));
+
+  /// Покупает рамку за монеты (только те, что продаются: [AvatarFrame.price]).
+  /// Цену и списание держит сервер, `/api/coins/purchase-feature`.
+  Future<bool> purchaseFrame(AvatarFrame f) async {
+    if (!f.forSale) return false;
+    if (ownsFrame(f.key)) return true;
+    final r = await PbCoinsService().purchaseFeature(AvatarFrame.featureKeyOf(f.key));
+    if (r == null) return false;
+    _applyServerResult(r);
+    return ownsFrame(f.key);
+  }
 
   /// Значки из ответа сундука: выпавший жилец уже лежит в списке.
   void applyOwnedIcons(List<String> icons) {

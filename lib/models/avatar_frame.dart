@@ -33,9 +33,16 @@ class AvatarFrame {
     this.stillUrl,
     this.hole = avatarR,
     this.set = '',
+    this.price = 0,
   });
 
   final String key;
+
+  /// Цена в монетах (поле `price` записи каталога). 0 — рамка только из
+  /// сундука; больше нуля — продаётся в магазине (с 26.11.2026: треть зимних
+  /// рамок, решение владельца). Цену проверяет сервер, `/api/coins/purchase-feature`.
+  final int price;
+  bool get forSale => price > 0;
 
   /// Набор сезонного сундука (`data.set`, «13» — Хэллоуин); пусто — обычный.
   final String set;
@@ -155,6 +162,7 @@ class AvatarFrame {
       stillUrl: still,
       hole: hole,
       set: '${data['set'] ?? ''}',
+      price: row['price'] is num ? (row['price'] as num).toInt() : 0,
     );
   }
 

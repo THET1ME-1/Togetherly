@@ -191,7 +191,9 @@ def upload_frame(folder: Path, token: str) -> None:
         "name_ru": names.get("ru", key),
         "name_en": names.get("en", key),
         "is_free": "false",
-        "price": "0",
+        # цена в монетах из frame.json: больше нуля — рамка продаётся в
+        # магазине (purchase-feature) и не разыгрывается в сундуке
+        "price": str(int(spec.get("price", 0))),
         "min_app": "",
         "sort": str(int(spec.get("sort", 500))),
         "enabled": "true",
