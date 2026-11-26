@@ -143,6 +143,10 @@ import 'draw_screen.dart';
 import '../services/mascot_service.dart';
 import '../services/live_location_service.dart';
 import '../widgets/active_mascot_widget.dart';
+import '../widgets/xmas/tree_home_tile.dart';
+import '../models/xmas_tree.dart' show xtActiveSeason;
+import '../l10n/xmas_text.dart';
+import 'xmas/xmas_tree_screen.dart';
 import '../models/cloud_mascot.dart' show CloudEvent, kCloudMascotId;
 import '../widgets/mascot/cloud_mascot_view.dart' show CloudEvents, CloudMascotView;
 import '../widgets/common/coin_reward_toast.dart';
@@ -2504,6 +2508,42 @@ class _HomeScreenState extends State<HomeScreen> {
         return ListenableBuilder(
           listenable: _mascotService,
           builder: (context, _) {
+            // Весь декабрь блок делится пополам: справа ёлка пары (макет
+            // «Наряжаем ёлку», 26.11.2026). С 1 января — снова во всю ширину.
+            final season = xtActiveSeason(DateTime.now());
+            final pairId = _pairData.pairId;
+            if (season != null && pairId.isNotEmpty) {
+              return Row(
+                children: [
+                  Expanded(
+                    child: _MascotButton(
+                      key: _mascotKey,
+                      compact: true,
+                      mascot: _mascotService.activeMascot,
+                      service: _mascotService,
+                      theme: _t,
+                      streak: _mascotService.state.activeStreak,
+                      restoreOffer: _mascotService.restoreOffer,
+                      onRestore: _openStreakRestore,
+                      isHidden: isHidden,
+                      onTap: _openMascotGallery,
+                      sleepOf: widget.userData.sleepOf,
+                      onShowOverlay: showMascotOverlay,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TreeHomeTile(
+                      groupId: pairId,
+                      season: season,
+                      myUid: widget.userData.uid,
+                      partnerName: _pairData.partnerDisplayName,
+                      onOpen: () => _openXmasTree(season),
+                    ),
+                  ),
+                ],
+              );
+            }
             return _MascotButton(
               key: _mascotKey,
               mascot: _mascotService.activeMascot,
@@ -2521,6 +2561,19 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       },
     );
+  }
+
+  void _openXmasTree(int season) {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => XmasTreeScreen(
+        theme: _t,
+        groupId: _pairData.pairId,
+        season: season,
+        partnerName: _pairData.partnerDisplayName,
+        userData: widget.userData,
+      ),
+      settings: const RouteSettings(name: '/xmas_tree'),
+    ));
   }
 
   // =============================================
@@ -4708,7 +4761,12 @@ class _MascotButton extends StatefulWidget {
   /// Окно ночной сцены персонажа: у каждого своё, задаётся в настройках.
   final SleepWindow Function(String mascotId) sleepOf;
 
+  /// Половина блока (декабрь, справа ёлка): плитка высотой 116, превью
+  /// сверху, имя и серия снизу короткой подписью «12 дней».
+  final bool compact;
+
   const _MascotButton({
+    this.compact = false,
     super.key,
     required this.mascot,
     required this.service,
@@ -4758,6 +4816,8 @@ class _MascotButtonState extends State<_MascotButton>
     // выглядел как «маскота нет, выберите».
     final isLoading = mascot == null &&
         (widget.service.isLoading || widget.service.hasActiveMascot);
+
+    if (widget.compact) return _buildCompact(cs, mascot, isLoading);
 
     return GestureDetector(
       onTap: widget.onTap,
@@ -4933,6 +4993,82 @@ class _MascotButtonState extends State<_MascotButton>
       ),
     );
   }
+
+  /// Половина блока: превью сверху, имя и одна строка снизу — серия «12 дней»,
+  /// «Вернуть» или «Показать». Полные подписи в 151 точку не помещаются.
+  Widget _buildCompact(ColorScheme cs, Mascot? mascot, bool isLoading) {
+    Widget pill(IconData icon, String label, VoidCallback? onTap) => GestureDetector(
+          onTap: onTap,
+          behavior: HitTestBehavior.opaque,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+            decoration: BoxDecoration(color: cs.primary, borderRadius: BorderRadius.circular(999)),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 15, color: cs.onPrimary),
+                const SizedBox(width: 5),
+                Flexible(
+                  child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12.5, color: cs.onPrimary, fontWeight: FontWeight.w700)),
+                ),
+              ],
+            ),
+          ),
+        );
+    final Widget second;
+    if (mascot != null && widget.restoreOffer != null) {
+      second = pill(Icons.local_fire_department_rounded, xt('xt.restore'), () => widget.onRestore?.call());
+    } else if (mascot != null && widget.isHidden) {
+      second = pill(Icons.visibility_rounded, LocaleService.current.showLabel, () => widget.onShowOverlay?.call());
+    } else if (widget.streak > 0) {
+      second = _StreakBadge(streak: widget.streak, theme: widget.theme, pulseCtrl: _pulseCtrl, short: true);
+    } else {
+      second = Text(
+        mascot != null ? '' : (isLoading ? LocaleService.current.loading : LocaleService.current.selectMascot),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(fontSize: 12, color: cs.onSecondaryContainer.withValues(alpha: 0.7)),
+      );
+    }
+    return GestureDetector(
+      onTap: widget.onTap,
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedScale(
+        scale: _pressed ? 0.97 : 1.0,
+        duration: const Duration(milliseconds: 80),
+        curve: Curves.easeOut,
+        child: Container(
+          height: 116,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: cs.secondaryContainer, borderRadius: BorderRadius.circular(24)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 48,
+                height: 48,
+                child: mascot != null
+                    ? _MascotPreviewWidget(mascot: mascot, service: widget.service, color: cs.onSecondaryContainer, sleep: widget.sleepOf(mascot.id))
+                    : Center(child: M3Loading(size: 36, color: cs.onSecondaryContainer.withValues(alpha: 0.55))),
+              ),
+              const Spacer(),
+              Text(
+                mascot != null ? mascot.localizedName : LocaleService.current.groupMascot,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontFamily: ProfileTheme.displayFont, fontWeight: FontWeight.w700, fontSize: 14, color: cs.onSecondaryContainer),
+              ),
+              const SizedBox(height: 4),
+              second,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // ── Animated streak badge ─────────────────────────────────────────────────────
@@ -4942,10 +5078,14 @@ class _StreakBadge extends StatelessWidget {
   final AppTheme theme;
   final AnimationController pulseCtrl;
 
+  /// «12 дней» вместо «Серия: 12 дней» — для половины блока.
+  final bool short;
+
   const _StreakBadge({
     required this.streak,
     required this.theme,
     required this.pulseCtrl,
+    this.short = false,
   });
 
   Color _color() {
@@ -4988,7 +5128,7 @@ class _StreakBadge extends StatelessWidget {
             duration: const Duration(milliseconds: 900),
             curve: Curves.easeOutCubic,
             builder: (_, val, _) => Text(
-              LocaleService.current.streakLabel(val),
+              short ? '$val ${xtWord(val, 'xt.days')}' : LocaleService.current.streakLabel(val),
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,

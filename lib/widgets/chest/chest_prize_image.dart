@@ -10,6 +10,7 @@ import '../avatar_widget.dart';
 import '../common/badge_image.dart';
 import '../common/coin_image.dart';
 import '../common/gift_image.dart';
+import '../xmas/tree_stage.dart' show XtArt;
 
 /// Неподвижный кадр сундука из сборки — пока живой едет из каталога.
 const String kChestStill = 'assets/images/gifts/chest.webp';
@@ -55,6 +56,10 @@ class ChestPrizeImage extends StatelessWidget {
         return url == null
             ? SizedBox.square(dimension: side, child: Icon(Icons.checkroom, size: side * 0.6))
             : catalogArtImage(url, side: side, decode: artDecodeBucket(side * dpr));
+      case ChestPrizeKind.toy:
+        // Ёлочная игрушка — картинка листа выбора (`xt_pick_<ключ>`).
+        final toy = CatalogService.instance.xmasToy(prize.toyKey ?? prize.key);
+        return XtArt(toy?.pickArt ?? 'xt_pick_${prize.toyKey ?? prize.key}', side: side);
       case ChestPrizeKind.frame:
         // Рамка крупнее аватарки: вся картинка рамки занимает [side].
         final avatar = side / AvatarFrame.scale;

@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../dict_strings.dart' show ruEn, trKey;
+import '../l10n/xmas_text.dart';
+import '../services/xmas_tree_service.dart';
 import '../models/chest.dart';
 import '../models/chest_pending.dart';
 import '../models/gift.dart';
@@ -698,6 +700,8 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     if (res.ownedIcons != null) widget.userData?.applyOwnedIcons(res.ownedIcons!);
     if (res.ownedWear != null) TuWearService.instance.setOwned(res.ownedWear!);
     if (res.prize?.kind == ChestPrizeKind.wear && res.prize?.wearKey != null) TuWearService.instance.setOwned([res.prize!.wearKey!]);
+    // ёлочная игрушка легла в коробку на сервере — ёлка перечитает коробку
+    if (res.prize?.kind == ChestPrizeKind.toy) unawaited(XmasTreeService.instance.refresh());
     if (res.plusTrialUntil != null) PlusService.instance.setTrialUntil(res.plusTrialUntil!);
     setState(() {
       slot.opening = res.prize;
@@ -904,6 +908,12 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     return ruEn('Вещь Ту «$name»', 'Tu’s item “{0}”').replaceAll('{0}', name);
   }
 
+  String _toyTitle(ChestPrize p) {
+    final k = p.toyKey ?? p.key;
+    final name = CatalogService.instance.xmasToy(k)?.name(LocaleService.instance.language.code) ?? k;
+    return xt('xt.prizeTitle', {'name': name});
+  }
+
   String _wonText(ChestPrize p) => switch (p.kind) {
     ChestPrizeKind.coins => trKey('chestWonCoins').replaceAll('{n}', '${p.amount}'),
     ChestPrizeKind.gift => trKey('chestGiftTitle').replaceAll('{name}', p.gift?.title ?? p.key),
@@ -912,6 +922,7 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     ChestPrizeKind.badge => trKey('chestBadgeTitle').replaceAll('{name}', _badgeName(p)),
     ChestPrizeKind.plusTrial => trKey('chestPlusTrialTitle'),
     ChestPrizeKind.wear => _wearTitle(p),
+    ChestPrizeKind.toy => _toyTitle(p),
   };
 
   String _title(ChestPrize p) => switch (p.kind) {
@@ -922,6 +933,7 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     ChestPrizeKind.badge => trKey('chestBadgeTitle').replaceAll('{name}', _badgeName(p)),
     ChestPrizeKind.plusTrial => trKey('chestPlusTrialTitle'),
     ChestPrizeKind.wear => _wearTitle(p),
+    ChestPrizeKind.toy => _toyTitle(p),
   };
 
   String _subtitle(ChestPrize p) => switch (p.kind) {
@@ -932,6 +944,7 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     ChestPrizeKind.badge => trKey('chestBadgeSub'),
     ChestPrizeKind.plusTrial => trKey('chestPlusTrialSub'),
     ChestPrizeKind.wear => ruEn('Только для Ту, надевается в гардеробе', 'For Tu only, wear it in the wardrobe'),
+    ChestPrizeKind.toy => xt('xt.prizeSub'),
   };
 
   String _tierName(ChestTier t) => switch (t) {

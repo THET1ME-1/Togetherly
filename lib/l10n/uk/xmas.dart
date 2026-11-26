@@ -55,7 +55,8 @@ const Map<String, String> xmasUk = {
   'xt.decoratingNow': 'Прикрашаєте зараз',
   'xt.inArchive': 'В архіві з 1 січня',
   'xt.byWhom': 'ви {me}, {name} {him}',
-  'xt.partner': 'Партнер',
-  'xt.back.a11y': 'Назад',
+  'xt.prizeTitle': 'Ялинкова іграшка «{name}»',
+  'xt.prizeSub': 'Лежить у коробці біля вашої ялинки',
+  'xt.restore': 'Повернути',
   'xt.close': 'Закрити',
 };

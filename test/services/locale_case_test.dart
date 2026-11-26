@@ -25,6 +25,10 @@ const _lowercaseOnPurpose = <String>{
   'dayLogWhat',
   // Подписи после числа: «12 дней осталось», «3 фото на виджете».
   'daysCounterLabel', 'daysElapsed', 'daysInARow', 'daysLeft',
+  // Ёлка пары: слово после числа («9 игрушек», «12 дней»), подпись под
+  // названием («ещё пустая») и строчки под карточками листа («все на ёлке»).
+  'xt.toys.1', 'xt.toys.2', 'xt.toys.5', 'xt.days.1', 'xt.days.2', 'xt.days.5',
+  'xt.empty', 'xt.allOnTree', 'xt.fromChest', 'xt.on', 'xt.off', 'xt.styleNow', 'xt.styleSet', 'xt.byWhom',
   'daysShortElapsed', 'daysShortLeft', 'daysUntilAnniversary',
   'daysUntilBirthday', 'photoGridCountLabel', 'cycleDaysUnit',
   'vesselStoryDays',

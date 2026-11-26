@@ -120,6 +120,8 @@ class ChestService {
           'wear': '1',
           // Умеет раздел «Одежда»: без флага пиджаки не разыгрываются.
           'outfits': '1',
+          // Умеет ёлочные игрушки (декабрь — январь): без флага их нет в розыгрыше.
+          'toys': '1',
           if (group != null && group.isNotEmpty) 'group': group,
           'chest': ?chest,
         },
@@ -186,6 +188,7 @@ class ChestService {
           'wear': true,
           // Раздел «Одежда» (пиджаки из обычного сундука) — с 1.42.
           'outfits': true,
+          'toys': true,
           if (fromJar) 'bonus': true,
           if (noAd) 'noAd': true,
           'chest': ?chest,

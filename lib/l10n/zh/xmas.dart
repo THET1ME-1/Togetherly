@@ -55,7 +55,8 @@ const Map<String, String> xmasZh = {
   'xt.decoratingNow': '正在装饰',
   'xt.inArchive': '1月1日起已归档',
   'xt.byWhom': '你 {me}，{name} {him}',
-  'xt.partner': '伴侣',
-  'xt.back.a11y': '返回',
+  'xt.prizeTitle': '圣诞挂饰「{name}」',
+  'xt.prizeSub': '放在你们圣诞树旁的盒子里',
+  'xt.restore': '恢复',
   'xt.close': '关闭',
 };

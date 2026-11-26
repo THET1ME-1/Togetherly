@@ -92,6 +92,7 @@ routerAdd("GET", "/api/chest/state", (e) => {
   const withOutfits = (q.get("outfits") || "") === "1";
   const shifted = new Date(Date.now() + tz * 60 * 1000);
   const day = shifted.toISOString().slice(0, 10);
+  const toySeason = (q.get("toys") || "") === "1" && (day.slice(5, 7) === "12" || day.slice(5, 7) === "01");
   // Сезонные сундуки из каталога; активные уходят приложению списком.
   const chestKey = String(q.get("chest") || "").replace(/[^a-z0-9_]/g, "");
   const seasons = [];
@@ -152,6 +153,8 @@ routerAdd("GET", "/api/chest/state", (e) => {
   try { grantedI = JSON.parse(user.getString("granted_badges") || "[]") || []; } catch (_) { grantedI = []; }
   let ownedW = [];
   try { ownedW = JSON.parse(user.getString("owned_wear") || "[]") || []; } catch (_) { ownedW = []; }
+  let ownedT = {};
+  try { ownedT = JSON.parse(user.getString("owned_toys") || "{}") || {}; } catch (_) { ownedT = {}; }
   // [id приза, вид, ярус, можно ли выдать, ключ во владении]
   const items = [];
   // Редкие призы обоих сундуков — для общей гарантии редкого.
@@ -161,7 +164,7 @@ routerAdd("GET", "/api/chest/state", (e) => {
     if (!hw) items.push([GIFTS[i][0], "gift", GIFTS[i][1], true, GIFTS[i][0]]);
   }
   try {
-    const recs = $app.findRecordsByFilter("catalog_items", "enabled = true && (kind = 'frame' || kind = 'badge' || kind = 'gift' || kind = 'wear')", "sort", 500, 0);
+    const recs = $app.findRecordsByFilter("catalog_items", "enabled = true && (kind = 'frame' || kind = 'badge' || kind = 'gift' || kind = 'wear' || kind = 'toy')", "sort", 500, 0);
     for (let i = 0; i < recs.length; i++) {
       let d = {};
       try { d = JSON.parse(recs[i].getString("data") || "{}") || {}; } catch (_) { d = {}; }
@@ -176,15 +179,20 @@ routerAdd("GET", "/api/chest/state", (e) => {
       const outfit = kind === "wear" && !set && d.chest === true;
       if ((kind === "gift" || kind === "wear") && !set && !outfit) continue;
       if (kind === "badge" && d.chest !== true) continue;
+      // Ёлочные игрушки (tree.pb.js) — только в обычном сундуке, с 1 декабря по
+      // 31 января и только сборкам с `toys=1`: старым показать их нечем.
+      if (kind === "toy" && (hw || !toySeason || d.chest !== true)) continue;
       const t = TIER_POOL[d.rarity] ? d.rarity : "common";
       const id = kind === "gift" ? String(d.key) : recs[i].id;
       if (t !== "common") rareAll[id] = 1;
       if (set !== SET) continue;
+      // игрушка выпадает и повторно (+1 штука), стиль ёлки — один раз
       const owned = kind === "frame"
         ? ownedF.indexOf("frame:" + recs[i].id) !== -1
         : kind === "badge" ? (ownedI.indexOf(d.key) !== -1 || grantedI.indexOf(d.key) !== -1)
-        : kind === "wear" ? ownedW.indexOf(d.key) !== -1 : false;
-      items.push([id, kind, t, (kind === "wear" ? (outfit || d.cat === "outfit" ? withOutfits : withWear) : withFrames) && !owned, String(d.key)]);
+        : kind === "wear" ? ownedW.indexOf(d.key) !== -1
+        : kind === "toy" ? (d.cat === "style" && (parseInt(ownedT[d.key] || 0, 10) || 0) > 0) : false;
+      items.push([id, kind, t, (kind === "wear" ? (outfit || d.cat === "outfit" ? withOutfits : withWear) : kind === "toy" ? true : withFrames) && !owned, String(d.key)]);
     }
   } catch (_) {}
   const tierCount = { common: 0, rare: 0, legendary: 0 };
@@ -233,6 +241,7 @@ routerAdd("GET", "/api/chest/state", (e) => {
       if (key.indexOf("frame_") === 0) kind = "frame";
       if (key.indexOf("badge_") === 0) kind = "badge";
       if (key.indexOf("wear_") === 0) kind = "wear";
+      if (key.indexOf("toy_") === 0) kind = "toy";
       today.push({ key: key, kind: kind, amount: won[i].getInt("amount") });
     }
   } catch (_) {}
@@ -312,7 +321,9 @@ routerAdd("POST", "/api/chest/open", (e) => {
   // каждого сундука — вдвое больше дневного.
   let PER_24H = 6;
 
-  const body = new DynamicModel({ openId: "", groupId: "", tz: 0, platform: "", frames: false, wear: false, bonus: false, chest: "", noAd: false });
+  // Поле, не объявленное здесь, bindBody не заполняет: `outfits` пропадал, и
+  // одежда Ту при открытии не разыгрывалась, хотя таблица её показывала.
+  const body = new DynamicModel({ openId: "", groupId: "", tz: 0, platform: "", frames: false, wear: false, outfits: false, toys: false, bonus: false, chest: "", noAd: false });
   e.bindBody(body);
   // Открытие без ролика — только там, где рекламы нет (страну решает сервер,
   // см. /api/chest/state), и без Плюса в розыгрыше.
@@ -363,6 +374,7 @@ routerAdd("POST", "/api/chest/open", (e) => {
   const me = e.auth.id;
   const now = Date.now();
   const day = new Date(now + tz * 60 * 1000).toISOString().slice(0, 10);
+  const toySeason = body.toys === true && (day.slice(5, 7) === "12" || day.slice(5, 7) === "01");
   const chestKey = String(body.chest || "").replace(/[^a-z0-9_]/g, "");
   let season = null;
   if (chestKey) {
@@ -421,6 +433,7 @@ routerAdd("POST", "/api/chest/open", (e) => {
         if (key.indexOf("frame_") === 0) kind = "frame";
         if (key.indexOf("badge_") === 0) kind = "badge";
         if (key.indexOf("wear_") === 0) kind = "wear";
+        if (key.indexOf("toy_") === 0) kind = "toy";
         let ownedNow = [];
         try { ownedNow = JSON.parse(user.getString("owned_features") || "[]") || []; } catch (_) { ownedNow = []; }
         let iconsNow = [];
@@ -486,6 +499,8 @@ routerAdd("POST", "/api/chest/open", (e) => {
       try { grantedI = JSON.parse(user.getString("granted_badges") || "[]") || []; } catch (_) { grantedI = []; }
       let ownedW = [];
       try { ownedW = JSON.parse(user.getString("owned_wear") || "[]") || []; } catch (_) { ownedW = []; }
+      let ownedT = {};
+      try { ownedT = JSON.parse(user.getString("owned_toys") || "{}") || {}; } catch (_) { ownedT = {}; }
       // [id приза, вид, ярус, можно ли выдать, ключ во владении]
       const items = [];
       // Редкие призы обоих сундуков — для общей гарантии редкого.
@@ -495,7 +510,7 @@ routerAdd("POST", "/api/chest/open", (e) => {
         if (!hw) items.push([GIFTS[i][0], "gift", GIFTS[i][1], true, GIFTS[i][0]]);
       }
       try {
-        const recs = txApp.findRecordsByFilter("catalog_items", "enabled = true && (kind = 'frame' || kind = 'badge' || kind = 'gift' || kind = 'wear')", "sort", 500, 0);
+        const recs = txApp.findRecordsByFilter("catalog_items", "enabled = true && (kind = 'frame' || kind = 'badge' || kind = 'gift' || kind = 'wear' || kind = 'toy')", "sort", 500, 0);
         for (let i = 0; i < recs.length; i++) {
           let d = {};
           try { d = JSON.parse(recs[i].getString("data") || "{}") || {}; } catch (_) { d = {}; }
@@ -505,6 +520,8 @@ routerAdd("POST", "/api/chest/open", (e) => {
           const outfit = kind === "wear" && !set && d.chest === true;
           if ((kind === "gift" || kind === "wear") && !set && !outfit) continue;
           if (kind === "badge" && d.chest !== true) continue;
+          // ёлочные игрушки — как в /api/chest/state
+          if (kind === "toy" && (hw || !toySeason || d.chest !== true)) continue;
           const t = TIER_POOL[d.rarity] ? d.rarity : "common";
           const id = kind === "gift" ? String(d.key) : recs[i].id;
           if (t !== "common") rareAll[id] = 1;
@@ -512,8 +529,9 @@ routerAdd("POST", "/api/chest/open", (e) => {
           const owned = kind === "frame"
             ? ownedF.indexOf("frame:" + recs[i].id) !== -1
             : kind === "badge" ? (ownedI.indexOf(d.key) !== -1 || grantedI.indexOf(d.key) !== -1)
-            : kind === "wear" ? ownedW.indexOf(d.key) !== -1 : false;
-          items.push([id, kind, t, (kind === "wear" ? (outfit || d.cat === "outfit" ? withOutfits : withWear) : withFrames) && !owned, String(d.key)]);
+            : kind === "wear" ? ownedW.indexOf(d.key) !== -1
+            : kind === "toy" ? (d.cat === "style" && (parseInt(ownedT[d.key] || 0, 10) || 0) > 0) : false;
+          items.push([id, kind, t, (kind === "wear" ? (outfit || d.cat === "outfit" ? withOutfits : withWear) : kind === "toy" ? true : withFrames) && !owned, String(d.key)]);
         }
       } catch (_) {}
       const tierCount = { common: 0, rare: 0, legendary: 0 };
@@ -617,6 +635,12 @@ routerAdd("POST", "/api/chest/open", (e) => {
         // человек сам, в гардеробе.
         if (ownedW.indexOf(prize[4]) === -1) ownedW.push(prize[4]);
         user.set("owned_wear", JSON.stringify(ownedW));
+        txApp.save(user);
+      } else if (prize[1] === "toy") {
+        // Ёлочная игрушка — ещё одна штука в коробку; стиль ёлки — один раз.
+        const k = prize[4];
+        ownedT[k] = k.indexOf("style_") === 0 ? 1 : (parseInt(ownedT[k] || 0, 10) || 0) + 1;
+        user.set("owned_toys", JSON.stringify(ownedT));
         txApp.save(user);
       } else if (prize[1] === "plus_trial") {
         // Неделя Плюса — отдельным сроком: флаг `plus` не трогаем, иначе

@@ -60,7 +60,8 @@ const Map<String, Map<String, String>> xmasStrings = {
   'xt.decoratingNow': {'ru': 'Наряжаете сейчас', 'en': 'Decorating now', 'pt': 'Decorando agora', 'it': 'Lo state decorando', 'es': 'Decorando ahora', 'fr': 'En cours de décoration', 'de': 'Wird gerade geschmückt'},
   'xt.inArchive': {'ru': 'В архиве с 1 января', 'en': 'Archived since January 1', 'pt': 'No arquivo desde 1º de janeiro', 'it': 'In archivio dal 1° gennaio', 'es': 'Archivado desde el 1 de enero', 'fr': 'Archivé depuis le 1er janvier', 'de': 'Seit 1. Januar im Archiv'},
   'xt.byWhom': {'ru': 'вы {me}, {name} {him}', 'en': 'you {me}, {name} {him}', 'pt': 'você {me}, {name} {him}', 'it': 'tu {me}, {name} {him}', 'es': 'tú {me}, {name} {him}', 'fr': 'toi {me}, {name} {him}', 'de': 'du {me}, {name} {him}'},
-  'xt.partner': {'ru': 'Партнёр', 'en': 'Partner', 'pt': 'Par', 'it': 'Partner', 'es': 'Pareja', 'fr': 'Partenaire', 'de': 'Partner'},
-  'xt.back.a11y': {'ru': 'Назад', 'en': 'Back', 'pt': 'Voltar', 'it': 'Indietro', 'es': 'Atrás', 'fr': 'Retour', 'de': 'Zurück'},
+  'xt.prizeTitle': {'ru': 'Ёлочная игрушка «{name}»', 'en': 'Ornament “{name}”', 'pt': 'Enfeite «{name}»', 'it': 'Decorazione «{name}»', 'es': 'Adorno «{name}»', 'fr': 'Décoration « {name} »', 'de': 'Anhänger „{name}“'},
+  'xt.prizeSub': {'ru': 'Лежит в коробке у вашей ёлки', 'en': 'It’s in the box by your tree', 'pt': 'Está na caixa ao lado da sua árvore', 'it': 'È nella scatola accanto al vostro albero', 'es': 'Está en la caja junto a tu árbol', 'fr': 'Elle est dans la boîte près de votre sapin', 'de': 'Liegt in der Kiste an eurem Baum'},
+  'xt.restore': {'ru': 'Вернуть', 'en': 'Restore', 'pt': 'Recuperar', 'it': 'Recupera', 'es': 'Recuperar', 'fr': 'Récupérer', 'de': 'Retten'},
   'xt.close': {'ru': 'Закрыть', 'en': 'Close', 'pt': 'Fechar', 'it': 'Chiudi', 'es': 'Cerrar', 'fr': 'Fermer', 'de': 'Schließen'},
 };

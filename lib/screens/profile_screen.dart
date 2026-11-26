@@ -2,6 +2,7 @@ import 'dart:async';
 import '../utils/safe_launch.dart';
 import 'package:flutter/material.dart';
 import '../widgets/common/ad_result.dart';
+import '../widgets/xmas/our_trees.dart';
 import '../services/catalog_service.dart';
 import '../services/launch_splash_service.dart';
 import '../widgets/launch_splash/launch_splash_picker.dart';
@@ -2614,6 +2615,14 @@ class _ProfileScreenState extends State<ProfileScreen>
             const SizedBox(height: 10),
             _giftShopEntry(context),
           ],
+          // Ёлки пары по годам (макет «Наряжаем ёлку», 26.11.2026)
+          if (widget.pairData.pairId.isNotEmpty)
+            OurTreesRow(
+              theme: _t,
+              groupId: widget.pairData.pairId,
+              partnerName: widget.pairData.partnerDisplayName,
+              userData: widget.userData,
+            ),
         ],
       ),
     );

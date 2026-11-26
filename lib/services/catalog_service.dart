@@ -81,6 +81,12 @@ class CatalogService extends ChangeNotifier {
   List<XtToy> get xmasToys => _toys;
   List<XtToy> _toys = const [];
 
+  @visibleForTesting
+  void debugSetToys(List<XtToy> toys) {
+    _toys = List.unmodifiable(toys);
+    notifyListeners();
+  }
+
   XtToy? xmasToy(String key) {
     for (final t in _toys) {
       if (t.key == key) return t;
@@ -92,6 +98,15 @@ class CatalogService extends ChangeNotifier {
   /// целиком доходит не у всех (обращение 653), поэтому экран ёлки дотягивает
   /// своё по записи, не дожидаясь следующего старта.
   Future<void> ensureXmasArt() async {
+    try {
+      await _ensureXmasArt();
+    } catch (e) {
+      // без сети ёлка рисуется тем, что уже есть в каталоге; дотянется в следующий раз
+      debugPrint('xmas art: $e');
+    }
+  }
+
+  Future<void> _ensureXmasArt() async {
     // Записи игрушек первой зимы: новые придут с полным каталогом.
     const first = ['red', 'blue', 'gold', 'mint', 'disco', 'tu', 'tupair', 'window', 'cane', 'flake', 'icicle', 'cone',
       'mandarin', 'tv', 'clock', 'bird', 'valenok', 'matryoshka', 'cucumber', 'corn', 'samovar', 'snowman', 'sled',
