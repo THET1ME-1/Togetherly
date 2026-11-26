@@ -29,5 +29,12 @@
 		<string>applinks:togetherly.duckdns.org</string>
 		<string>applinks:togetherly-d4856.web.app</string>
 	</array>
+
+	<!-- Возраст из App Store (Declared Age Range, канал love_app/age_signals):
+	     закон Калифорнии AB 1043 с 01.01.2027. Возможность включена у App ID
+	     com.togetherly.love 26.11.2026, профили App Store с тех пор её несут.
+	     Без неё в App ID подпись сборки падает. -->
+	<key>com.apple.developer.declared-age-range</key>
+	<true/>
 </dict>
 </plist>

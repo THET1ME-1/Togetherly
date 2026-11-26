@@ -87,9 +87,9 @@ import WidgetKit
   /// `requestAgeRange` показал бы окно «поделиться возрастом» всем подряд.
   /// Ответ: `{mandatory, status, lower, upper}`, при сбое `{error}`.
   ///
-  /// Работает, только когда у App ID включена возможность Declared Age Range
-  /// и в `Runner.entitlements` стоит `com.apple.developer.declared-age-range`.
-  /// Без неё Apple отвечает ошибкой, Dart оставляет прошлый ответ.
+  /// Нужна возможность Declared Age Range у App ID (включена 26.11.2026) и
+  /// `com.apple.developer.declared-age-range` в `Runner.entitlements`. Любую
+  /// ошибку Apple Dart понимает как «не ответил» и оставляет прошлый ответ.
   private func setupAgeSignalsChannel(_ registry: FlutterPluginRegistry) {
     guard let messenger = registry
       .registrar(forPlugin: "TogetherlyAgeSignals")?

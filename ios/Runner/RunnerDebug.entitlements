@@ -25,5 +25,9 @@
 	<array>
 		<string>applinks:togetherly-d4856.web.app</string>
 	</array>
+
+	<!-- Возраст из App Store, как в Runner.entitlements. -->
+	<key>com.apple.developer.declared-age-range</key>
+	<true/>
 </dict>
 </plist>

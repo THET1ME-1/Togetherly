@@ -186,6 +186,15 @@ void main() {
       expect(gradle.contains('com.google.android.play:age-signals:'), isTrue);
     });
 
+    test('у iPhone-приложения есть право спрашивать возраст', () {
+      for (final path in ['ios/Runner/Runner.entitlements', 'ios/Runner/RunnerDebug.entitlements']) {
+        expect(read(path).contains('<key>com.apple.developer.declared-age-range</key>'), isTrue, reason: path);
+      }
+      final project = read('ios/Runner.xcodeproj/project.pbxproj');
+      expect(RegExp(r'"-weak_framework",\s*DeclaredAgeRange').allMatches(project).length, 3,
+          reason: 'DeclaredAgeRange связан слабо не во всех сборках Runner — iOS ниже 26 не запустит приложение');
+    });
+
     test('Swift спрашивает возраст только там, где закон обязывает', () {
       final swift = code('ios/Runner/AppDelegate.swift');
       final eligible = swift.indexOf('isEligibleForAgeFeatures');
