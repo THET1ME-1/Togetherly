@@ -59,4 +59,9 @@ const Map<String, String> xmasZh = {
   'xt.prizeSub': '放在你们圣诞树旁的盒子里',
   'xt.restore': '恢复',
   'xt.close': '关闭',
+  'snow.from': '来自{name}的雪球',
+  'snow.hit': '正中屏幕',
+  'snow.hits': '砸中 ×{n}',
+  'snow.back': '扔回去',
+  'snow.partner': '伴侣',
 };

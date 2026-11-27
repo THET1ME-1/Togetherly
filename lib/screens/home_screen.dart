@@ -186,6 +186,8 @@ import '../widgets/common/gift_image.dart';
 import '../widgets/common/coin_image.dart';
 import '../widgets/season/season_backdrop_layer.dart';
 import '../widgets/theme/theme_leaves_layer.dart';
+import '../widgets/theme/theme_snow_layer.dart';
+import '../services/snowball_service.dart';
 import '../widgets/theme/theme_pattern_layer.dart';
 import '../widgets/theme/theme_preview_countdown.dart';
 import '../widgets/unfold/unfold_route.dart';
@@ -273,6 +275,24 @@ class _HomeScreenState extends State<HomeScreen> {
     final box = _backdropKey.currentContext?.findRenderObject();
     if (box is! RenderBox) return;
     _backdropKey.currentState?.press(box.globalToLocal(global));
+  }
+
+  /// Снегопад темы «Новый год»: пойманный касанием снежок летит партнёру.
+  final _snowKey = GlobalKey<ThemeSnowLayerState>();
+
+  /// Можно ли ловить снежки: тема со снегом и есть пара. Без пары снежки
+  /// падают, но не ловятся — бросать некому, обещать бросок нельзя.
+  bool get _snowCatchable => _t.bgSnow != null && _pairData.isPaired;
+
+  /// Касание пустого места: сперва снежок под пальцем, мимо — сезонный фон.
+  void _onEmptyTap(Offset global) {
+    final box = _snowKey.currentContext?.findRenderObject();
+    if (_snowCatchable && box is RenderBox && (_snowKey.currentState?.catchAt(box.globalToLocal(global)) ?? false)) {
+      HapticFeedback.lightImpact();
+      unawaited(SnowballService.instance.throwBall(_pairData.pairId));
+      return;
+    }
+    if (_selectedNavIndex == 0 && CatalogService.instance.activeBackdrop()?.handUrl != null) _pressBackdrop(global);
   }
   // Одноразовый флаг: открыть настройки парного виджета при входе на вкладку
   // «Виджеты» (тап по парному виджету рабочего стола). Гасится в _buildWidgetsTab.
@@ -822,6 +842,8 @@ class _HomeScreenState extends State<HomeScreen> {
     PresenceService().start(groupId: _pairData.pairId);
     unawaited(ZoneShare.sync(_pairData.pairId));
     TuWearService.instance.bindGroup(_pairData.pairId);
+    // Снежки темы «Новый год»: куда бросать и от кого попадание.
+    if (_pairData.isPaired) SnowballService.instance.bind(_pairData.pairId, _pairData.partnerDisplayName);
     unawaited(_handlePairChanged());
     // Появилась пара → можно показать одноразовую подсказку про боковую кнопку.
     unawaited(_queueHints());
@@ -1603,6 +1625,9 @@ class _HomeScreenState extends State<HomeScreen> {
           // -- Листопад темы («Уютная осень»): листья падают за интерфейсом,
           // под всеми вкладками. У темы без листопада слот пустой.
           Positioned.fill(child: ThemeLeavesLayer(theme: _t)),
+          // -- Снегопад темы («Новый год»): снег и снежки за интерфейсом, под
+          // всеми вкладками. Снежок ловится касанием пустого места.
+          Positioned.fill(child: ThemeSnowLayer(key: _snowKey, theme: _t)),
           // -- Сезонный фон под содержимым (только главная вкладка) --
           // Слот стоит всегда: появлялся бы он только в сезон — Flutter
           // пересобрал бы соседей. Сам фон, даты и картинки приходят каталогом.
@@ -1627,9 +1652,9 @@ class _HomeScreenState extends State<HomeScreen> {
             child: ListenableBuilder(
               listenable: CatalogService.instance,
               builder: (context, child) => BackdropTapCatcher(
-                onEmptyTap: _selectedNavIndex == 0 &&
-                        CatalogService.instance.activeBackdrop()?.handUrl != null
-                    ? _pressBackdrop
+                onEmptyTap: _snowCatchable ||
+                        (_selectedNavIndex == 0 && CatalogService.instance.activeBackdrop()?.handUrl != null)
+                    ? _onEmptyTap
                     : null,
                 child: child!,
               ),

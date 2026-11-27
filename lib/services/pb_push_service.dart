@@ -19,6 +19,7 @@ import '../widgets/mascot/cloud_mascot_view.dart' show CloudEvents;
 import 'centrifugo_service.dart';
 import 'locale_service.dart';
 import 'pocketbase_service.dart';
+import 'snowball_service.dart';
 
 /// Пуш-уведомления БЕЗ Firebase (миграция Firebase→PB, Этап 6, слой Пуш).
 ///
@@ -215,6 +216,21 @@ class PbPushService {
             thread: 'miss');
       } catch (err) {
         debugPrint('PbPush miss_you callback error: $err');
+      }
+    }));
+
+    // 3б) Снежок партнёра (тема «Новый год»): шлепок на весь экран поверх
+    //     любого экрана. Это не уведомление, а жизнь на экране, как сердце
+    //     «Скучаю» у облачка, поэтому настройка пушей его не глушит.
+    _subs.add(await CentrifugoService.instance
+        .subscribeDelta('pair:$groupId', 'snowballs', (e) {
+      try {
+        if (e.action != 'create') return;
+        final r = e.record;
+        if (r == null || r.data['from_uid'] != partnerUid) return;
+        SnowballService.instance.hit(1, partnerName: partner);
+      } catch (err) {
+        debugPrint('PbPush snowball callback error: $err');
       }
     }));
 

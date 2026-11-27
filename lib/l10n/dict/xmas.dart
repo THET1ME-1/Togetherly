@@ -64,4 +64,11 @@ const Map<String, Map<String, String>> xmasStrings = {
   'xt.prizeSub': {'ru': 'Лежит в коробке у вашей ёлки', 'en': 'It’s in the box by your tree', 'pt': 'Está na caixa ao lado da sua árvore', 'it': 'È nella scatola accanto al vostro albero', 'es': 'Está en la caja junto a tu árbol', 'fr': 'Elle est dans la boîte près de votre sapin', 'de': 'Liegt in der Kiste an eurem Baum'},
   'xt.restore': {'ru': 'Вернуть', 'en': 'Restore', 'pt': 'Recuperar', 'it': 'Recupera', 'es': 'Recuperar', 'fr': 'Récupérer', 'de': 'Retten'},
   'xt.close': {'ru': 'Закрыть', 'en': 'Close', 'pt': 'Fechar', 'it': 'Chiudi', 'es': 'Cerrar', 'fr': 'Fermer', 'de': 'Schließen'},
+
+  // Снежки темы «Новый год» (27.11.2026): попадание у партнёра.
+  'snow.from': {'ru': 'Снежок от {name}', 'en': 'Snowball from {name}', 'pt': 'Bola de neve de {name}', 'it': 'Palla di neve da {name}', 'es': 'Bola de nieve de {name}', 'fr': 'Boule de neige de {name}', 'de': 'Schneeball von {name}'},
+  'snow.hit': {'ru': 'попал прямо в экран', 'en': 'right on your screen', 'pt': 'bem na sua tela', 'it': 'dritto sullo schermo', 'es': 'justo en tu pantalla', 'fr': 'pile sur ton écran', 'de': 'mitten auf den Bildschirm'},
+  'snow.hits': {'ru': 'попал ×{n}', 'en': 'hit you ×{n}', 'pt': 'acertou ×{n}', 'it': 'ti ha colpito ×{n}', 'es': 'te dio ×{n}', 'fr': 'touché ×{n}', 'de': '×{n} getroffen'},
+  'snow.back': {'ru': 'Кинуть в ответ', 'en': 'Throw back', 'pt': 'Jogar de volta', 'it': 'Rilancia', 'es': 'Devolver', 'fr': 'Renvoyer', 'de': 'Zurückwerfen'},
+  'snow.partner': {'ru': 'партнёра', 'en': 'your partner', 'pt': 'seu par', 'it': 'il partner', 'es': 'tu pareja', 'fr': 'ton partenaire', 'de': 'deinem Partner'},
 };

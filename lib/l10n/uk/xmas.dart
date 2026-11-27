@@ -59,4 +59,9 @@ const Map<String, String> xmasUk = {
   'xt.prizeSub': 'Лежить у коробці біля вашої ялинки',
   'xt.restore': 'Повернути',
   'xt.close': 'Закрити',
+  'snow.from': 'Сніжка від {name}',
+  'snow.hit': 'влучила просто в екран',
+  'snow.hits': 'влучила ×{n}',
+  'snow.back': 'Кинути у відповідь',
+  'snow.partner': 'партнера',
 };

@@ -64,6 +64,7 @@ import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/force_update_screen.dart';
 import 'widgets/common/m3_loading.dart';
+import 'widgets/snow/snow_hit_overlay.dart';
 import 'widgets/unfold/unfold_route.dart';
 import 'widgets/unfold/unfold_touch.dart';
 import 'widgets/launch_splash/launch_splash_overlay.dart';
@@ -1030,7 +1031,8 @@ class _LoveAppState extends State<LoveApp> with WidgetsBindingObserver {
         builder: (context, child) => LaunchSplashOverlay(
           child: ThemeScope(
             theme: _userData.theme,
-            child: OfflineSyncBanner(child: child ?? const SizedBox.shrink()),
+            // Снежок партнёра (тема «Новый год») шлёпается поверх любого экрана.
+            child: SnowHitOverlay(child: OfflineSyncBanner(child: child ?? const SizedBox.shrink())),
           ),
         ),
         home: _loading
