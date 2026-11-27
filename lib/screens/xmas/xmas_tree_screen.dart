@@ -22,15 +22,18 @@ import '../../widgets/xmas/tree_stage.dart';
 import '../../widgets/xmas/tree_sway.dart';
 import '../chest_screen.dart';
 
-/// Комната из Gemini (`xt_room_night`), 704×1504: угол деревянного домика
-/// ночью, одна на обе темы. Владелец 27.11.2026 отверг пару «день и вечер»:
-/// «не надо фона для светлой и тёмной, всегда уютный тёмный и свет». Ёлка
-/// встаёт горшком в центр коврика, снег идёт за стеклом окна слева, у камина
-/// справа дышит отсвет. Точки сняты с картинки сеткой.
-const double _roomW = 704, _roomH = 1504;
-const Offset _rug = Offset(358, 1152);
-const Rect _glass = Rect.fromLTRB(0, 285, 185, 868);
-const Offset _fire = Offset(628, 845);
+/// Комната (`xt_room_night`), 1086×1448: рисунок, который владелец прислал
+/// 27.11.2026 («вот фон для ёлки наряжать»), ставится как есть, одна на обе
+/// темы («всегда уютный тёмный и свет»). Картинка шире экрана телефона, и по
+/// бокам её обрезает: середина видимой части — [_roomFocusX], а не центр
+/// картинки, иначе за край уходили и огонь камина, и окно. Ёлка встаёт
+/// горшком на коврик под этой серединой, снег идёт за стеклом окна слева, у
+/// камина справа дышит отсвет. Точки сняты с картинки сеткой.
+const double _roomW = 1086, _roomH = 1448;
+const double _roomFocusX = 590;
+const Offset _rug = Offset(_roomFocusX, 1290);
+const Rect _glass = Rect.fromLTRB(0, 270, 278, 915);
+const Offset _fire = Offset(950, 955);
 const String _roomArt = 'xt_room_night';
 
 /// Экран ёлки пары (вариант В макета «Наряжаем ёлку», 26.11.2026): ёлка во
@@ -273,7 +276,8 @@ class _XmasTreeScreenState extends State<XmasTreeScreen> with TickerProviderStat
         body: LayoutBuilder(builder: (context, c) {
           final w = c.maxWidth, h = c.maxHeight;
           final k = math.max(w / _roomW, h / _roomH);
-          final ox = (w - _roomW * k) / 2, oy = h - _roomH * k;
+          // середина экрана — на [_roomFocusX], но картинка не отходит от краёв
+          final ox = (w / 2 - _roomFocusX * k).clamp(w - _roomW * k, 0.0).toDouble(), oy = h - _roomH * k;
           Offset room(Offset p) => Offset(ox + p.dx * k, oy + p.dy * k);
           final rug = room(_rug);
           final side = math.min(w * 1.13, h * 0.58);
@@ -283,7 +287,7 @@ class _XmasTreeScreenState extends State<XmasTreeScreen> with TickerProviderStat
           final pad = MediaQuery.paddingOf(context);
           return Stack(
             children: [
-              const Positioned.fill(child: _Room()),
+              Positioned(left: ox, top: oy, width: _roomW * k, height: _roomH * k, child: const _Room()),
               Positioned.fromRect(rect: glass, child: _WindowSnow(anim: _ambient)),
               // отсвет шириной в 600 точек комнаты: камин и пол перед ним
               Positioned(left: fire.dx - 300 * k, top: fire.dy - 300 * k, width: 600 * k, height: 600 * k, child: _FireGlow(anim: _ambient)),
