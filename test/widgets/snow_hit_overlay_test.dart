@@ -37,6 +37,18 @@ void main() {
       expect(identical(s.current.value, first), isFalse);
     });
 
+    test('снежок вживую: попадание и подтверждение серверу, один раз на номер', () async {
+      final s = SnowballService.instance;
+      final acked = <String>[];
+      s.debugAck = (id) async => acked.add(id);
+      s.bindForTest('g1', 'Аня');
+      s.received('sb1');
+      s.received('sb1'); // событие канала пришло дважды (переподключение)
+      await Future<void>.delayed(Duration.zero);
+      expect(s.current.value!.count, 1);
+      expect(acked, ['sb1']);
+    });
+
     test('ноль снежков ничего не показывает', () {
       SnowballService.instance.hit(0, partnerName: 'Аня');
       expect(SnowballService.instance.current.value, isNull);

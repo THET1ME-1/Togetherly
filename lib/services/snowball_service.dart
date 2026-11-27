@@ -79,6 +79,35 @@ class SnowballService with WidgetsBindingObserver {
     current.value = cur == null ? SnowHit(++_serial, n, from) : SnowHit(cur.serial, cur.count + n, cur.from);
   }
 
+  final Set<String> _received = {};
+
+  /// Снежок [id] долетел вживую (канал пары): попадание и подтверждение
+  /// серверу, чтобы при следующем открытии он не прилетел второй раз. Один
+  /// номер — одно попадание, даже если событие пришло дважды.
+  void received(String id) {
+    if (id.isEmpty || !_received.add(id)) return;
+    hit(1);
+    final g = _group;
+    if (g.isNotEmpty) unawaited(_ack(id, g));
+  }
+
+  Future<void> _ack(String id, String group) async {
+    try {
+      await (debugAck ?? (id) => PocketBaseService().pb.send('/api/group/snowball', method: 'POST', body: {'groupId': group, 'seen': id}))(id);
+    } catch (e) {
+      debugPrint('SnowballService.ack: $e');
+    }
+  }
+
+  @visibleForTesting
+  Future<void> Function(String id)? debugAck;
+
+  @visibleForTesting
+  void bindForTest(String groupId, String partnerName) {
+    _group = groupId;
+    _partner = partnerName;
+  }
+
   /// Показ [hit] закончился. Новое попадание, начатое тем временем, не трогаем.
   void done(SnowHit hit) {
     if (current.value?.serial == hit.serial) current.value = null;
@@ -103,5 +132,7 @@ class SnowballService with WidgetsBindingObserver {
     _group = '';
     _partner = '';
     _lastThrow = null;
+    _received.clear();
+    debugAck = null;
   }
 }

@@ -46,8 +46,9 @@ def main():
         check(f"вход {who}", st == 200, str(r)[:120])
         tok[who] = r.get("token")
 
-    # Остатки прошлых прогонов у B — забрать, чтобы счёт был с нуля.
-    api("/api/group/snowball", {"groupId": pair, "pending": True}, tok["b"])
+    # Остатки прошлых прогонов у обоих — забрать, чтобы счёт был с нуля.
+    for who in ("a", "b"):
+        api("/api/group/snowball", {"groupId": pair, "pending": True}, tok[who])
     time.sleep(2.2)
 
     st, r = api("/api/group/snowball", {"groupId": pair}, tok["a"])
@@ -61,6 +62,19 @@ def main():
     check("партнёру прилетел один", st == 200 and r.get("count") == 1 and r.get("from"), f"{st} {r}")
     st, r = api("/api/group/snowball", {"groupId": pair, "pending": True}, tok["b"])
     check("второй раз уже не прилетает", st == 200 and r.get("count") == 0, f"{st} {r}")
+
+    # Партнёр в приложении получил снежок вживую и подтвердил — при
+    # следующем открытии тот же снежок не прилетает второй раз.
+    time.sleep(2.2)
+    st, r = api("/api/group/snowball", {"groupId": pair}, tok["a"])
+    sid = r.get("id")
+    check("бросок отдаёт номер снежка", st == 200 and sid, f"{st} {r}")
+    st, r = api("/api/group/snowball", {"groupId": pair, "seen": sid}, tok["a"])
+    check("отправитель свой снежок показанным не отметит", st == 200 and r.get("count") == 0, f"{st} {r}")
+    st, r = api("/api/group/snowball", {"groupId": pair, "seen": sid}, tok["b"])
+    check("получатель отмечает снежок показанным", st == 200 and r.get("count") == 1, f"{st} {r}")
+    st, r = api("/api/group/snowball", {"groupId": pair, "pending": True}, tok["b"])
+    check("показанный вживую при открытии не повторяется", st == 200 and r.get("count") == 0, f"{st} {r}")
 
     st, r = api("/api/group/snowball", {"groupId": "r0000000000000"}, tok["a"])
     check("в чужую пару нельзя", st == 403, f"{st} {r}")

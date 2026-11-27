@@ -228,7 +228,7 @@ class PbPushService {
         if (e.action != 'create') return;
         final r = e.record;
         if (r == null || r.data['from_uid'] != partnerUid) return;
-        SnowballService.instance.hit(1, partnerName: partner);
+        SnowballService.instance.received(r.id);
       } catch (err) {
         debugPrint('PbPush snowball callback error: $err');
       }

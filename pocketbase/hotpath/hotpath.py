@@ -2186,7 +2186,8 @@ async def miss_you(request: Request):
 
 @app.post("/api/group/snowball")
 async def snowball(request: Request):
-    """Бросок снежка `{groupId}` или непросмотренные мне `{groupId, pending: true}`."""
+    """Бросок снежка `{groupId}`, непросмотренные мне `{groupId, pending: true}`,
+    подтверждение долетевшего вживую `{groupId, seen: номер}`."""
     try:
         auth = await _auth(request)
     except Exception:
@@ -2215,6 +2216,16 @@ async def snowball(request: Request):
             group_id, uid)
         return ORJSONResponse({"ok": True, "count": len(rows),
                                "from": rows[0]["from_uid"] if rows else ""})
+
+    # Снежок долетел вживую (канал пары) — телефон подтверждает номер, и при
+    # следующем открытии он не прилетит второй раз. Свой снежок не отметить.
+    seen = str(body.get("seen") or "").strip()
+    if seen:
+        n = await pg.fetchval(
+            "WITH u AS (UPDATE snowballs SET seen_at = now() WHERE id = $1 AND group_id = $2 "
+            "AND from_uid <> $3 AND seen_at IS NULL RETURNING 1) SELECT count(*) FROM u",
+            seen, group_id, uid)
+        return ORJSONResponse({"ok": True, "count": int(n or 0)})
 
     # Зажатый палец — не повод для сотни снежков: не чаще раза в 2 с.
     свежий = await pg.fetchval(
@@ -2255,7 +2266,7 @@ async def snowball(request: Request):
             group_id, uid, lambda язык: пуш("snow_title", язык), lambda язык: пуш("snow_body", язык), "snowball")
         if ушло:
             await pg.execute("UPDATE snowballs SET pushed = true WHERE id = $1", rid)
-    return ORJSONResponse({"ok": True})
+    return ORJSONResponse({"ok": True, "id": rid})
 
 
 # ── Разгрузка PocketBase: частые вопросы с редким ответом ────────────────────
