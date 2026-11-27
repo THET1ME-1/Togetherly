@@ -447,6 +447,10 @@
 
   function ytDone(ready) {
     const ok = ready && !!(window.YT && window.YT.Player);
+    // Не доехал — следующая ссылка пробует заново, со своим сроком. Иначе
+    // вторая ссылка после неудачи ждала бы вечно и висела на «Играет»,
+    // а пара включает ролики как раз один за другим (обращение 26.11.2026).
+    if (!ok) ytAsked = false;
     while (ytQueue.length) ytQueue.shift()(ok);
   }
 

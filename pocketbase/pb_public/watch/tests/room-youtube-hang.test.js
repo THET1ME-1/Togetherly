@@ -113,6 +113,15 @@ async function openRoom(browser, room, hang) {
     const status = await page.textContent('#status');
     check('ютуб молчит — комната говорит про VPN, а не «Играет»',
       /VPN/.test(status) && !/Играет/.test(status), status);
+
+    // Пара включала ссылку за ссылкой: вторая после неудачи тоже должна
+    // услышать, что ютуб молчит, а не повиснуть на «Играет».
+    await page.fill('#link', 'https://youtu.be/FH_pf8ESJJs').catch(() => {});
+    await page.tap('#apply').catch(() => {});
+    await page.waitForTimeout(12500);
+    const again = await page.textContent('#status');
+    check('и вторая ссылка после неудачи — снова про VPN',
+      /VPN/.test(again) && !/Играет/.test(again), again);
     check('страница не падает', errors.length === 0, errors.join(' | '));
 
     await ctx.close();
