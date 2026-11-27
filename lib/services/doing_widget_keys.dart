@@ -55,3 +55,24 @@ Map<String, String> doingWidgetKeys({
   put('partner', partner);
   return out;
 }
+
+/// Ключи своей половины, которые читает [myHalfFromWidgetKeys].
+List<String> myHalfKeys(String groupId) {
+  final prefix = 'doing_${groupId.isEmpty ? 'solo' : groupId}_my';
+  return ['${prefix}_id', '${prefix}_text', '${prefix}_at', '${prefix}_wall'];
+}
+
+/// Своя половина такой, какой её сейчас рисует виджет. Обратное к
+/// [doingWidgetKeys]: лист выбора по нажатию на виджет открывается сразу с
+/// тем, что человек видит на рабочем столе, а не ждёт сервер. Ключей нет —
+/// `null`. [read] отдаёт значение ключа или `null`.
+({Doing doing, Color? wall})? myHalfFromWidgetKeys(String groupId, String? Function(String key) read) {
+  final keys = myHalfKeys(groupId);
+  final id = read(keys[0]);
+  if (id == null) return null;
+  final at = int.tryParse(read(keys[2]) ?? '') ?? 0;
+  final doing = Doing.fromData({
+    'doing': {'id': id, 'text': read(keys[1]) ?? '', 'at': at},
+  });
+  return (doing: doing, wall: roomColorOf({'room': read(keys[3]) ?? ''}));
+}

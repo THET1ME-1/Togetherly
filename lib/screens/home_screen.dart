@@ -24,6 +24,7 @@ import '../utils/safe_pick.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/love_prompt.dart';
 import '../models/memory.dart';
+import '../models/widget_pair_action.dart';
 import '../models/widget_tap_dedup.dart';
 import '../models/gift.dart';
 import '../models/gift_effect.dart';
@@ -171,7 +172,6 @@ import '../services/frame_gift_service.dart';
 import '../services/gifts_service.dart';
 import '../widgets/note_editor_sheet.dart';
 import '../widgets/doing/doing_sheet.dart';
-import '../models/doing.dart';
 import '../services/doing_service.dart';
 import '../services/pb_media_service.dart';
 import '../services/widget_anim_service.dart';
@@ -690,6 +690,16 @@ class _HomeScreenState extends State<HomeScreen> {
     // Одно нажатие доходит сюда несколькими путями: без фильтра лист заметки
     // открывался по разу на каждый, и «назад» жали несколько раз (TOG-13).
     if (!_widgetTaps.admit(uri, DateTime.now())) return;
+    _runWidgetAction(uri);
+  }
+
+  void _runWidgetAction(Uri uri) {
+    // На закрытом приложении пара приезжает позже ссылки: нажатие ждёт её
+    // и выполняется в _onPairChanged, а не теряется на главной.
+    if (widgetActionNeedsPair(uri) && !(mounted && _pairData.isPaired)) {
+      _pairAction.hold(uri, DateTime.now());
+      return;
+    }
     // loveapp://widgets → вкладка виджетов (index 1)
     // loveapp://widgets/pair → ещё и сразу раскрыть настройки парного виджета
     if (uri.host == 'widgets' || uri.toString().contains('widgets')) {
@@ -713,14 +723,10 @@ class _HomeScreenState extends State<HomeScreen> {
         _openMemoryLane();
       }
     }
-    // loveapp://map → карта «Где мы»: тап по виджету с картой. На холодном
-    // старте пара приезжает позже ссылки — тогда откроем, как только она
-    // появится (_onPairChanged).
+    // loveapp://map → карта «Где мы»: тап по виджету с картой.
     else if (uri.host == 'map') {
       if (mounted && _pairData.isPaired) {
         _openLiveMapFromWidget();
-      } else {
-        _pendingMapOpen = true;
       }
     }
     // loveapp://mood?id=happy → отметить настроение с виджета-плиток.
@@ -785,11 +791,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  /// Нажали на виджет «Где мы», а пара ещё не загрузилась.
-  bool _pendingMapOpen = false;
+  /// Нажали на виджет, которому нужна пара, а она ещё не загрузилась.
+  final WidgetPairAction _pairAction = WidgetPairAction();
 
   void _openLiveMapFromWidget() {
-    _pendingMapOpen = false;
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -808,7 +813,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _onPairChanged() {
     if (!mounted) return;
-    if (_pendingMapOpen && _pairData.isPaired) _openLiveMapFromWidget();
+    if (_pairData.isPaired) {
+      final held = _pairAction.take(DateTime.now());
+      if (held != null) _runWidgetAction(held);
+    }
     // Пара появилась или сменилась — присутствию нужен её канал. Вызов
     // идемпотентный: тот же groupId ничего не перезапускает.
     PresenceService().start(groupId: _pairData.pairId);
@@ -4208,17 +4216,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// «Скучаю» с карточки затихшего партнёра.
   /// Лист «Чем ты занят?» по нажатию на свою половину виджета «Чем заняты».
-  /// Текущее занятие и цвет читаются с сервера: на главной их никто не держит.
+  /// Текущее занятие и цвет читаются с сервера (на главной их никто не
+  /// держит), а без сети — с самого виджета.
   Future<void> _openDoingSheet() async {
     final groupId = _pairData.pairId;
-    final rooms = await DoingService.instance.load(groupId);
+    final mine = await DoingService.instance.myHalfForSheet(groupId);
     if (!mounted) return;
     await showDoingSheet(
       context,
       groupId: groupId,
       scheme: Theme.of(context).colorScheme,
-      current: rooms.my?.doing ?? const Doing.none(),
-      wall: rooms.my?.wall,
+      current: mine.doing,
+      wall: mine.wall,
     );
   }
 

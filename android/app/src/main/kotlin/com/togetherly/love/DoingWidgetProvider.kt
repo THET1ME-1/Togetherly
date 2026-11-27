@@ -94,14 +94,12 @@ class DoingWidgetProvider : HomeWidgetProvider() {
 
         val views = RemoteViews(context.packageName, R.layout.tg_doing_4x2).apply {
             if (picture != null) setImageViewBitmap(R.id.doing_image, picture)
-            // Своя половина открывает выбор занятия, половина партнёра — приложение.
+            // Любое место виджета открывает выбор своего занятия, как на iPhone.
+            // До 27.11.2026 половина партнёра вела на главную, и занятие
+            // приходилось искать самому.
             setOnClickPendingIntent(
-                R.id.doing_tap_me,
+                R.id.widget_root,
                 HomeWidgetLaunchIntent.getActivity(context, MainActivity::class.java, Uri.parse("loveapp://doing")),
-            )
-            setOnClickPendingIntent(
-                R.id.doing_tap_partner,
-                HomeWidgetLaunchIntent.getActivity(context, MainActivity::class.java, Uri.parse("loveapp://home")),
             )
         }
         manager.updateAppWidget(widgetId, views)

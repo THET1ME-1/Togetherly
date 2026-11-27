@@ -89,6 +89,30 @@ class DoingService {
     return (my: my, partner: partner);
   }
 
+  /// Своя половина для листа выбора, открытого нажатием на виджет.
+  ///
+  /// Сервер ждём недолго: на плохой сети лист не открывался вовсе, и человек
+  /// после нажатия видел одну главную. Не ответил — берём то, что виджет
+  /// рисует сейчас (его ключи), а там нет — пусто.
+  Future<({Doing doing, Color? wall})> myHalfForSheet(String groupId) async {
+    try {
+      final rooms = await load(groupId).timeout(const Duration(seconds: 4));
+      return (doing: rooms.my?.doing ?? const Doing.none(), wall: rooms.my?.wall);
+    } catch (e) {
+      debugPrint('DoingService.myHalfForSheet: сервер не ответил ($e), беру ключи виджета');
+    }
+    final values = <String, String?>{};
+    for (final key in myHalfKeys(groupId)) {
+      try {
+        values[key] = await HomeWidget.getWidgetData<String>(key);
+      } catch (_) {
+        values[key] = null;
+      }
+    }
+    return myHalfFromWidgetKeys(groupId, (key) => values[key]) ??
+        (doing: const Doing.none(), wall: null);
+  }
+
   /// Раскладывает данные пары по ключам виджета и будит его.
   ///
   /// Зовут из приложения и из фона (тихий пуш). В фоне каталога и языка нет,
