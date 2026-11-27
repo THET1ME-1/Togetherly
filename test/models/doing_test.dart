@@ -97,9 +97,17 @@ void main() {
       expect(const Doing.none().artKey, isNull);
     });
 
-    test('занятий восемнадцать, и все разные', () {
-      expect(kDoingIds.length, 18);
-      expect(kDoingIds.toSet().length, 18);
+    test('занятий двадцать восемь, и все разные', () {
+      expect(kDoingIds.length, 28);
+      expect(kDoingIds.toSet().length, 28);
+    });
+
+    test('вторая десятка читается из записи, а не гаснет', () {
+      for (final id in ['miss', 'lazy', 'sad', 'wake', 'ready', 'phone', 'together', 'read', 'music', 'draw']) {
+        final doing = Doing.fromData({'doing': {'id': id, 'text': '', 'at': noon.millisecondsSinceEpoch}});
+        expect(doing.id, id);
+        expect(doing.artKey, 'act_$id');
+      }
     });
   });
 }

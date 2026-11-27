@@ -44,4 +44,15 @@ const Map<String, Map<String, String>> doingStrings = {
   'doing.friends': {'ru': 'С друзьями', 'en': 'With friends', 'pt': 'Com amigos', 'it': 'Con gli amici', 'es': 'Con amigos', 'fr': 'Avec des amis', 'de': 'Mit Freunden'},
   'doing.sick': {'ru': 'Болеет', 'en': 'Sick', 'pt': 'Doente', 'it': 'Malato', 'es': 'Enfermo', 'fr': 'Malade', 'de': 'Krank'},
   'doing.busy': {'ru': 'Занят', 'en': 'Busy', 'pt': 'Ocupado', 'it': 'Occupato', 'es': 'Ocupado', 'fr': 'Occupé', 'de': 'Beschäftigt'},
+  // Вторая десятка (27.11.2026): то, что люди чаще всего писали своим словом.
+  'doing.miss': {'ru': 'Скучает', 'en': 'Missing you', 'pt': 'Com saudade', 'it': 'Ti pensa', 'es': 'Te extraña', 'fr': 'Pense à toi', 'de': 'Vermisst dich'},
+  'doing.lazy': {'ru': 'Валяется', 'en': 'Lounging', 'pt': 'De bobeira', 'it': 'In panciolle', 'es': 'Vagueando', 'fr': 'Se prélasse', 'de': 'Faulenzt'},
+  'doing.sad': {'ru': 'Грустит', 'en': 'Feeling blue', 'pt': 'Triste', 'it': 'Triste', 'es': 'Triste', 'fr': 'Triste', 'de': 'Traurig'},
+  'doing.wake': {'ru': 'Встаёт', 'en': 'Waking up', 'pt': 'Acordando', 'it': 'Si sveglia', 'es': 'Despertando', 'fr': 'Se réveille', 'de': 'Wacht auf'},
+  'doing.ready': {'ru': 'Собирается', 'en': 'Getting ready', 'pt': 'Se arrumando', 'it': 'Si prepara', 'es': 'Arreglándose', 'fr': 'Se prépare', 'de': 'Stylt sich'},
+  'doing.phone': {'ru': 'В телефоне', 'en': 'Scrolling', 'pt': 'No celular', 'it': 'Al cellulare', 'es': 'En el móvil', 'fr': 'Sur son tél', 'de': 'Am Handy'},
+  'doing.together': {'ru': 'Вместе', 'en': 'Together', 'pt': 'Juntinhos', 'it': 'Insieme', 'es': 'Juntitos', 'fr': 'Ensemble', 'de': 'Zusammen'},
+  'doing.read': {'ru': 'Читает', 'en': 'Reading', 'pt': 'Lendo', 'it': 'Legge', 'es': 'Leyendo', 'fr': 'Lit', 'de': 'Liest'},
+  'doing.music': {'ru': 'В наушниках', 'en': 'Headphones on', 'pt': 'Com fones', 'it': 'In cuffia', 'es': 'Con música', 'fr': 'Au casque', 'de': 'Hört Musik'},
+  'doing.draw': {'ru': 'Рисует', 'en': 'Drawing', 'pt': 'Desenhando', 'it': 'Disegna', 'es': 'Dibujando', 'fr': 'Dessine', 'de': 'Malt'},
 };
