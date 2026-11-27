@@ -113,6 +113,7 @@ const Map<String, String> profileUk = {
   'themeNameDarkHoney': 'Темний мед',
   'themeNameHalloween': 'Гелловін 2026',
   'themeNameAutumn': 'Затишна осінь 2026',
+  'themeNameNewYear': 'Новий рік 2027',
   'themeDarkOnly': 'Ця тема буває тільки темною',
   'coinBalance': 'Монети',
   'coinShopTitle': 'Магазин монет',

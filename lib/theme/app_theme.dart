@@ -38,6 +38,19 @@ class ThemeLeaves {
   const ThemeLeaves({required this.assets, this.opacity = 0.85});
 }
 
+/// Снегопад темы («Новый год»): белые хлопья и изредка снежки, которые
+/// можно поймать касанием и бросить партнёру.
+class ThemeSnow {
+  /// Обводка хлопьев. На светлом фоне белое без неё пропадает, на тёмном
+  /// не нужна (прозрачная).
+  final Color rim;
+
+  /// Насколько снег виден.
+  final double opacity;
+
+  const ThemeSnow({this.rim = const Color(0x00000000), this.opacity = 1});
+}
+
 /// Описание одной темы приложения.
 ///
 /// Чтобы добавить новую тему — создай [AppTheme] и добавь в [AppThemes.all].
@@ -80,6 +93,10 @@ class AppTheme {
   /// Листопад за интерфейсом, под всеми вкладками. Есть только у «Уютной
   /// осени», у прочих пусто.
   final ThemeLeaves? bgLeaves;
+
+  /// Снегопад со снежками за интерфейсом, под всеми вкладками. Есть только у
+  /// «Нового года», у прочих пусто.
+  final ThemeSnow? bgSnow;
 
   // ── Hero-карточка (ExpandableTimerCard) ──────────────────────────────────
 
@@ -172,6 +189,7 @@ class AppTheme {
     this.bgImageUrl,
     this.bgPattern,
     this.bgLeaves,
+    this.bgSnow,
     required this.heroGradient,
     required this.heroGlassOpacity,
     required this.heroToggleBorder,
@@ -1159,9 +1177,156 @@ abstract final class AppThemes {
     surfaceTint: Color(0xFFE58A63),
   );
 
-  /// Тёмная пара ручной темы с тем же номером. У «Уютной осени» обе версии
-  /// нарисованы руками, а в [all] на номер помещается одна.
-  static const Map<int, AppTheme> darkPairs = {26: autumnDark};
+  // ── 27: Новый год (красный и белый / ночь зимнего сундука, снегопад) ─────
+  // Макет 27.11.2026, выбор владельца: тёмная — цвета зимнего экрана сундука
+  // (запись chest_winter, data.palette: фон #16203A, плашки #1F2B4A, красный
+  // #D8413B), второй цвет ледяной #9DB8F0; светлая — красный и белый: фон
+  // #FCF0EF, плашки белые, второй цвет ночной синий #1F2B4A. За интерфейсом
+  // идёт снег, изредка падают снежки — их ловят и бросают партнёру.
+  // Не продаётся: открыта всем с 1 декабря по 15 января и остаётся у тех,
+  // кто её застал (как «Уютная осень»).
+  static const newYear = AppTheme(
+    index: 27,
+    name: 'Новый год',
+    primary: Color(0xFFD8413B),
+    primaryLight: Color(0xFFF9D9D6),
+    bgGradient: [Color(0xFFFCF0EF), Color(0xFFFCF0EF)],
+    bgSnow: ThemeSnow(rim: Color(0x4DD8413B)),
+    heroGradient: [Color(0xFFE2564F), Color(0xFFD8413B)],
+    heroGlassOpacity: 0.20,
+    heroToggleBorder: true,
+    heroToggleSelectedColor: Color(0xFFD8413B),
+    cardSurface: Color(0xFFFFFFFF),
+    cardBorder: Color(0xFFF0D2CF),
+    iconDraw: Color(0xFFD8413B),
+    iconMood: Color(0xFFD8413B),
+    iconCalendar: Color(0xFFD8413B),
+    iconPost: Color(0xFFD8413B),
+    navActiveBg: Color(0xFFF6DCDA),
+    navActiveIcon: Color(0xFFD8413B),
+    promptButtonColor: Color(0xFFD8413B),
+    // На ступень темнее плашек: белый круг на розово-белом фоне сливался бы.
+    timerDialBackground: Color(0xFFF2D3D0),
+    scheme: _newYearScheme,
+    textPrimary: Color(0xFF2B1517),
+    textSecondary: Color(0xFF7C5759),
+    textMuted: Color(0xFF7C5759),
+    surfaceMuted: Color(0xFFF6DCDA),
+    divider: Color(0xFFEBC9C6),
+  );
+
+  static const newYearDark = AppTheme(
+    index: 27,
+    name: 'Новый год',
+    primary: Color(0xFFD8413B),
+    primaryLight: Color(0xFF4A2533),
+    bgGradient: [Color(0xFF16203A), Color(0xFF16203A)],
+    bgSnow: ThemeSnow(),
+    heroGradient: [Color(0xFF27355A), Color(0xFF1F2B4A)],
+    heroGlassOpacity: 0.10,
+    heroToggleBorder: true,
+    heroToggleSelectedColor: Color(0xFFD8413B),
+    cardSurface: Color(0xFF1F2B4A),
+    cardBorder: Color(0xFF33426B),
+    iconDraw: Color(0xFFF07A72),
+    iconMood: Color(0xFFF07A72),
+    iconCalendar: Color(0xFFF07A72),
+    iconPost: Color(0xFFF07A72),
+    navActiveBg: Color(0xFF27355A),
+    navActiveIcon: Color(0xFFF07A72),
+    promptButtonColor: Color(0xFFD8413B),
+    timerDialBackground: Color(0xFF27355A),
+    brightness: Brightness.dark,
+    scheme: _newYearDarkScheme,
+    textPrimary: Color(0xFFF2F6FF),
+    textSecondary: Color(0xFFAEBBD9),
+    textMuted: Color(0xFF9AA8C7),
+    surfaceMuted: Color(0xFF111A30),
+    divider: Color(0xFF33426B),
+  );
+
+  /// Схемы «Нового года» руками: из красного сида поверхности вышли бы
+  /// розоватыми, а ночной синий зимнего сундука не получился бы вовсе.
+  /// Вторичные роли — синий (светлая) и ледяной (тёмная), третичные — ель.
+  static const _newYearScheme = ColorScheme(
+    brightness: Brightness.light,
+    primary: Color(0xFFD8413B),
+    onPrimary: Color(0xFFFFFFFF),
+    primaryContainer: Color(0xFFF9D9D6),
+    onPrimaryContainer: Color(0xFF6E1612),
+    secondary: Color(0xFF1F2B4A),
+    onSecondary: Color(0xFFFFFFFF),
+    secondaryContainer: Color(0xFFDCE3F2),
+    onSecondaryContainer: Color(0xFF14213D),
+    tertiary: Color(0xFF3F7D5C),
+    onTertiary: Color(0xFFFFFFFF),
+    tertiaryContainer: Color(0xFFD6EBDD),
+    onTertiaryContainer: Color(0xFF12301F),
+    error: Color(0xFFBA1A1A),
+    onError: Color(0xFFFFFFFF),
+    errorContainer: Color(0xFFFFDAD6),
+    onErrorContainer: Color(0xFF410002),
+    surface: Color(0xFFFCF0EF),
+    onSurface: Color(0xFF2B1517),
+    onSurfaceVariant: Color(0xFF7C5759),
+    surfaceDim: Color(0xFFEBDCDA),
+    surfaceBright: Color(0xFFFFFFFF),
+    surfaceContainerLowest: Color(0xFFFFFFFF),
+    surfaceContainerLow: Color(0xFFFFF8F7),
+    surfaceContainer: Color(0xFFFAE7E5),
+    surfaceContainerHigh: Color(0xFFF6DCDA),
+    surfaceContainerHighest: Color(0xFFF2D3D0),
+    outline: Color(0xFFA9807F),
+    outlineVariant: Color(0xFFEBC9C6),
+    shadow: Color(0xFF000000),
+    scrim: Color(0xFF000000),
+    inverseSurface: Color(0xFF2B1517),
+    onInverseSurface: Color(0xFFFCF0EF),
+    inversePrimary: Color(0xFFFFB4AC),
+    surfaceTint: Color(0xFFD8413B),
+  );
+
+  static const _newYearDarkScheme = ColorScheme(
+    brightness: Brightness.dark,
+    primary: Color(0xFFD8413B),
+    onPrimary: Color(0xFFFFFFFF),
+    primaryContainer: Color(0xFF4A2533),
+    onPrimaryContainer: Color(0xFFFFB4AC),
+    secondary: Color(0xFF9DB8F0),
+    onSecondary: Color(0xFF14213D),
+    secondaryContainer: Color(0xFF2C3B63),
+    onSecondaryContainer: Color(0xFFDCE6FF),
+    tertiary: Color(0xFF8FD1A8),
+    onTertiary: Color(0xFF0E2A1B),
+    tertiaryContainer: Color(0xFF24463A),
+    onTertiaryContainer: Color(0xFFCBEFD9),
+    error: Color(0xFFFFB4AB),
+    onError: Color(0xFF690005),
+    errorContainer: Color(0xFF93000A),
+    onErrorContainer: Color(0xFFFFDAD6),
+    surface: Color(0xFF16203A),
+    onSurface: Color(0xFFF2F6FF),
+    onSurfaceVariant: Color(0xFFAEBBD9),
+    surfaceDim: Color(0xFF16203A),
+    surfaceBright: Color(0xFF30406A),
+    surfaceContainerLowest: Color(0xFF111A30),
+    surfaceContainerLow: Color(0xFF1A2541),
+    surfaceContainer: Color(0xFF1F2B4A),
+    surfaceContainerHigh: Color(0xFF27355A),
+    surfaceContainerHighest: Color(0xFF30406A),
+    outline: Color(0xFF7F8FB3),
+    outlineVariant: Color(0xFF33426B),
+    shadow: Color(0xFF000000),
+    scrim: Color(0xFF000000),
+    inverseSurface: Color(0xFFF2F6FF),
+    onInverseSurface: Color(0xFF1F2B4A),
+    inversePrimary: Color(0xFFA8302B),
+    surfaceTint: Color(0xFFD8413B),
+  );
+
+  /// Тёмная пара ручной темы с тем же номером. У «Уютной осени» и «Нового
+  /// года» обе версии нарисованы руками, а в [all] на номер помещается одна.
+  static const Map<int, AppTheme> darkPairs = {26: autumnDark, 27: newYearDark};
 
   // ── Список всех тем (порядок = индекс) ───────────────────────────────────
   static const List<AppTheme> all = [
@@ -1192,6 +1357,7 @@ abstract final class AppThemes {
     honeyDark, // 24 — тёмная тема (янтарный уголь + глубокое золото)
     halloween, // 25 — ночь хэллоуинского сундука с узором, только тёмная
     autumn, // 26 — «Уютная осень», листопад; тёмная пара в [darkPairs]
+    newYear, // 27 — «Новый год», снегопад со снежками; тёмная пара в [darkPairs]
   ];
 
   /// Найти тему по индексу; при выходе за границы — возвращает [pink]

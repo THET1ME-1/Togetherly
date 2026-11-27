@@ -76,7 +76,9 @@ class PaletteBadge {
 /// Сезон палитры: каждый год с [fromMonth]/[fromDay] до [untilMonth]/[untilDay]
 /// (UTC, конец не входит) тема открыта всем. После сезона она остаётся у
 /// тех, кто пришёл в приложение до его конца, а пришедшие позже ждут
-/// следующего сезона. Сезон лежит внутри одного календарного года.
+/// следующего сезона. Сезон может переходить через Новый год («Новый год»:
+/// с 1 декабря по 15 января) — тогда конец лежит в следующем году, а
+/// [firstYear] — год, в котором начался первый сезон.
 ///
 /// Решение владельца 19.10.2026 про «Хэллоуин»: бесплатен всем, кто
 /// зарегистрирован до 1 ноября; кто пришёл позже, увидит его к следующему
@@ -105,16 +107,22 @@ class PaletteSeason {
   /// чем отнять её у того, кто её застал.
   bool openFor(DateTime? registeredAt, DateTime now) {
     final t = now.toUtc();
-    final start = DateTime.utc(t.year, fromMonth, fromDay);
-    final end = DateTime.utc(t.year, untilMonth, untilDay);
-    if (!t.isBefore(start) && t.isBefore(end)) return t.year >= firstYear;
-    // Последний закрывшийся сезон: этого года, если он уже прошёл, иначе
-    // прошлого.
-    final lastEnd =
-        t.isBefore(end) ? DateTime.utc(t.year - 1, untilMonth, untilDay) : end;
-    if (lastEnd.year < firstYear) return false;
+    // Сезон, начавшийся в году [y]: конец в том же году или, если сезон
+    // переходит через Новый год, в следующем.
+    final wraps = untilMonth < fromMonth || (untilMonth == fromMonth && untilDay <= fromDay);
+    DateTime start(int y) => DateTime.utc(y, fromMonth, fromDay);
+    DateTime end(int y) => DateTime.utc(wraps ? y + 1 : y, untilMonth, untilDay);
+    for (final y in [t.year, t.year - 1]) {
+      if (!t.isBefore(start(y)) && t.isBefore(end(y))) return y >= firstYear;
+    }
+    // Последний закрывшийся сезон — самый поздний конец, который уже наступил.
+    var y = t.year;
+    while (end(y).isAfter(t)) {
+      y--;
+    }
+    if (y < firstYear) return false;
     if (registeredAt == null) return true;
-    return registeredAt.toUtc().isBefore(lastEnd);
+    return registeredAt.toUtc().isBefore(end(y));
   }
 }
 
@@ -258,6 +266,16 @@ const List<Palette> kPalettes = [
       badge: PaletteBadge(
           'assets/images/themes/autumn_badge.webp', Color(0xFFFBF1E5)),
       target: PaletteTarget('терракота', 35, 53, 0.61)),
+  // Макет «Новогодняя тема со снежками» (27.11.2026): тёмная — ночь зимнего
+  // сундука, светлая — красный и белый; снег и снежки за интерфейсом.
+  // Сезон как у зимнего сундука: всем с 1 декабря по 15 января, потом
+  // остаётся у тех, кто её застал.
+  Palette(27, 'Новый год', Color(0xFFD8413B),
+      season: PaletteSeason(
+          fromMonth: 12, fromDay: 1, untilMonth: 1, untilDay: 16, firstYear: 2026),
+      badge: PaletteBadge(
+          'assets/images/themes/newyear_badge.webp', Color(0xFF16203A)),
+      target: PaletteTarget('новогодний красный', 25, 50, 0.7)),
 ];
 
 /// Вариант схемы для палитры при выбранной насыщенности.
@@ -353,6 +371,7 @@ AppTheme _juiced(AppTheme t, SchemeFlavor f, Palette p) {
     bgImageUrl: t.bgImageUrl,
     bgPattern: t.bgPattern,
     bgLeaves: t.bgLeaves,
+    bgSnow: t.bgSnow,
     heroGradient: t.heroGradient.map(j).toList(),
     heroGlassOpacity: t.heroGlassOpacity,
     heroToggleBorder: t.heroToggleBorder,

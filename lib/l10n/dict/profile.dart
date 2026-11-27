@@ -987,6 +987,15 @@ const Map<String, Map<String, String>> profileStrings = {
     'fr': 'Automne douillet 2026',
     'de': 'Gemütlicher Herbst 2026',
   },
+  'themeNameNewYear': {
+    'ru': 'Новый год 2027',
+    'en': 'New Year 2027',
+    'pt': 'Ano Novo 2027',
+    'it': 'Capodanno 2027',
+    'es': 'Año Nuevo 2027',
+    'fr': 'Nouvel An 2027',
+    'de': 'Neujahr 2027',
+  },
   'themeDarkOnly': {
     'ru': 'Эта тема бывает только тёмной',
     'en': 'This theme comes in dark only',

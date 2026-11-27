@@ -36,6 +36,7 @@ String paletteDisplayName(int index) {
     s.themeNameDarkHoney,
     s.themeNameHalloween,
     s.themeNameAutumn,
+    s.themeNameNewYear,
   ];
   if (index < 0 || index >= names.length) return names[0];
   return names[index];
