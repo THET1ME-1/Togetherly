@@ -265,6 +265,15 @@ class UserData extends ChangeNotifier {
     return _themeCache!;
   }
 
+  /// Тема человека в заданной яркости, независимо от режима: экраны с ночным
+  /// фоном (ёлка пары, 27.11.2026 — комната всегда ночная) берут тёмную, иначе
+  /// в светлой теме тёмный текст шапки ложился на тёмную комнату.
+  AppTheme themeIn(Brightness b) {
+    if (b == _themeMode.resolve()) return theme;
+    final palette = paletteFor(_previewThemeId ?? themeId, _customThemes);
+    return buildAppTheme(palette, b, flavor: _themeFlavor, amoled: _amoled);
+  }
+
   AppThemeMode get themeMode => _themeMode;
   SchemeFlavor get themeFlavor => _themeFlavor;
   bool get amoled => _amoled;

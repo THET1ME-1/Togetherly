@@ -13,6 +13,8 @@ import '../../services/catalog_service.dart';
 import '../../services/locale_service.dart';
 import '../../services/offline/media_view_cache.dart';
 import '../../services/xmas_tree_service.dart';
+import '../../models/custom_theme.dart';
+import '../../theme/app_palettes.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/profile_theme.dart';
 import '../../widgets/xmas/toy_sheets.dart';
@@ -20,12 +22,16 @@ import '../../widgets/xmas/tree_stage.dart';
 import '../../widgets/xmas/tree_sway.dart';
 import '../chest_screen.dart';
 
-/// Комната из Gemini (`xt_room_day` / `xt_room_dusk`), 704×1520. Ёлка встаёт
-/// горшком в центр коврика, снег идёт за стеклом окна, у камина дышит отсвет.
-const double _roomW = 704, _roomH = 1520;
-const Offset _rug = Offset(352, 1298);
-const Rect _glass = Rect.fromLTRB(60, 250, 330, 684);
-const Offset _fire = Offset(616, 1062);
+/// Комната из Gemini (`xt_room_night`), 704×1504: угол деревянного домика
+/// ночью, одна на обе темы. Владелец 27.11.2026 отверг пару «день и вечер»:
+/// «не надо фона для светлой и тёмной, всегда уютный тёмный и свет». Ёлка
+/// встаёт горшком в центр коврика, снег идёт за стеклом окна слева, у камина
+/// справа дышит отсвет. Точки сняты с картинки сеткой.
+const double _roomW = 704, _roomH = 1504;
+const Offset _rug = Offset(358, 1152);
+const Rect _glass = Rect.fromLTRB(0, 285, 185, 868);
+const Offset _fire = Offset(628, 845);
+const String _roomArt = 'xt_room_night';
 
 /// Экран ёлки пары (вариант В макета «Наряжаем ёлку», 26.11.2026): ёлка во
 /// весь экран в комнате, снизу плавающая панель. Игрушку берут в листе
@@ -248,9 +254,14 @@ class _XmasTreeScreenState extends State<XmasTreeScreen> with TickerProviderStat
 
   @override
   Widget build(BuildContext context) {
-    final theme = ProfileTheme.themeFor(widget.theme);
+    // Комната всегда ночная, поэтому и всё поверх неё — в тёмной версии темы
+    // человека, какой бы режим ни стоял в приложении.
+    // Без данных человека (превью, тесты) — тёмная версия той же палитры.
+    final night = widget.theme.isDark
+        ? widget.theme
+        : (widget.userData?.themeIn(Brightness.dark) ?? buildAppTheme(paletteFor(widget.theme.index, const []), Brightness.dark));
+    final theme = ProfileTheme.themeFor(night);
     final cs = theme.colorScheme;
-    final dark = cs.brightness == Brightness.dark;
     final s = _svc.state;
     final tree = s?.tree ?? const PairTree();
     final toys = s?.toys ?? const <TreeToy>[];
@@ -272,7 +283,7 @@ class _XmasTreeScreenState extends State<XmasTreeScreen> with TickerProviderStat
           final pad = MediaQuery.paddingOf(context);
           return Stack(
             children: [
-              Positioned.fill(child: _Room(dark: dark)),
+              const Positioned.fill(child: _Room()),
               Positioned.fromRect(rect: glass, child: _WindowSnow(anim: _ambient)),
               // отсвет шириной в 600 точек комнаты: камин и пол перед ним
               Positioned(left: fire.dx - 300 * k, top: fire.dy - 300 * k, width: 600 * k, height: 600 * k, child: _FireGlow(anim: _ambient)),
@@ -364,19 +375,18 @@ class _XmasTreeScreenState extends State<XmasTreeScreen> with TickerProviderStat
 }
 
 class _Room extends StatelessWidget {
-  const _Room({required this.dark});
-  final bool dark;
+  const _Room();
 
   @override
   Widget build(BuildContext context) {
     final debug = xtDebugArt;
     if (debug != null) {
-      return Image(image: debug(dark ? 'xt_room_dusk' : 'xt_room_day'), fit: BoxFit.cover, alignment: Alignment.bottomCenter);
+      return Image(image: debug(_roomArt), fit: BoxFit.cover, alignment: Alignment.bottomCenter);
     }
     return ListenableBuilder(
       listenable: CatalogService.instance,
       builder: (context, _) {
-        final art = CatalogService.instance.giftArt(dark ? 'xt_room_dusk' : 'xt_room_day');
+        final art = CatalogService.instance.giftArt(_roomArt);
         final url = art?.lgUrl ?? art?.smUrl;
         final cs = Theme.of(context).colorScheme;
         if (url == null) return ColoredBox(color: cs.surfaceContainer);

@@ -84,7 +84,7 @@ void main() {
     await tester.runAsync(() async {
       final keys = <String>{
         for (final k in const ['fir', 'snowy']) ...['xt3_${k}_base', 'xt3_${k}_star', 'xt3_${k}_t0', for (final p in const ['t1', 't2', 't3']) ...['xt3_${k}_${p}_g0', 'xt3_${k}_${p}_g1']],
-        'xt_room_day', 'xt_room_dusk', 'xt_pick_style_fir',
+        'xt_room_night', 'xt_pick_style_fir',
         for (final x in toys) ...[x.pickArt, if (x.treeArt.isNotEmpty) x.treeArt],
       };
       for (final k in keys) {

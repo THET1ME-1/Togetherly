@@ -115,7 +115,7 @@ class CatalogService extends ChangeNotifier {
     await _ensureIds([for (final k in first) if (xmasToy(k) == null) 'toy_$k']);
     // сама ёлка рисуется кодом (tree_draw.dart), её слоёв качать не нужно
     final keys = <String>[
-      'xt_room_day', 'xt_room_dusk', 'xt_pick_style_fir',
+      'xt_room_night', 'xt_pick_style_fir',
       for (final t in _toys) ...[t.pickArt, t.treeArt],
     ];
     await _ensureIds([for (final k in keys) if (k.isNotEmpty && _giftArt[k]?.lgUrl == null) 'art_$k']);
