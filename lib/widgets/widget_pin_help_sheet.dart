@@ -1,9 +1,37 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show MethodChannel;
 
 import '../dict_strings.dart' show trKey;
 import '../services/locale_service.dart';
 import '../theme/fonts.dart';
 import 'app_sheet.dart';
+
+const _widgetsChannel = MethodChannel('love_app/widgets');
+
+/// Открывает лист «Виджет не появился»; на Xiaomi с кнопкой в окно
+/// разрешений приложения. Зовут все места, где приложение просит лончер
+/// поставить виджет: каталог виджетов и галерея рисунков.
+Future<void> showWidgetPinHelp(BuildContext context) async {
+  var xiaomi = false;
+  try {
+    xiaomi = await _widgetsChannel.invokeMethod<bool>('isXiaomiLauncher') ?? false;
+  } catch (_) {}
+  if (!context.mounted) return;
+  await showAppSheet<void>(
+    context,
+    builder: (ctx) => WidgetPinHelpSheet(
+      xiaomi: xiaomi,
+      onOpenSettings: () {
+        Navigator.of(ctx).pop();
+        unawaited(_widgetsChannel
+            .invokeMethod<bool>('openWidgetPermission')
+            .catchError((_) => false));
+      },
+    ),
+  );
+}
 
 /// Лист «Виджет не появился»: лончер молча не поставил виджет.
 ///

@@ -212,4 +212,5 @@ const Map<String, String> widgetScreenZh = {
   'widgetPinSilentManual': '请手动添加：长按桌面空白处，选择“小组件”，找到 Togetherly。',
   'widgetPinXiaomiHint': '在小米手机上，应用需要“桌面快捷方式”权限才能添加小组件。',
   'widgetPinOpenSettings': '打开权限设置',
+  'photoGridSaved': '小组件照片已保存',
 };

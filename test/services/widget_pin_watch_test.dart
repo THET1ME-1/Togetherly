@@ -40,6 +40,18 @@ void main() {
     expect(outcome, WidgetPinOutcome.cancelled);
   });
 
+  testWidgets('окно системы открылось раньше, чем начали слушать, — это не «тишина»', (tester) async {
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    WidgetPinOutcome? outcome;
+    watchWidgetPin(count: () async => 2, before: 2).then((o) => outcome = o);
+    // Человек думает над окном дольше «тихого» срока.
+    await tester.pump(const Duration(seconds: 8));
+    expect(outcome, isNull, reason: 'окно открыто, человек решает');
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump(const Duration(seconds: 3));
+    expect(outcome, WidgetPinOutcome.cancelled);
+  });
+
   testWidgets('виджет встал после окна системы — «поставлен»', (tester) async {
     var count = 0;
     WidgetPinOutcome? outcome;

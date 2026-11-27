@@ -745,6 +745,17 @@ const Map<String, Map<String, String>> widgetScreenStrings = {
     'fr': 'Ouvrir les autorisations',
     'de': 'Berechtigungen öffnen',
   },
+  // Фото-сетка сохраняет снимки, а не ставит виджет: «Виджет добавлен»
+  // здесь было неправдой.
+  'photoGridSaved': {
+    'ru': 'Фото для виджета сохранены',
+    'en': 'Photos for the widget saved',
+    'pt': 'Fotos do widget salvas',
+    'it': 'Foto del widget salvate',
+    'es': 'Fotos del widget guardadas',
+    'fr': 'Photos du widget enregistrées',
+    'de': 'Fotos fürs Widget gespeichert',
+  },
   'widgetAddedToHome': {
     'ru': 'Виджет добавлен на рабочий стол',
     'en': 'Widget added to home screen',

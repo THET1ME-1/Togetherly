@@ -34,7 +34,10 @@ Future<WidgetPinOutcome> watchWidgetPin({
   Duration step = const Duration(milliseconds: 400),
   Duration patience = const Duration(minutes: 2),
 }) async {
-  var lostFocus = false;
+  // Окно системы могло открыться раньше, чем мы начали слушать: слушатель
+  // прошлых смен не повторяет, поэтому нынешнее состояние берём сразу.
+  final state = WidgetsBinding.instance.lifecycleState;
+  var lostFocus = state != null && state != AppLifecycleState.resumed;
   Duration? returnedAt;
   // Время считается шагами ожидания, а не часами: так его видят и тесты, и
   // запрос числа виджетов (миллисекунды) в счёт не идёт.

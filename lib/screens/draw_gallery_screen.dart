@@ -17,6 +17,8 @@ import '../theme/fonts.dart';
 import '../widgets/common/app_dialog.dart';
 import '../widgets/draw/canvas_preview.dart';
 import '../widgets/common/m3_loading.dart';
+import '../services/widget_pin_watch.dart';
+import '../widgets/widget_pin_help_sheet.dart';
 import 'canvas_create_flow.dart';
 import 'coloring_catalogue_screen.dart';
 import 'draw_screen.dart';
@@ -712,12 +714,24 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
               .previewStrokes(_groupId, m.id, limit: kPreviewStrokeLimit)
           : _storage.loadLocalStrokes(_uid, m.id),
     );
+    // Лончер Xiaomi отвечает «принято» и молча ничего не ставит: итог
+    // смотрим по самому рабочему столу, слушать начинаем до просьбы.
+    const provider = 'CanvasWidget2x3Provider';
+    final before = await installedWidgetCount(provider);
+    final watch = watchWidgetPin(
+      count: () => installedWidgetCount(provider),
+      before: before,
+    );
     final ok = await CanvasWidgetService.instance.pinToHomeScreen(meta.id);
     if (!mounted) return;
     if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(_s.drawAddToWidgetUnsupported)),
       );
+      return;
+    }
+    if (await watch == WidgetPinOutcome.silent && mounted) {
+      await showWidgetPinHelp(context);
     }
   }
 

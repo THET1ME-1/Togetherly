@@ -220,4 +220,5 @@ const Map<String, String> widgetScreenUk = {
   'widgetPinSilentManual': 'Додайте його самі: утримуйте палець на порожньому місці робочого столу, виберіть «Віджети» й знайдіть Togetherly.',
   'widgetPinXiaomiHint': 'На Xiaomi застосунок ставить віджети лише з дозволом «Ярлики на робочому столі».',
   'widgetPinOpenSettings': 'Відкрити дозволи',
+  'photoGridSaved': 'Фото для віджета збережено',
 };

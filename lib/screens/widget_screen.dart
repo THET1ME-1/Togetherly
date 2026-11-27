@@ -3,7 +3,6 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import '../widgets/note_editor_sheet.dart';
@@ -1132,29 +1131,6 @@ class _WidgetScreenState extends State<WidgetScreen>
     await HomeWidgetService.instance.syncTimer(timer, groupId: _pair.pairId);
   }
 
-  static const _widgetsChannel = MethodChannel('love_app/widgets');
-
-  /// Лист «Виджет не появился»; на Xiaomi с кнопкой в окно разрешений.
-  Future<void> _showPinHelp() async {
-    var xiaomi = false;
-    try {
-      xiaomi = await _widgetsChannel.invokeMethod<bool>('isXiaomiLauncher') ?? false;
-    } catch (_) {}
-    if (!mounted) return;
-    await showAppSheet<void>(
-      context,
-      builder: (ctx) => WidgetPinHelpSheet(
-        xiaomi: xiaomi,
-        onOpenSettings: () {
-          Navigator.of(ctx).pop();
-          unawaited(_widgetsChannel
-              .invokeMethod<bool>('openWidgetPermission')
-              .catchError((_) => false));
-        },
-      ),
-    );
-  }
-
   Future<void> _pinWidget(String qualifiedName, {String? widgetType}) async {
     debugPrint(
       '_pinWidget called: qualifiedName=$qualifiedName, widgetType=$widgetType',
@@ -1232,6 +1208,12 @@ class _WidgetScreenState extends State<WidgetScreen>
       // Сколько таких виджетов на столе до просьбы: ответ лончера ничего не
       // значит, итог видно только по самому столу (watchWidgetPin).
       final before = await installedWidgetCount(className);
+      // Слушать начинаем ДО просьбы: окно системы открывается сразу, и
+      // начатое позже наблюдение приняло бы раздумья человека за молчание.
+      final watch = watchWidgetPin(
+        count: () => installedWidgetCount(className),
+        before: before,
+      );
       await HomeWidget.requestPinWidget(
         name: className,
         androidName: className,
@@ -1253,10 +1235,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           await _loadPhotoDayWidgets();
         }
       }
-      final outcome = await watchWidgetPin(
-        count: () => installedWidgetCount(className),
-        before: before,
-      );
+      final outcome = await watch;
       if (outcome == WidgetPinOutcome.placed) {
         unawaited(LevelService.instance.award(XpAction.setWidget));
         // Шаг «поставить виджет» в списке первых действий закрывается отсюда:
@@ -1278,7 +1257,7 @@ class _WidgetScreenState extends State<WidgetScreen>
       } else if (outcome == WidgetPinOutcome.silent && mounted) {
         // Лончер промолчал (чаще всего Xiaomi без разрешения «Ярлыки на
         // рабочем столе»): говорим, как поставить виджет руками.
-        await _showPinHelp();
+        await showWidgetPinHelp(context);
       }
     } catch (e, stack) {
       debugPrint('Pin widget failed: $e');
@@ -7585,7 +7564,7 @@ class _WidgetScreenState extends State<WidgetScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(LocaleService.current.widgetAddedToHome),
+            content: Text(trKey('photoGridSaved')),
             duration: const Duration(seconds: 2),
           ),
         );
