@@ -73,4 +73,35 @@ void main() {
     expect(XmasTreeService.instance.state!.toys, isEmpty);
     await tester.pump(const Duration(seconds: 3));
   });
+
+  // Снимок владельца 27.11.2026: удерживает повешенную игрушку, чтобы
+  // передвинуть, — на месте ёлки серый прямоугольник (так выпущенная сборка
+  // рисует упавший при постройке виджет).
+  for (final hold in [Duration.zero, const Duration(milliseconds: 700)]) {
+    testWidgets('повешенную игрушку тянут (удержание ${hold.inMilliseconds} мс) — сцена не падает', (tester) async {
+      XmasTreeService.instance.debugSet(
+        group: 'g',
+        season: 2026,
+        me: 'me',
+        state: TreeState(
+          toys: [TreeToy(id: 't1', toy: 'red', x: 48, y: 50, author: 'me', created: DateTime.utc(2026, 12, 3))],
+          owned: const {'red': 2},
+          seasons: const [2026],
+        ),
+      );
+      final r = await open(tester);
+      final g = await tester.startGesture(at(r, 48, 50));
+      await tester.pump(hold);
+      for (var i = 1; i <= 12; i++) {
+        await g.moveBy(const Offset(4, 3));
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(tester.takeException(), isNull, reason: 'сцена упала на шаге $i');
+      }
+      expect(find.byType(ErrorWidget), findsNothing);
+      await g.up();
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(tester.takeException(), isNull);
+      await tester.pump(const Duration(seconds: 3));
+    });
+  }
 }

@@ -124,11 +124,12 @@ class TreeStage extends StatelessWidget {
                 _toy(f, t.toy, h.screen, h.scale, key: ValueKey(t.id)),
             ],
             if (tree.star) layer('star'),
+            // Прозрачность — внутри Positioned: Opacity вокруг него ломала
+            // постройку сцены («Incorrect use of ParentDataWidget»), и в
+            // выпущенной сборке вместо ёлки вставал серый прямоугольник, как
+            // только игрушку начинали тянуть (владелец, 27.11.2026).
             if (ghost != null)
-              Opacity(
-                opacity: xtCanHang(kind, ghost!.at.dx, ghost!.at.dy) ? 1 : 0.4,
-                child: _toy(f, ghost!.toy, ghost!.at, 0.15),
-              ),
+              _toy(f, ghost!.toy, ghost!.at, 0.15, opacity: xtCanHang(kind, ghost!.at.dx, ghost!.at.dy) ? 1 : 0.4),
           ],
         ),
       ),
@@ -137,17 +138,18 @@ class TreeStage extends StatelessWidget {
 
   /// Игрушка на ёлке: картинка без наклейки на холсте −4…104 её единиц,
   /// подвес в (50, 3).
-  Widget _toy(XtFrame f, String toyKey, Offset hang, double k, {Key? key}) {
+  Widget _toy(XtFrame f, String toyKey, Offset hang, double k, {Key? key, double opacity = 1}) {
     final toy = CatalogService.instance.xmasToy(toyKey);
     final art = toy?.treeArt.isNotEmpty == true ? toy!.treeArt : 'xt3toy_$toyKey';
     final box = f.px(-8 + 108 * k);
+    final Widget pic = XtArt(art, side: box, still: still);
     return Positioned(
       key: key,
       left: f.px(hang.dx - 54 * k),
       top: f.px(hang.dy - 7 * k),
       width: box,
       height: box,
-      child: IgnorePointer(child: XtArt(art, side: box, still: still)),
+      child: IgnorePointer(child: opacity < 1 ? Opacity(opacity: opacity, child: pic) : pic),
     );
   }
 }
