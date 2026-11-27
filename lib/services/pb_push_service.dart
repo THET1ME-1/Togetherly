@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show PlatformException;
@@ -9,6 +10,7 @@ import '../models/chat_msg.dart';
 import '../models/avatar_frame.dart';
 import '../models/gift.dart';
 import '../models/gift_effect.dart';
+import '../models/push_slot.dart';
 import 'frame_gift_service.dart';
 import '../dict_strings.dart';
 import 'chat_service.dart';
@@ -160,7 +162,7 @@ class PbPushService {
             ? ChatService.voiceQuote(
                 ChatMsg.fromPb(r), LocaleService.current.voiceMessage)
             : (text.isEmpty ? '✉️' : text);
-        _notify(r.id.hashCode, name, body);
+        _notify(r.id.hashCode, name, body, thread: 'chat');
       } catch (err) {
         debugPrint('PbPush chat callback error: $err');
       }
@@ -186,7 +188,8 @@ class PbPushService {
             partner,
             label.isEmpty
                 ? trKey('pushMoodMarked')
-                : '${trKey('pushMoodOfDay')}: $label');
+                : '${trKey('pushMoodOfDay')}: $label',
+            thread: 'mood');
       } catch (err) {
         debugPrint('PbPush mood callback error: $err');
       }
@@ -208,7 +211,8 @@ class PbPushService {
         // custom доставляется всегда; остальное — по настройке notif_miss_you
         if (vibe != 'custom' && !_pref('notif_miss_you')) return; // check BEFORE state mutation
         _lastMissCount = cnt;
-        _notify(('miss$partnerUid$cnt').hashCode, partner, _vibeBody(vibe, custom));
+        _notify(('miss$partnerUid$cnt').hashCode, partner, _vibeBody(vibe, custom),
+            thread: 'miss');
       } catch (err) {
         debugPrint('PbPush miss_you callback error: $err');
       }
@@ -223,7 +227,8 @@ class PbPushService {
         if (r == null || r.data['author_uid'] != partnerUid) return;
         if (r.data['deleted'] == true || !_pref('notif_new_memory')) return;
         final name = (r.data['author_name'] ?? partner).toString();
-        _notify(('mem${r.id}').hashCode, name, trKey('pushNewMemory'));
+        _notify(('mem${r.id}').hashCode, name, trKey('pushNewMemory'),
+            thread: 'memory');
       } catch (err) {
         debugPrint('PbPush memory callback error: $err');
       }
@@ -245,7 +250,8 @@ class PbPushService {
         if (frameKey != null) {
           final name = AvatarFrame.byKey(frameKey)?.name ?? frameKey;
           _notify(('gift${r.id}').hashCode, partner,
-              trKey('framePushBody').replaceAll('{frame}', name));
+              trKey('framePushBody').replaceAll('{frame}', name),
+              thread: 'gift');
           return;
         }
         final gift = GiftCatalog.byKey(giftKey);
@@ -253,7 +259,8 @@ class PbPushService {
         // Ракета проходит сквозь подаренную тихую ночь: она для срочного.
         _notify(('gift${r.id}').hashCode, partner,
             LocaleService.current.giftPushBody(gift.title),
-            pierceQuiet: gift.piercesQuietHours);
+            pierceQuiet: gift.piercesQuietHours,
+            thread: 'gift');
       } catch (err) {
         debugPrint('PbPush gift callback error: $err');
       }
@@ -289,8 +296,10 @@ class PbPushService {
     await _notify(id, title, body);
   }
 
+  /// [thread] — вид события, с которым сервер шлёт такой же пуш FCM; на
+  /// Android своё уведомление встаёт на его место в шторке ([pushSlot]).
   Future<void> _notify(int id, String title, String body,
-      {bool pierceQuiet = false}) async {
+      {bool pierceQuiet = false, String? thread}) async {
     if (_muted && !pierceQuiet) {
       debugPrint('PbPush: тихая ночь — уведомление не показываем');
       return;
@@ -298,9 +307,10 @@ class PbPushService {
     // Уведомления выключены в системе — это выбор человека, а не сбой. iPhone
     // отвечает «Error 2003, Source is not authorized», и без перехвата это
     // было 436 отчётов в сутки (Bugsink, 23.10.2026).
+    final slot = pushSlot(thread: thread, ownId: id, android: Platform.isAndroid);
     try {
       await _ln.show(
-        id: id,
+        id: slot.id,
         title: title,
         body: body,
         notificationDetails: NotificationDetails(
@@ -311,6 +321,7 @@ class PbPushService {
             importance: Importance.high,
             priority: Priority.high,
             icon: '@drawable/ic_notification',
+            tag: slot.tag,
           ),
           iOS: const DarwinNotificationDetails(
             presentAlert: true,
