@@ -84,6 +84,15 @@ void main() {
     expect(SnowballService.instance.current.value, isNull);
   });
 
+  testWidgets('имя партнёра неизвестно — «Снежок от партнёра», а не «от Партнёр»', (tester) async {
+    await pump(tester);
+    SnowballService.instance.hit(1, partnerName: '');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1200));
+    expect(find.text('Снежок от партнёра'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 4));
+  });
+
   testWidgets('серия показывает число', (tester) async {
     await pump(tester);
     SnowballService.instance.hit(3, partnerName: 'Аня');

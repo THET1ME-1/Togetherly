@@ -141,7 +141,7 @@ class _HitSceneState extends State<_HitScene> with SingleTickerProviderStateMixi
 
   Widget _pill(ColorScheme cs) {
     final h = widget.hit;
-    final name = h.from.isEmpty ? trKey('snow.partner') : h.from;
+    final title = h.from.isEmpty ? trKey('snow.fromPartner') : trKey('snow.from').replaceAll('{name}', h.from);
     final sub = h.count > 1 ? trKey('snow.hits').replaceAll('{n}', '${h.count}') : trKey('snow.hit');
     return Material(
       color: cs.surfaceContainerHigh,
@@ -157,7 +157,7 @@ class _HitSceneState extends State<_HitScene> with SingleTickerProviderStateMixi
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(trKey('snow.from').replaceAll('{name}', name),
+                  Text(title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(fontFamily: 'Onest', fontWeight: FontWeight.w600, fontSize: 14.5, color: cs.onSurface)),

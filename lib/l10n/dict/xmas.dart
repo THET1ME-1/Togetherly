@@ -67,8 +67,8 @@ const Map<String, Map<String, String>> xmasStrings = {
 
   // Снежки темы «Новый год» (27.11.2026): попадание у партнёра.
   'snow.from': {'ru': 'Снежок от {name}', 'en': 'Snowball from {name}', 'pt': 'Bola de neve de {name}', 'it': 'Palla di neve da {name}', 'es': 'Bola de nieve de {name}', 'fr': 'Boule de neige de {name}', 'de': 'Schneeball von {name}'},
-  'snow.hit': {'ru': 'попал прямо в экран', 'en': 'right on your screen', 'pt': 'bem na sua tela', 'it': 'dritto sullo schermo', 'es': 'justo en tu pantalla', 'fr': 'pile sur ton écran', 'de': 'mitten auf den Bildschirm'},
-  'snow.hits': {'ru': 'попал ×{n}', 'en': 'hit you ×{n}', 'pt': 'acertou ×{n}', 'it': 'ti ha colpito ×{n}', 'es': 'te dio ×{n}', 'fr': 'touché ×{n}', 'de': '×{n} getroffen'},
+  'snow.hit': {'ru': 'Попал прямо в экран', 'en': 'Right on your screen', 'pt': 'Bem na sua tela', 'it': 'Dritto sullo schermo', 'es': 'Justo en tu pantalla', 'fr': 'Pile sur ton écran', 'de': 'Mitten auf den Bildschirm'},
+  'snow.hits': {'ru': 'Попал ×{n}', 'en': 'Hit you ×{n}', 'pt': 'Acertou ×{n}', 'it': 'Ti ha colpito ×{n}', 'es': 'Te dio ×{n}', 'fr': 'Touché ×{n}', 'de': '×{n} getroffen'},
   'snow.back': {'ru': 'Кинуть в ответ', 'en': 'Throw back', 'pt': 'Jogar de volta', 'it': 'Rilancia', 'es': 'Devolver', 'fr': 'Renvoyer', 'de': 'Zurückwerfen'},
-  'snow.partner': {'ru': 'партнёра', 'en': 'your partner', 'pt': 'seu par', 'it': 'il partner', 'es': 'tu pareja', 'fr': 'ton partenaire', 'de': 'deinem Partner'},
+  'snow.fromPartner': {'ru': 'Снежок от партнёра', 'en': 'Snowball from your partner', 'pt': 'Bola de neve do seu par', 'it': 'Palla di neve dal partner', 'es': 'Bola de nieve de tu pareja', 'fr': 'Boule de neige de ton partenaire', 'de': 'Schneeball von deinem Partner'},
 };

@@ -63,5 +63,5 @@ const Map<String, String> xmasZh = {
   'snow.hit': '正中屏幕',
   'snow.hits': '砸中 ×{n}',
   'snow.back': '扔回去',
-  'snow.partner': '伴侣',
+  'snow.fromPartner': '来自伴侣的雪球',
 };
