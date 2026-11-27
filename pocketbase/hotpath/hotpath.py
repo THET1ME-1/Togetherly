@@ -2172,6 +2172,92 @@ async def miss_you(request: Request):
     return ORJSONResponse({"ok": True, "count": _num(row["count"])})
 
 
+# ── Снежки темы «Новый год» (27.11.2026) ─────────────────────────────────────
+#
+# Человек ловит снежок на фоне темы и бросает его партнёру. Партнёр в
+# приложении получает событие в канал пары и видит, как снежок шлёпается о
+# стекло экрана; не в приложении — пуш (не чаще раза в 10 минут на пару) и
+# попадание при следующем открытии (`pending`). Отправитель — всегда тот, кто
+# вошёл, а не номер из запроса.
+
+СНЕЖОК_НЕ_ЧАЩЕ_С = 2
+СНЕЖОК_ПУШ_НЕ_ЧАЩЕ_МИН = 10
+
+
+@app.post("/api/group/snowball")
+async def snowball(request: Request):
+    """Бросок снежка `{groupId}` или непросмотренные мне `{groupId, pending: true}`."""
+    try:
+        auth = await _auth(request)
+    except Exception:
+        return _err(429, "Try again later.")
+    if auth is None:
+        return _err(401, "The request requires valid record authorization token.")
+    uid, groups = auth
+    try:
+        body = await request.json()
+        assert isinstance(body, dict)
+    except Exception:
+        return _err(400, "bad params")
+    group_id = str(body.get("groupId") or "").strip()
+    if not group_id:
+        return _err(400, "bad params")
+    groups = await _догнать_пары(uid, groups, group_id)
+    if group_id not in groups:
+        return ORJSONResponse({"ok": False, "error": "not a member"}, status_code=403)
+
+    # Непросмотренные снежки от партнёра за сутки: отдаём и сразу помечаем
+    # показанными, чтобы попадание при открытии сыграло один раз.
+    if body.get("pending") is True:
+        rows = await pg.fetch(
+            "UPDATE snowballs SET seen_at = now() WHERE group_id = $1 AND from_uid <> $2 "
+            "AND seen_at IS NULL AND created > now() - interval '1 day' RETURNING from_uid",
+            group_id, uid)
+        return ORJSONResponse({"ok": True, "count": len(rows),
+                               "from": rows[0]["from_uid"] if rows else ""})
+
+    # Зажатый палец — не повод для сотни снежков: не чаще раза в 2 с.
+    свежий = await pg.fetchval(
+        "SELECT 1 FROM snowballs WHERE from_uid = $1 AND created > now() - make_interval(secs => $2)",
+        uid, float(СНЕЖОК_НЕ_ЧАЩЕ_С))
+    if свежий:
+        return ORJSONResponse({"ok": False, "error": "too fast"}, status_code=429)
+
+    rid = _new_id()
+    row = await pg.fetchrow(
+        "INSERT INTO snowballs (id, group_id, from_uid) VALUES ($1, $2, $3) RETURNING created",
+        rid, group_id, uid)
+    # Старое чистим по ходу: строки нужны сутки.
+    await pg.execute("DELETE FROM snowballs WHERE group_id = $1 AND created < now() - interval '2 days'", group_id)
+
+    # Партнёру в приложении — сразу, каналом пары. Коллекции в COLLECTIONS
+    # нет (снежок не читают и не правят через REST), поэтому публикуем сами.
+    if CENT_KEY:
+        запись = {"id": rid, "group_id": group_id, "from_uid": uid, "created": row["created"].isoformat()}
+        try:
+            await cent_client.post(
+                "/publish",
+                json={"channel": "pair:" + group_id,
+                      "data": {"event": "create", "collection": "snowballs", "record": запись}},
+                headers={"X-API-Key": CENT_KEY},
+            )
+        except httpx.HTTPError:
+            pass
+
+    # Не в приложении — пуш, но не чаще раза в 10 минут на пару. Пуш уходит
+    # только тем, кого нет в сети (`_notify_group`), и отметка ставится после
+    # фактической отправки, как у «Скучаю».
+    был_пуш = await pg.fetchval(
+        "SELECT 1 FROM snowballs WHERE group_id = $1 AND pushed AND created > now() - make_interval(mins => $2)",
+        group_id, СНЕЖОК_ПУШ_НЕ_ЧАЩЕ_МИН)
+    if not был_пуш:
+        ушло = await _notify_group(
+            group_id, uid, lambda язык: пуш("snow_title", язык), lambda язык: пуш("snow_body", язык), "snowball")
+        if ушло:
+            await pg.execute("UPDATE snowballs SET pushed = true WHERE id = $1", rid)
+    return ORJSONResponse({"ok": True})
+
+
 # ── Разгрузка PocketBase: частые вопросы с редким ответом ────────────────────
 #
 # Вечер 14.08.2026: 400 запросов в секунду, из них 26 пишущих, а SQLite с

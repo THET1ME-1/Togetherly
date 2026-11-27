@@ -100,6 +100,18 @@ English»). Теперь приложение кладёт код языка в 
         "it": "Voglio abbracciarti", "pt": "Quero te abraçar", "zh": "想抱抱",
         "uk": "Хочу обійняти",
     },
+    # Снежок темы «Новый год» (27.11.2026): партнёр не в приложении.
+    "snow_title": {
+        "ru": "В тебя прилетел снежок", "en": "A snowball hit you", "de": "Ein Schneeball hat dich getroffen",
+        "fr": "Une boule de neige t’a touché", "es": "Te dieron con una bola de nieve",
+        "it": "Ti è arrivata una palla di neve", "pt": "Uma bola de neve te acertou", "zh": "你被雪球砸中了",
+        "uk": "У тебе влучила сніжка",
+    },
+    "snow_body": {
+        "ru": "Открой и кинь в ответ", "en": "Open the app and throw one back", "de": "Öffne die App und wirf zurück",
+        "fr": "Ouvre l’app et renvoie-la", "es": "Abre la app y devuélvela", "it": "Apri l’app e rilanciala",
+        "pt": "Abra o app e jogue de volta", "zh": "打开应用扔回去", "uk": "Відкрий і кинь у відповідь",
+    },
 }
 
 
