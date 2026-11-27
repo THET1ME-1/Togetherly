@@ -27,6 +27,33 @@ import 'pb_data_service.dart';
 import 'pocketbase_service.dart';
 import 'season_preview.dart';
 
+/// Порядок фоновой загрузки каталога при запуске.
+///
+/// Полный каталог [full] и ответ предпросмотра сезона [preview] идут
+/// параллельно, а спрятанные наборы предпросмотра [loadSets] догружаются
+/// после обоих — каждый раз, когда наборы есть ([sets]), а не только когда
+/// ответ поменялся. Иначе со второго запуска набор не догружался, а в первый
+/// полный каталог приходил позже и затирал догруженное: в таблице шансов
+/// зимнего сундука рамки и значки шли кодовыми именами (владелец, 27.11.2026).
+/// Срыв полного каталога догрузку не отменяет.
+@visibleForTesting
+Future<void> catalogStartup({
+  required Future<void> Function() full,
+  required Future<bool> Function() preview,
+  required List<String> Function() sets,
+  required Future<void> Function(List<String>) loadSets,
+}) async {
+  Future<void> quiet(Future<Object?> Function() run) async {
+    try {
+      await run();
+    } catch (_) {}
+  }
+
+  await Future.wait([quiet(full), quiet(preview)]);
+  final hidden = sets();
+  if (hidden.isNotEmpty) await quiet(() => loadSets(hidden));
+}
+
 /// Удалённый КАТАЛОГ контента (паки настроений + маскоты-награды за уровень).
 ///
 /// Позволяет добавлять новые паки/эмоции/маскотов БЕЗ релиза приложения: список
@@ -256,11 +283,15 @@ class CatalogService extends ChangeNotifier {
 
     // 2) Свежий каталог из PocketBase — В ФОНЕ, не блокируем старт приложения.
     //    Ошибки/офлайн — тихо остаёмся на кэше/бандле.
-    unawaited(refresh());
     // 3) Предпросмотр сезона (только аккаунты из списка на сервере): узнали
     //    свой день и спрятанные наборы — догружаем только их записи (весь
     //    каталог — 7 тысяч записей, на телефоне это долго).
-    unawaited(SeasonPreview.refresh().then((changed) => changed ? ensureSets(SeasonPreview.sets) : null));
+    unawaited(catalogStartup(
+      full: refresh,
+      preview: SeasonPreview.refresh,
+      sets: () => SeasonPreview.sets,
+      loadSets: ensureSets,
+    ));
   }
 
   /// Дописать записи сезонных наборов [sets], включая спрятанные до сезона.
