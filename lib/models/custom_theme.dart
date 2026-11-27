@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../theme/app_palettes.dart';
+import 'xmas_tree.dart' show xtNow;
 
 /// Тема, которую человек собрал сам: цвет из фотографии или из пикера.
 ///
@@ -174,7 +175,7 @@ List<StripEntry> paletteStripEntries({
   DateTime? registeredAt,
   DateTime? now,
 }) {
-  final at = now ?? DateTime.now();
+  final at = now ?? xtNow();
   final open = [
     for (final p in kPalettes)
       if (paletteOpen(p, registeredAt: registeredAt, now: at)) p,

@@ -101,6 +101,9 @@ void main() {
   });
 
   group('порядок кружков в ленте оформления', () {
+    // День, когда открыты все сезонные темы (осень застали, Новый год идёт).
+    final allOpen = DateTime.utc(2026, 12, 20);
+
     test('первым идёт «завести свою», за ней свои темы, потом готовые', () {
       final strip = paletteStripEntries(customCount: 2, plusVisible: true);
       expect(strip[0], const StripEntry.add());
@@ -117,7 +120,7 @@ void main() {
     test('тема с рисунком стоит первой среди готовых, прочие по номеру', () {
       // «Хэллоуин» продаётся рисунком: в конце ленты, за двадцатью пятью
       // кружками, его бы не нашли.
-      final strip = paletteStripEntries(customCount: 0, plusVisible: false);
+      final strip = paletteStripEntries(customCount: 0, plusVisible: false, now: allOpen);
       final art = [for (final p in kPalettes) if (p.badge != null) p.index];
       expect(art, isNotEmpty);
       expect(strip.take(art.length).map((e) => e.index), art);
@@ -134,7 +137,9 @@ void main() {
         now: afterSeason,
       );
       expect(late.map((e) => e.index), isNot(contains(25)));
-      expect(late.length, kPalettes.length - 1);
+      // Новый год (27) 5 ноября ещё не начался — его тоже нет.
+      expect(late.map((e) => e.index), isNot(contains(27)));
+      expect(late.length, kPalettes.length - 2);
 
       final early = paletteStripEntries(
         customCount: 0,
@@ -146,7 +151,7 @@ void main() {
     });
 
     test('готовые палитры не теряются и не задваиваются', () {
-      final strip = paletteStripEntries(customCount: 3, plusVisible: true);
+      final strip = paletteStripEntries(customCount: 3, plusVisible: true, now: allOpen);
       final palettes = strip
           .where((e) => e.isPalette)
           .map((e) => e.index)

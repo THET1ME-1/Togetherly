@@ -24,6 +24,7 @@ import 'mascot_sleep.dart';
 import 'profile_icon.dart';
 import 'avatar_frame.dart';
 import 'pair_book.dart' show kPairBookAdultKey;
+import 'xmas_tree.dart' show xtNow;
 import '../services/avatar_frames.dart';
 import '../services/home_layout_service.dart';
 
@@ -207,9 +208,11 @@ class UserData extends ChangeNotifier {
 
   List<CustomTheme> get customThemes => List.unmodifiable(_customThemes);
 
-  /// Часы для правил сезонных тем; тесты подменяют их своими.
+  /// Часы для правил сезонных тем; тесты подменяют их своими. По умолчанию —
+  /// часы предпросмотра сезона (`xtNow`): тестер, живущий в 1 декабря,
+  /// видит и выбирает новогоднюю тему уже в ноябре.
   @visibleForTesting
-  static DateTime Function() clock = DateTime.now;
+  static DateTime Function() clock = () => xtNow();
 
   /// Когда заведён аккаунт (`users.created`). От неё зависят сезонные темы:
   /// «Хэллоуин» остаётся у тех, кто пришёл до конца сезона. Пока профиль не

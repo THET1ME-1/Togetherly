@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:love_app/models/custom_theme.dart';
+import 'package:love_app/models/user_data.dart';
+import 'package:love_app/models/xmas_tree.dart';
 import 'package:love_app/theme/app_palettes.dart';
 import 'package:love_app/theme/app_theme.dart';
 
@@ -49,6 +52,16 @@ void main() {
     // На светлом белой снежинке нужна обводка, иначе белое на белом пропадает.
     expect(light.bgSnow!.rim.a, greaterThan(0));
     expect(dark.bgSnow!.rim.a, 0);
+  });
+
+  test('в предпросмотре сезона тема видна по дню предпросмотра, а не по настоящему', () {
+    // Тестер живёт в 1 декабря (SeasonPreview ставит xtNow), а на часах ноябрь.
+    xtNow = () => DateTime(2026, 12, 1, 12);
+    addTearDown(() => xtNow = DateTime.now);
+    final strip = paletteStripEntries(customCount: 0, plusVisible: false, registeredAt: DateTime.utc(2026, 11, 20));
+    expect(strip.any((e) => e.isPalette && e.index == 27), isTrue);
+    // и выбрать её можно: выбор проверяется теми же часами
+    expect(paletteOpen(kPalettes[27], registeredAt: DateTime.utc(2026, 11, 20), now: UserData.clock()), isTrue);
   });
 
   test('сочность и AMOLED не теряют снег', () {
