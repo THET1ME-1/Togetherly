@@ -104,6 +104,15 @@ async function openRoom(browser, room, hang) {
     await page.waitForTimeout(1500);
     check('ссылка включается (кадр встал)',
       await page.evaluate(() => !!document.querySelector('#player iframe')));
+
+    // Обращение 26.11.2026 (Россия, Android): «ссылки не открываются», пара
+    // включала ролики ютуба подряд по десятку за вечер, а шапка всё это время
+    // говорила «Играет: YouTube» над пустым кадром. Когда API ютуба не
+    // доехал, комната говорит, что ютуб не отвечает, и что делать.
+    await page.waitForTimeout(12500);
+    const status = await page.textContent('#status');
+    check('ютуб молчит — комната говорит про VPN, а не «Играет»',
+      /VPN/.test(status) && !/Играет/.test(status), status);
     check('страница не падает', errors.length === 0, errors.join(' | '));
 
     await ctx.close();
