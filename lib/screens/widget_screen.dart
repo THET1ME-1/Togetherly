@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import '../widgets/note_editor_sheet.dart';
@@ -33,6 +34,8 @@ import '../widgets/widget_preview/live_sheet_player.dart';
 import '../widgets/miss_widget_card.dart';
 import '../widgets/together_track_card.dart';
 import '../services/widget_theme_sync.dart';
+import '../services/widget_pin_watch.dart';
+import '../widgets/widget_pin_help_sheet.dart';
 import '../models/pair_map_widget_view.dart';
 import '../models/year_ring_spec.dart';
 import '../services/map/pair_map_widget_service.dart';
@@ -1129,6 +1132,29 @@ class _WidgetScreenState extends State<WidgetScreen>
     await HomeWidgetService.instance.syncTimer(timer, groupId: _pair.pairId);
   }
 
+  static const _widgetsChannel = MethodChannel('love_app/widgets');
+
+  /// Лист «Виджет не появился»; на Xiaomi с кнопкой в окно разрешений.
+  Future<void> _showPinHelp() async {
+    var xiaomi = false;
+    try {
+      xiaomi = await _widgetsChannel.invokeMethod<bool>('isXiaomiLauncher') ?? false;
+    } catch (_) {}
+    if (!mounted) return;
+    await showAppSheet<void>(
+      context,
+      builder: (ctx) => WidgetPinHelpSheet(
+        xiaomi: xiaomi,
+        onOpenSettings: () {
+          Navigator.of(ctx).pop();
+          unawaited(_widgetsChannel
+              .invokeMethod<bool>('openWidgetPermission')
+              .catchError((_) => false));
+        },
+      ),
+    );
+  }
+
   Future<void> _pinWidget(String qualifiedName, {String? widgetType}) async {
     debugPrint(
       '_pinWidget called: qualifiedName=$qualifiedName, widgetType=$widgetType',
@@ -1203,16 +1229,14 @@ class _WidgetScreenState extends State<WidgetScreen>
         }
       }
 
+      // Сколько таких виджетов на столе до просьбы: ответ лончера ничего не
+      // значит, итог видно только по самому столу (watchWidgetPin).
+      final before = await installedWidgetCount(className);
       await HomeWidget.requestPinWidget(
         name: className,
         androidName: className,
       );
       debugPrint('_pinWidget: requestPinWidget completed successfully');
-      unawaited(LevelService.instance.award(XpAction.setWidget));
-      // Шаг «поставить виджет» в списке первых действий закрывается отсюда:
-      // записи widget_data заводятся при любой синхронизации и о рабочем столе
-      // ничего не говорят.
-      unawaited(UiPrefs.markWidgetPinned());
       // Привязываем виджет к текущей группе и СРАЗУ синхронизируем данные
       // For solo mode, we still sync with empty groupId
       if (widgetType != null) {
@@ -1229,14 +1253,32 @@ class _WidgetScreenState extends State<WidgetScreen>
           await _loadPhotoDayWidgets();
         }
       }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(LocaleService.current.widgetAddedToHome),
-            backgroundColor: Colors.green.shade400,
-            duration: const Duration(seconds: 2),
-          ),
-        );
+      final outcome = await watchWidgetPin(
+        count: () => installedWidgetCount(className),
+        before: before,
+      );
+      if (outcome == WidgetPinOutcome.placed) {
+        unawaited(LevelService.instance.award(XpAction.setWidget));
+        // Шаг «поставить виджет» в списке первых действий закрывается отсюда:
+        // записи widget_data заводятся при любой синхронизации и о рабочем
+        // столе ничего не говорят.
+        unawaited(UiPrefs.markWidgetPinned());
+        if (widgetType != null && widgetType.startsWith('photo_day')) {
+          await _loadPhotoDayWidgets();
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(LocaleService.current.widgetAddedToHome),
+              backgroundColor: Colors.green.shade400,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      } else if (outcome == WidgetPinOutcome.silent && mounted) {
+        // Лончер промолчал (чаще всего Xiaomi без разрешения «Ярлыки на
+        // рабочем столе»): говорим, как поставить виджет руками.
+        await _showPinHelp();
       }
     } catch (e, stack) {
       debugPrint('Pin widget failed: $e');

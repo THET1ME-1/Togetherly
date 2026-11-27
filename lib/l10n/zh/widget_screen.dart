@@ -208,4 +208,8 @@ const Map<String, String> widgetScreenZh = {
   'catalog.nothing': '没有找到',
   'catalog.nothingHint': '换个词试试，或者取消筛选',
   'catalog.reset': '重置',
+  'widgetPinSilentTitle': '小组件没有出现',
+  'widgetPinSilentManual': '请手动添加：长按桌面空白处，选择“小组件”，找到 Togetherly。',
+  'widgetPinXiaomiHint': '在小米手机上，应用需要“桌面快捷方式”权限才能添加小组件。',
+  'widgetPinOpenSettings': '打开权限设置',
 };

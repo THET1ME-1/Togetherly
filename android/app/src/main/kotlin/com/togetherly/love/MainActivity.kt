@@ -203,6 +203,40 @@ class MainActivity : FlutterActivity() {
                     result.success(true)
                 }
 
+                // Лончер Xiaomi (MIUI, HyperOS) отвечает «умею ставить
+                // виджеты», но без разрешения «Ярлыки на рабочем столе» молча
+                // ничего не ставит (обращения 25.11.2026). Лист-подсказка
+                // показывает таким телефонам кнопку на это разрешение.
+                "isXiaomiLauncher" -> {
+                    val maker = Build.MANUFACTURER.lowercase()
+                    result.success(maker == "xiaomi" || maker == "redmi" || maker == "poco")
+                }
+
+                // Окно разрешений приложения: у Xiaomi своё, где лежат
+                // «Ярлыки на рабочем столе», у остальных — карточка приложения.
+                "openWidgetPermission" -> {
+                    val xiaomi = Intent("miui.intent.action.APP_PERM_EDITOR").apply {
+                        setClassName(
+                            "com.miui.securitycenter",
+                            "com.miui.permcenter.permissions.PermissionsEditorActivity",
+                        )
+                        putExtra("extra_pkgname", packageName)
+                    }
+                    val details = Intent(
+                        android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.fromParts("package", packageName, null),
+                    )
+                    val opened = listOf(xiaomi, details).firstOrNull { intent ->
+                        try {
+                            startActivity(intent)
+                            true
+                        } catch (e: Exception) {
+                            false
+                        }
+                    }
+                    result.success(opened != null)
+                }
+
                 // Кнопка «Добавить на виджет» в галерее рисунков: система сама
                 // спросит, куда положить, и откроет выбор холста
                 // (`CanvasPickActivity`) — там нужный уже отмечен.
