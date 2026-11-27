@@ -51,6 +51,14 @@ const Map<String, String> kGiftTitlesZh = {
   'record': '黑胶唱片',
   'locket': '吊坠盒',
   'rings': '情侣对戒',
+  // Зимний сундук «Новый год 2026–2027» (27.11.2026): название из каталога только ru/en
+  'ng_cracker': '圣诞拉炮',
+  'ng_mistletoe': '槲寄生',
+  'ng_jar': '星光灯罐',
+  'ng_skates': '系在一根鞋带上的冰鞋',
+  'ng_window': '窗上的手印',
+  'ng_angels': '雪天使',
+  'ng_igloo': '双人冰屋',
 };
 
 String actionHintZh(GiftAction action) => switch (action) {

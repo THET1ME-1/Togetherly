@@ -51,6 +51,14 @@ const Map<String, String> kGiftTitlesIt = {
   'record': 'Vinile',
   'locket': 'Medaglione',
   'rings': 'Fedi',
+  // Зимний сундук «Новый год 2026–2027» (27.11.2026): название из каталога только ru/en
+  'ng_cracker': 'Cracker natalizio',
+  'ng_mistletoe': 'Vischio',
+  'ng_jar': 'Barattolo di lucine',
+  'ng_skates': 'Pattini su un solo laccio',
+  'ng_window': 'Mani sul vetro',
+  'ng_angels': 'Angeli di neve',
+  'ng_igloo': 'Igloo per due',
 };
 
 String actionHintIt(GiftAction action) => switch (action) {
