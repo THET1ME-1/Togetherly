@@ -1712,8 +1712,10 @@ async def _after_create(col: str, rec: dict) -> None:
                     "from_name": имя, "body": _chat_push_text(rec, язык),
                     "message_id": rec.get("id") or "", "group_id": rec.get("group_id") or "",
                     "from_uid": rec.get("user_uid") or "", "ts": rec.get("ts") or 0,
-                    # Кружок видеосообщения — его кадр картинкой в истории.
-                    "photo": rec.get("note_thumb") or ""})
+                    # Кружок видеосообщения — его кадр картинкой в истории,
+                    # голосовое — волной (`voice_peaks`, 40 цифр).
+                    "photo": rec.get("note_thumb") or "",
+                    "peaks": (rec.get("voice_peaks") or "") if rec.get("voice_url") else ""})
     elif kind == "memory":
         if not rec.get("deleted"):
             _count(rec.get("group_id") or "", +1, field="memories_count")
@@ -3949,6 +3951,20 @@ async def internal_push_cover(request: Request):
     if uid:
         автор = await asyncio.to_thread(_автор_для_обложки, uid)
         ctx = {**автор, **{k: v for k, v in ctx.items() if v not in ("", None)}}
+    # Комментарий — с фото записи, к которой он: запись живёт здесь, в
+    # Postgres, а хук знает только её номер. Секретная и «18+» — без фото
+    # (`memory_ctx`), имя и текст остаются от хука.
+    номер = str(ctx.get("memory_id") or "")
+    if kind == "comment" and номер:
+        try:
+            row = await pg.fetchrow(
+                "SELECT id, data FROM memories WHERE id = $1 AND NOT coalesce(deleted, false)", номер)
+            if row is not None:
+                запись = push_cover.memory_ctx({"id": row["id"], "data": row["data"]}, "")
+                ctx = {**{k: v for k, v in запись.items() if k in ("photo", "cover", "place", "memory_id")},
+                       **ctx}
+        except Exception as e:  # обложка — украшение, пуш важнее
+            log.warning("push-cover comment %s: %s", номер, e)
     try:
         cover = await asyncio.to_thread(push_cover.cover, kind, lang, ctx, _каталог_для_обложки)
     except Exception as e:

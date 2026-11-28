@@ -36,7 +36,8 @@ class CoverTest {
             val cover = CoverParser.parse(c.getJSONObject("cover").toString())
             assertNotNull(c.getString("kind"), cover)
             cover!!
-            assertEquals(c.getString("kind"), cover.kind)
+            // Вид обложки — как у сервера (смена пароля хозяину — свой вид).
+            assertEquals(c.getJSONObject("cover").getString("kind"), cover.kind)
             assertTrue(cover.kind, cover.title.isNotEmpty() || cover.kicker.isNotEmpty())
             assertTrue(cover.link, cover.link.startsWith("loveapp://open/"))
             assertTrue(cover.kind, Tones.known(cover.tone))
@@ -154,6 +155,23 @@ class CoverTest {
         // Перенос на завтра хранит начало списка.
         val again = NotifAlarm.Entry.of(e.copy(whenMs = first + day).toJson())
         assertEquals("11 дней", again.titleAt(again.whenMs))
+    }
+
+    @Test
+    fun волна_голосового_и_отмена_смены_пароля() {
+        val voice = cases().first { it.getString("kind") == "chat" && it.getString("lang") == "en" }
+        val chat = CoverParser.parse(voice.getJSONObject("cover").toString())!!.chat!!
+        assertEquals(40, chat.peaks.length)
+        assertTrue(chat.peaks.all { it in '0'..'9' })
+        val own = cases().first { it.getString("kind") == "pair_reset" && it.getString("lang") == "en" }
+        val cover = CoverParser.parse(own.getJSONObject("cover").toString())!!
+        assertEquals("pair_reset_own", cover.kind)
+        assertEquals(listOf("cancel_reset", "open"), cover.actions.map { it.id })
+        assertTrue(cover.actions.first().native)
+        assertTrue(cover.done.isNotEmpty())
+        // Мусор в волне отбрасывается.
+        val dirty = CoverParser.parse("""{"v":1,"kind":"chat","title":"x","chat":{"peaks":"12a3<b>4"}}""")!!
+        assertEquals("1234", dirty.chat!!.peaks)
     }
 
     @Test

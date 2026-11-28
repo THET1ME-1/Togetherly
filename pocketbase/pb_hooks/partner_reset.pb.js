@@ -141,7 +141,8 @@ routerAdd("POST", "/api/auth/partner-reset/request", (e) => {
     (lang) => T.t("reset_own_title", lang),
     (lang) => T.t("reset_own_body", lang, { name: partnerName || T.t("partner", lang) }),
     "pair_reset",
-    { force: true },
+    // Обложка «А»: хозяину — «Отменить» прямо из шторки (`push_cover.py`).
+    { force: true, cover: { role: "own" } },
   );
   $app.logger().warn("partner-reset: код у партнёра", "uid", user.id, "partner", pick.partner, "group", pick.groupId);
   return e.json(200, { via: "partner", ttl: Math.round(rule.CODE_TTL_MS / 1000) });

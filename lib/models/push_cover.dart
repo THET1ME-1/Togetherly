@@ -32,7 +32,7 @@ const String _files = 'https://togetherly.day/api/files';
 const String kCoverOpen = 'loveapp://open/';
 
 /// Кнопки, которые телефон выполняет сам, не открывая приложение.
-const Set<String> kCoverNativeActions = {'reply', 'hug', 'read', 'throw'};
+const Set<String> kCoverNativeActions = {'reply', 'hug', 'read', 'throw', 'cancel_reset'};
 
 /// Код языка как у сервера: первые две буквы, незнакомый — русский.
 String coverLanguage(String? code) {
@@ -47,6 +47,12 @@ String _t(String key, String lang) {
 }
 
 String _s(Map<String, Object?> ctx, String key) => (ctx[key] ?? '').toString().trim();
+
+/// Только цифры, не больше 40 — волна голосового, как `peaks` сервера.
+String _digits(String raw) {
+  final only = raw.replaceAll(RegExp(r'[^0-9]'), '');
+  return only.length > 40 ? only.substring(0, 40) : only;
+}
 
 /// `pb://media/<запись>/<файл>` → ссылка; [size] — миниатюра. У `media.file`
 /// объявлена одна, 400x400: другой размер PocketBase отдал бы оригиналом.
@@ -71,19 +77,50 @@ List<Map<String, Object?>> _buttons(String lang, List<List<String>> items) => [
 /// Что показать в обложке нового воспоминания. Секретное, «18+» и
 /// запечатанная капсула уходят без фото и названия: экран блокировки видят
 /// и чужие. Как `memory_ctx` сервера.
-Map<String, Object?> memoryCoverContext(Map<String, dynamic>? data, String name) {
+Map<String, Object?> memoryCoverContext(Map<String, dynamic>? data, String name, {String id = ''}) {
   final d = data ?? const {};
   bool on(String k) {
     final v = d[k];
     return v == true || (v is String && v.isNotEmpty) || (v is num && v != 0);
   }
 
-  if (on('isSecret') || on('isAdult') || on('sealed')) return {'from_name': name};
+  String text(String k) => d[k] == null ? '' : '${d[k]}';
+  if (on('isSecret') || on('isAdult') || on('sealed')) return {'from_name': name, 'memory_id': id};
+  final images = d['imageUrls'];
+  final photo = text('imageUrl').isNotEmpty
+      ? text('imageUrl')
+      : (images is List && images.isNotEmpty && images.first != null ? '${images.first}' : '');
+  // Без фото — обложка трека, книги или постер фильма; у места — значок.
+  final cover = [text('musicCoverUrl'), text('bookCoverUrl'), text('moviePosterUrl')]
+      .firstWhere((v) => v.isNotEmpty, orElse: () => '');
+  final place = d['latitude'] != null || text('locationName').trim().isNotEmpty;
   return {
     'from_name': name,
-    'title': '${d['title'] ?? ''}'.trim(),
-    'photo': '${d['imageUrl'] ?? ''}',
+    'title': text('title').trim(),
+    'photo': photo,
+    'cover': cover,
+    'place': place ? '1' : '',
+    'memory_id': id,
   };
+}
+
+/// Картинка воспоминания, как `_обложка_записи` сервера: фото (закрытое),
+/// обложка трека, книги или постер, значок места, иначе иконка приложения.
+Map<String, Object?> _memoryArt(Map<String, Object?> ctx) {
+  final photo = _fromMedia(ctx['photo'], '400x400');
+  if (photo.isNotEmpty) return {'url': photo, 'auth': true};
+  final cover = _s(ctx, 'cover');
+  if (cover.startsWith('pb://')) return {'url': _fromMedia(cover, '400x400'), 'auth': true};
+  if (cover.startsWith('https://')) return {'url': cover};
+  if (_s(ctx, 'place').isNotEmpty) return {'symbol': 'location_on'};
+  return {'app': true};
+}
+
+/// Лента на этом воспоминании; [reply] — сразу с полем комментария.
+String _memoryScreen(Map<String, Object?> ctx, {bool reply = false}) {
+  final id = _s(ctx, 'memory_id');
+  if (id.isEmpty) return 'memories';
+  return 'memories?memory=$id${reply ? '&reply=1' : ''}';
 }
 
 /// События партнёра: у них в обложке отправитель (`person`) — iPhone ставит
@@ -185,22 +222,24 @@ Map<String, Object?>? _buildCover(
           'queued': _t('c_queued', lang),
           'hugged': _t('c_hugged', lang),
           'image': _fromMedia(ctx['photo'], '400x400'),
+          // Голосовое — волна из 40 цифр (`VoicePeaks`), рисуется картинкой.
+          'peaks': _digits(_s(ctx, 'peaks')),
           'quick': [_t('q_hug', lang), _t('q_miss', lang), _t('q_love', lang)],
         },
       };
     case 'memory':
-      final photo = _fromMedia(ctx['photo'], '400x400');
       return {
         ...base,
         'kicker': '${_t('c_memory', lang)} · $name',
         'title': or(title, _t('c_memory_new', lang)),
         'body': body,
         'tone': 'memory',
-        'art': photo.isNotEmpty ? {'url': photo, 'auth': true} : {'app': true},
+        'art': _memoryArt(ctx),
         'actions': _buttons(lang, [
-          ['open', 'a_watch', 'memories'],
+          ['open', 'a_watch', _memoryScreen(ctx)],
+          ['comment', 'a_reply', _memoryScreen(ctx, reply: true)],
         ]),
-        'link': '${kCoverOpen}memories',
+        'link': '$kCoverOpen${_memoryScreen(ctx)}',
       };
     case 'date':
       final symbol = _s(ctx, 'symbol');
@@ -246,18 +285,18 @@ Map<String, Object?>? _buildCover(
         'link': '${kCoverOpen}gifts',
       };
     case 'comment':
-      final photo = _fromMedia(ctx['photo'], '400x400');
       return {
         ...base,
         'kicker': '${_t('c_comment', lang)} · $name',
         'title': or(title, _t('c_memory', lang)),
         'body': body,
         'tone': 'memory',
-        'art': photo.isNotEmpty ? {'url': photo, 'auth': true} : {'app': true},
+        'art': _memoryArt(ctx),
         'actions': _buttons(lang, [
-          ['open', 'a_open', 'memories'],
+          ['comment', 'a_reply', _memoryScreen(ctx, reply: true)],
+          ['open', 'a_open', _memoryScreen(ctx)],
         ]),
-        'link': '${kCoverOpen}memories',
+        'link': '$kCoverOpen${_memoryScreen(ctx)}',
       };
     case 'draw':
       return {
@@ -297,25 +336,33 @@ Map<String, Object?>? _buildCover(
         'title': title,
         'body': body,
         'tone': 'plus',
-        'art': {'app': true},
+        // Знак Плюса на тёплой плашке (макет): подарок партнёра.
+        'art': {'symbol': 'add'},
         'actions': _buttons(lang, [
-          ['open', 'a_open', 'plus'],
+          ['open', 'a_plus_see', 'plus'],
         ]),
         'link': '${kCoverOpen}plus',
       };
     case 'pair_reset':
+    case 'pair_reset_own':
     case 'security':
+      // Хозяину аккаунта, чей пароль меняют через партнёра, — «Отменить».
+      // Вид свой: на iPhone кнопки задаёт категория `tg_<вид>`.
+      final own = kind == 'pair_reset_own' || (kind == 'pair_reset' && _s(ctx, 'role') == 'own');
       return {
         ...base,
+        if (own) 'kind': 'pair_reset_own',
         'kicker': _t('c_security', lang),
         'title': title,
         'body': body,
         'tone': 'app',
         'art': {'app': true},
         'actions': _buttons(lang, [
+          if (own) ['cancel_reset', 'a_cancel_reset'],
           ['open', 'a_open', 'home'],
         ]),
         'link': '${kCoverOpen}home',
+        if (own) 'done': _t('c_reset_cancelled', lang),
       };
     // ── От самого приложения: обложка — иконка, картинка — в развёрнутом ──
     case 'date_remind':
@@ -356,7 +403,9 @@ Map<String, Object?>? _buildCover(
         'body': body,
         'tone': 'chest',
         'art': {'app': true},
-        'art_big': _picture(look.still('art_chest_idle2')),
+        // В сезон — сезонный сундук (`art_id`), иначе обычный.
+        'art_big': _picture((_s(ctx, 'art_id').isEmpty ? null : look.still(_s(ctx, 'art_id'))) ??
+            look.still('art_chest_idle2')),
         'actions': _buttons(lang, [
           ['chest', 'a_chest', 'chest'],
         ]),

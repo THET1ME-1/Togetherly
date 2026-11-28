@@ -233,6 +233,33 @@ object NotifArt {
     }
 
     /**
+     * Волна голосового, как пузырь в чате: [peaks] — до 40 цифр 0–9
+     * (`VoicePeaks`), столбики насыщенного цвета тона на его плашке.
+     */
+    fun waveform(peaks: String, tone: Tone, width: Int, height: Int): Bitmap {
+        val out = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(out)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        paint.color = tone.tint
+        val r = height * 0.22f
+        canvas.drawRoundRect(RectF(0f, 0f, width.toFloat(), height.toFloat()), r, r, paint)
+        val levels = peaks.map { (it - '0').coerceIn(0, 9) / 9f }.ifEmpty { List(40) { 0.35f } }
+        val padX = width * 0.08f
+        val step = (width - 2 * padX) / levels.size
+        val bar = step * 0.55f
+        val maxH = height * 0.62f
+        paint.color = tone.deep
+        levels.forEachIndexed { i, v ->
+            // Тишина — короткая засечка, а не разрыв, как в чате (`VoicePeaks.floor`).
+            val h = maxOf(bar, maxH * maxOf(0.12f, v))
+            val x = padX + i * step + (step - bar) / 2f
+            val top = (height - h) / 2f
+            canvas.drawRoundRect(RectF(x, top, x + bar, top + h), bar / 2f, bar / 2f, paint)
+        }
+        return out
+    }
+
+    /**
      * Аватар партнёра для переписки: фото кружком, поверх рамка из
      * приложения. Рамка в 100/62 раза больше фото, фото ужато до
      * `hole / 31` (как `FramedAvatar`). Нет фото — кружок с буквой имени.

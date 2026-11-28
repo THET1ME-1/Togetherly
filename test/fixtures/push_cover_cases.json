@@ -92,6 +92,13 @@
     "still_phone.png"
    ],
    {}
+  ],
+  "chest_winter": [
+   [
+    "idle_w.webp",
+    "still_winter.png"
+   ],
+   {}
   ]
  },
  "cases": [
@@ -285,6 +292,7 @@
      "queued": "Отправлю, когда появится связь",
      "hugged": "Объятие отправлено",
      "image": "https://togetherly.day/api/files/media/r2/n.webp?thumb=400x400",
+     "peaks": "",
      "quick": [
       "Обнимаю",
       "Скучаю тоже",
@@ -348,6 +356,7 @@
      "queued": "Wird gesendet, sobald du wieder online bist",
      "hugged": "Umarmung gesendet",
      "image": "",
+     "peaks": "",
      "quick": [
       "Umarme dich",
       "Vermisse dich auch",
@@ -381,6 +390,11 @@
       "id": "open",
       "label": "Смотреть",
       "link": "loveapp://open/memories"
+     },
+     {
+      "id": "comment",
+      "label": "Ответить",
+      "link": "loveapp://open/memories"
      }
     ],
     "link": "loveapp://open/memories"
@@ -407,6 +421,11 @@
      {
       "id": "open",
       "label": "Voir",
+      "link": "loveapp://open/memories"
+     },
+     {
+      "id": "comment",
+      "label": "Répondre",
       "link": "loveapp://open/memories"
      }
     ],
@@ -550,6 +569,11 @@
     },
     "actions": [
      {
+      "id": "comment",
+      "label": "回复",
+      "link": "loveapp://open/memories"
+     },
+     {
       "id": "open",
       "label": "打开",
       "link": "loveapp://open/memories"
@@ -604,12 +628,12 @@
     "body": "A gift for you",
     "tone": "plus",
     "art": {
-     "app": true
+     "symbol": "add"
     },
     "actions": [
      {
       "id": "open",
-      "label": "Open",
+      "label": "See what’s new",
       "link": "loveapp://open/plus"
      }
     ],
@@ -1048,6 +1072,244 @@
      }
     ],
     "link": "loveapp://open/profile"
+   }
+  },
+  {
+   "kind": "chat",
+   "lang": "en",
+   "ctx": {
+    "from_name": "Alina",
+    "body": "Voice message",
+    "group_id": "g1",
+    "from_uid": "u1",
+    "peaks": "1357975312468642135797531246864213579753"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "chat",
+    "failed": "Didn’t go through, open the app",
+    "group": "g1",
+    "kicker": "Message",
+    "title": "Alina",
+    "body": "Voice message",
+    "tone": "chat",
+    "art": {
+     "app": true
+    },
+    "actions": [
+     {
+      "id": "reply",
+      "label": "Reply"
+     },
+     {
+      "id": "hug",
+      "label": "Hug"
+     },
+     {
+      "id": "read",
+      "label": "Mark as read"
+     }
+    ],
+    "link": "loveapp://open/chat",
+    "chat": {
+     "from_uid": "u1",
+     "from_name": "Alina",
+     "group_id": "g1",
+     "message_id": "",
+     "ts": 0,
+     "avatar": "",
+     "frame": "",
+     "frame_hole": 31,
+     "you": "You",
+     "queued": "Will send when you’re back online",
+     "hugged": "Hug sent",
+     "image": "",
+     "peaks": "1357975312468642135797531246864213579753",
+     "quick": [
+      "Hugging you",
+      "Miss you too",
+      "Love you"
+     ]
+    },
+    "person": {
+     "uid": "u1",
+     "name": "Alina",
+     "avatar": "",
+     "frame": "",
+     "frame_hole": 31
+    }
+   }
+  },
+  {
+   "kind": "memory",
+   "lang": "ru",
+   "ctx": {
+    "from_name": "Алина",
+    "title": "Наша песня",
+    "memory_id": "m7",
+    "cover": "https://is1.mzstatic.com/image/a.jpg"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "memory",
+    "failed": "Не отправилось, открой приложение",
+    "kicker": "Воспоминание · Алина",
+    "title": "Наша песня",
+    "body": "",
+    "tone": "memory",
+    "art": {
+     "url": "https://is1.mzstatic.com/image/a.jpg"
+    },
+    "actions": [
+     {
+      "id": "open",
+      "label": "Смотреть",
+      "link": "loveapp://open/memories?memory=m7"
+     },
+     {
+      "id": "comment",
+      "label": "Ответить",
+      "link": "loveapp://open/memories?memory=m7&reply=1"
+     }
+    ],
+    "link": "loveapp://open/memories?memory=m7"
+   }
+  },
+  {
+   "kind": "memory",
+   "lang": "en",
+   "ctx": {
+    "from_name": "Alina",
+    "title": "Cafe",
+    "memory_id": "m8",
+    "place": "1"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "memory",
+    "failed": "Didn’t go through, open the app",
+    "kicker": "Memory · Alina",
+    "title": "Cafe",
+    "body": "",
+    "tone": "memory",
+    "art": {
+     "symbol": "location_on"
+    },
+    "actions": [
+     {
+      "id": "open",
+      "label": "View",
+      "link": "loveapp://open/memories?memory=m8"
+     },
+     {
+      "id": "comment",
+      "label": "Reply",
+      "link": "loveapp://open/memories?memory=m8&reply=1"
+     }
+    ],
+    "link": "loveapp://open/memories?memory=m8"
+   }
+  },
+  {
+   "kind": "comment",
+   "lang": "ru",
+   "ctx": {
+    "from_name": "Алина",
+    "body": "Хочу туда",
+    "memory_id": "m1",
+    "photo": "pb://media/r1/p.webp"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "comment",
+    "failed": "Не отправилось, открой приложение",
+    "kicker": "Комментарий · Алина",
+    "title": "Воспоминание",
+    "body": "Хочу туда",
+    "tone": "memory",
+    "art": {
+     "url": "https://togetherly.day/api/files/media/r1/p.webp?thumb=400x400",
+     "auth": true
+    },
+    "actions": [
+     {
+      "id": "comment",
+      "label": "Ответить",
+      "link": "loveapp://open/memories?memory=m1&reply=1"
+     },
+     {
+      "id": "open",
+      "label": "Открыть",
+      "link": "loveapp://open/memories?memory=m1"
+     }
+    ],
+    "link": "loveapp://open/memories?memory=m1"
+   }
+  },
+  {
+   "kind": "pair_reset",
+   "lang": "en",
+   "ctx": {
+    "title": "Your password is being changed",
+    "body": "Via your partner",
+    "role": "own"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "pair_reset_own",
+    "failed": "Didn’t go through, open the app",
+    "kicker": "Security",
+    "title": "Your password is being changed",
+    "body": "Via your partner",
+    "tone": "app",
+    "art": {
+     "app": true
+    },
+    "actions": [
+     {
+      "id": "cancel_reset",
+      "label": "Cancel"
+     },
+     {
+      "id": "open",
+      "label": "Open",
+      "link": "loveapp://open/home"
+     }
+    ],
+    "link": "loveapp://open/home",
+    "done": "Password change cancelled"
+   }
+  },
+  {
+   "kind": "chest",
+   "lang": "ru",
+   "ctx": {
+    "title": "Сундук снова полный",
+    "body": "Загляни",
+    "art_id": "chest_winter"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "chest",
+    "failed": "Не отправилось, открой приложение",
+    "kicker": "Сундук",
+    "title": "Сундук снова полный",
+    "body": "Загляни",
+    "tone": "chest",
+    "art": {
+     "app": true
+    },
+    "art_big": {
+     "url": "https://togetherly.day/api/files/catalog_items/chest_winter/still_winter.png"
+    },
+    "actions": [
+     {
+      "id": "chest",
+      "label": "Открыть сундук",
+      "link": "loveapp://open/chest"
+     }
+    ],
+    "link": "loveapp://open/chest"
    }
   },
   {

@@ -390,6 +390,21 @@ English»). Теперь приложение кладёт код языка в 
         "fr": "Regarder ensemble", "es": "Ver juntos", "it": "Guarda insieme",
         "pt": "Assistir juntos", "zh": "一起看", "uk": "Дивитися разом",
     },
+    "a_plus_see": {
+        "ru": "Что открылось", "en": "See what’s new", "de": "Was jetzt geht", "fr": "Ce qui s’ouvre",
+        "es": "Qué se desbloqueó", "it": "Cosa si sblocca", "pt": "O que liberou", "zh": "看看解锁了什么",
+        "uk": "Що відкрилося",
+    },
+    "a_cancel_reset": {
+        "ru": "Отменить", "en": "Cancel", "de": "Abbrechen", "fr": "Annuler", "es": "Cancelar",
+        "it": "Annulla", "pt": "Cancelar", "zh": "取消", "uk": "Скасувати",
+    },
+    "c_reset_cancelled": {
+        "ru": "Смена пароля отменена", "en": "Password change cancelled",
+        "de": "Passwortänderung abgebrochen", "fr": "Changement de mot de passe annulé",
+        "es": "Cambio de contraseña cancelado", "it": "Cambio password annullato",
+        "pt": "Troca de senha cancelada", "zh": "已取消修改密码", "uk": "Зміну пароля скасовано",
+    },
     "c_badge": {
         "ru": "Новый значок", "en": "New badge", "de": "Neues Abzeichen", "fr": "Nouveau badge",
         "es": "Nueva insignia", "it": "Nuovo badge", "pt": "Novo selo", "zh": "新徽章",

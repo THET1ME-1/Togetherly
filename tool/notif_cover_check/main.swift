@@ -29,7 +29,9 @@ for c in cases {
     continue
   }
   let raw = c["cover"] as? [String: Any] ?? [:]
-  check("\(kind)/\(lang): вид и категория", cover.kind == kind && cover.category == "tg_\(kind)")
+  // Вид — как у сервера: смена пароля хозяину — свой вид и своя категория.
+  let coverKind = raw["kind"] as? String ?? kind
+  check("\(kind)/\(lang): вид и категория", cover.kind == coverKind && cover.category == "tg_\(coverKind)")
   check("\(kind)/\(lang): ссылка своя", cover.link.hasPrefix("loveapp://open/"), cover.link)
   check("\(kind)/\(lang): заголовок баннера не пуст", !cover.bannerTitle.isEmpty)
   for a in cover.actions {
@@ -73,7 +75,7 @@ if let plist = NSDictionary(contentsOfFile: "ios/TogetherlyNotificationContent/I
    let ext = plist["NSExtension"] as? [String: Any],
    let attrs = ext["NSExtensionAttributes"] as? [String: Any],
    let categories = attrs["UNNotificationExtensionCategory"] as? [String] {
-  let kinds = Set(cases.compactMap { $0["kind"] as? String }).subtracting(["mood_lock"])
+  let kinds = Set(cases.compactMap { ($0["cover"] as? [String: Any])?["kind"] as? String }).subtracting(["mood_lock"])
   for kind in kinds.sorted() {
     check("карточка знает tg_\(kind)", categories.contains("tg_\(kind)"))
   }

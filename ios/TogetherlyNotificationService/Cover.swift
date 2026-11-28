@@ -50,6 +50,8 @@ struct CoverChat: Equatable {
   let frame: String
   let frameHole: Double
   let image: String
+  /// Волна голосового: до 40 цифр 0–9 (`VoicePeaks`), пусто — не голосовое.
+  let peaks: String
   /// «Отправлю, когда появится связь» — ответ из шторки без сети.
   let queued: String
 }
@@ -79,7 +81,7 @@ struct CoverPerson: Equatable {
 }
 
 struct Cover: Equatable {
-  static let nativeActions: Set<String> = ["reply", "hug", "read", "throw"]
+  static let nativeActions: Set<String> = ["reply", "hug", "read", "throw", "cancel_reset"]
 
   let kind: String
   let kicker: String
@@ -93,6 +95,8 @@ struct Cover: Equatable {
   let group: String
   let eventId: String
   let failed: String
+  /// Подпись после действия из шторки, которое дошло («Смена пароля отменена»).
+  let done: String
   let chat: CoverChat?
   let person: CoverPerson?
 
@@ -157,6 +161,7 @@ struct Cover: Equatable {
         frame: https("frame"),
         frameHole: min(31, max(18, hole.isNaN ? 31 : hole)),
         image: https("image"),
+        peaks: String((c["peaks"] as? String ?? "").filter { $0.isASCII && $0.isNumber }.prefix(40)),
         queued: c["queued"] as? String ?? ""
       )
     }
@@ -173,6 +178,7 @@ struct Cover: Equatable {
       group: o["group"] as? String ?? "",
       eventId: o["event_id"] as? String ?? "",
       failed: o["failed"] as? String ?? "",
+      done: o["done"] as? String ?? "",
       chat: chat,
       person: CoverPerson(o["person"])
     )

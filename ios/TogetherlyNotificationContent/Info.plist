@@ -41,6 +41,7 @@
 				<string>tg_draw</string>
 				<string>tg_plusgift</string>
 				<string>tg_pair_reset</string>
+				<string>tg_pair_reset_own</string>
 				<string>tg_security</string>
 				<string>tg_date_remind</string>
 				<string>tg_evening</string>

@@ -61,15 +61,30 @@ void main() {
 
   test('закрытое воспоминание — без фото и названия', () {
     for (final key in ['isSecret', 'isAdult', 'sealed']) {
-      final ctx = memoryCoverContext(
-          {'title': 'Тайна', 'imageUrl': 'pb://media/r/p.webp', key: true}, 'Алина');
-      expect(ctx, {'from_name': 'Алина'}, reason: key);
+      final ctx = memoryCoverContext({
+        'title': 'Тайна', 'imageUrl': 'pb://media/r/p.webp', 'musicCoverUrl': 'https://x/a.jpg',
+        'locationName': 'Дом', key: true,
+      }, 'Алина', id: 'm1');
+      // Номер записи остаётся: по нему открывается лента, а не содержимое.
+      expect(ctx, {'from_name': 'Алина', 'memory_id': 'm1'}, reason: key);
       final cover = buildPushCover('memory', 'ru', ctx, look)!;
       expect(cover['art'], {'app': true});
       expect(jsonEncode(cover), isNot(contains('Тайна')));
     }
-    expect(memoryCoverContext({'title': ' Крыша ', 'imageUrl': 'pb://media/r/p.webp'}, 'А'),
-        {'from_name': 'А', 'title': 'Крыша', 'photo': 'pb://media/r/p.webp'});
+    expect(memoryCoverContext({'title': ' Крыша ', 'imageUrl': 'pb://media/r/p.webp'}, 'А', id: 'm2'), {
+      'from_name': 'А', 'title': 'Крыша', 'photo': 'pb://media/r/p.webp', 'cover': '', 'place': '',
+      'memory_id': 'm2',
+    });
+  });
+
+  test('воспоминание как у сервера: фото из списка, обложка трека, значок места', () {
+    // Те же правила, что `memory_ctx` в push_cover.py.
+    expect(memoryCoverContext({'imageUrls': ['pb://media/r/1.webp'], 'musicCoverUrl': 'https://x/a.jpg'}, 'А')['photo'],
+        'pb://media/r/1.webp');
+    final song = memoryCoverContext({'title': 'Песня', 'musicCoverUrl': 'https://x/a.jpg'}, 'А', id: 'm3');
+    expect(buildPushCover('memory', 'ru', song, look)!['art'], {'url': 'https://x/a.jpg'});
+    final place = memoryCoverContext({'locationName': 'Кафе', 'latitude': 47.0}, 'А', id: 'm4');
+    expect(buildPushCover('memory', 'ru', place, look)!['art'], {'symbol': 'location_on'});
   });
 
   test('язык: незнакомый и пустой — русский, как у сервера', () {

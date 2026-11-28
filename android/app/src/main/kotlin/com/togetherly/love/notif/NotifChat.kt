@@ -64,11 +64,14 @@ object NotifChat {
         val style = active?.let { NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(it) }
             ?: NotificationCompat.MessagingStyle(me(part))
         val ts = if (part.ts > 0) part.ts else System.currentTimeMillis()
-        val photo = got["image"]?.let { saveForShade(ctx, it, part.messageId.ifEmpty { "m$ts" }) }
+        // Фото или кадр кружка из сообщения; голосовое — его волной, как в чате.
+        val picture = got["image"]
+            ?: if (part.peaks.isNotEmpty()) NotifArt.waveform(part.peaks, tone, 720, 240) else null
+        val photo = picture?.let { saveForShade(ctx, it, part.messageId.ifEmpty { "m$ts" }) }
         if (photo != null) {
             style.addMessage(
                 NotificationCompat.MessagingStyle.Message(cover.body.ifEmpty { " " }, ts, partner)
-                    .setData("image/jpeg", photo),
+                    .setData(if (picture?.hasAlpha() == true) "image/png" else "image/jpeg", photo),
             )
         } else {
             style.addMessage(NotificationCompat.MessagingStyle.Message(cover.body, ts, partner))
@@ -227,8 +230,12 @@ object NotifChat {
         val old = System.currentTimeMillis() - 2 * 24 * 3600 * 1000L
         dir.listFiles()?.filter { it.lastModified() < old }?.forEach { it.delete() }
         val safe = name.filter { it.isLetterOrDigit() }.take(40).ifEmpty { "photo" }
-        val file = File(dir, "$safe.jpg")
-        FileOutputStream(file).use { bitmap.compress(Bitmap.CompressFormat.JPEG, 88, it) }
+        // Волна со скруглёнными краями прозрачна по углам: JPEG закрасил бы их чёрным.
+        val png = bitmap.hasAlpha()
+        val file = File(dir, if (png) "$safe.png" else "$safe.jpg")
+        FileOutputStream(file).use {
+            bitmap.compress(if (png) Bitmap.CompressFormat.PNG else Bitmap.CompressFormat.JPEG, 88, it)
+        }
         val uri = FileProvider.getUriForFile(ctx, ctx.packageName + AUTHORITY_SUFFIX, file)
         ctx.grantUriPermission("com.android.systemui", uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
         uri

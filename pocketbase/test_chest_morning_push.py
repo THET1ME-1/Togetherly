@@ -65,6 +65,28 @@ class Обложка(unittest.TestCase):
         self.assertEqual(apns["cover"]["art"], {"app": True})
         self.assertTrue(fcm["data_only"])
 
+    def test_в_сезон_на_обложке_сезонный_сундук(self):
+        import sqlite3
+        con = sqlite3.connect(":memory:")
+        con.execute("CREATE TABLE catalog_items (id TEXT, kind TEXT, enabled INT, files TEXT, data TEXT)")
+        rows = [
+            ("art_chest_idle2", "art", 1, '["still_idle.png"]', "{}"),
+            ("chest_autumn", "chest", 1, '["still_a.png"]', '{"home": true, "from": "2026-11-01", "until": "2026-12-01"}'),
+            ("chest_winter", "chest", 1, '["still_w.png"]', '{"home": true, "from": "2026-12-01", "until": "2027-01-15"}'),
+        ]
+        con.executemany("INSERT INTO catalog_items VALUES (?, ?, ?, ?, ?)", rows)
+        u = {"id": "u1", "apns_token": "a", "lang": "ru"}
+        зима = m.catalog_lookup(con, today="2026-12-20")
+        self.assertEqual(зима.season, "chest_winter")
+        apns, _ = m.relay_bodies(u, look=зима)
+        self.assertTrue(apns["cover"]["art_big"]["url"].endswith("/chest_winter/still_w.png"))
+        # Последний день осени — осенний, после сезонов — обычный.
+        self.assertEqual(m.catalog_lookup(con, today="2026-11-30").season, "chest_autumn")
+        весна = m.catalog_lookup(con, today="2027-03-01")
+        self.assertEqual(весна.season, "")
+        apns, _ = m.relay_bodies(u, look=весна)
+        self.assertTrue(apns["cover"]["art_big"]["url"].endswith("/art_chest_idle2/still_idle.png"))
+
     def test_токен_переписала_старая_сборка(self):
         u = {"id": "u1", "fcm_token": "old", "lang": "ru", "notif_v": 1, "notif_v_token": "new"}
         _apns, fcm = m.relay_bodies(u, look=lambda _id: None)

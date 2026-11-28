@@ -34,8 +34,12 @@ object NotifCover {
     private const val TAG = "NotifCover"
     const val CHANNEL_PARTNER = "partner_notifications"
 
-    /** Сколько ждать картинок: служба FCM живёт ~20 с, показать важнее. */
-    const val IMAGES_BUDGET_MS = 7_000L
+    /**
+     * Сколько ждать картинок (5 с — описание «А»): показать важнее. Картинки
+     * каталога и аватары почти всегда уже на диске (`NotifArt`), ждёт только
+     * новое.
+     */
+    const val IMAGES_BUDGET_MS = 5_000L
 
     /** Розовый круг под сердечком в шапке — как в макете и на иконке. */
     const val ACCENT = 0xFFFF7E8B.toInt()

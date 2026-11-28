@@ -86,6 +86,37 @@ enum CoverSymbol {
     return ctx.makeImage()
   }
 
+  /// Волна голосового, как пузырь в чате и `NotifArt.waveform` на Android:
+  /// [peaks] — до 40 цифр 0–9 (`VoicePeaks`), столбики насыщенного цвета
+  /// тона на его плашке.
+  static func waveform(_ peaks: String, tone: CoverTone, width: Int, height: Int) -> CGImage? {
+    guard let ctx = CGContext(
+      data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+      space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    ) else { return nil }
+    let w = CGFloat(width), h = CGFloat(height)
+    ctx.addPath(CGPath(roundedRect: CGRect(x: 0, y: 0, width: w, height: h),
+                       cornerWidth: h * 0.22, cornerHeight: h * 0.22, transform: nil))
+    ctx.setFillColor(CoverTone.cg(tone.tint))
+    ctx.fillPath()
+    var levels = peaks.compactMap { $0.wholeNumberValue }.map { CGFloat(min(9, max(0, $0))) / 9 }
+    if levels.isEmpty { levels = Array(repeating: 0.35, count: 40) }
+    let padX = w * 0.08
+    let step = (w - 2 * padX) / CGFloat(levels.count)
+    let bar = step * 0.55
+    let maxH = h * 0.62
+    ctx.setFillColor(CoverTone.cg(tone.deep))
+    for (i, v) in levels.enumerated() {
+      // Тишина — короткая засечка, а не разрыв, как в чате.
+      let barH = max(bar, maxH * max(0.12, v))
+      let x = padX + CGFloat(i) * step + (step - bar) / 2
+      ctx.addPath(CGPath(roundedRect: CGRect(x: x, y: (h - barH) / 2, width: bar, height: barH),
+                         cornerWidth: bar / 2, cornerHeight: bar / 2, transform: nil))
+    }
+    ctx.fillPath()
+    return ctx.makeImage()
+  }
+
   /// Кружок с буквой имени — партнёр без фото, как `NotifArt.avatar`.
   static func monogram(_ name: String, tone: CoverTone, in ctx: CGContext, rect: CGRect) {
     ctx.saveGState()

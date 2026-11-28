@@ -154,8 +154,8 @@ class ИзХуков(unittest.TestCase):
         self.assertEqual(c["art"]["url"], f"{F}/catalog_items/art_act_draw/still_draw.png")
         self.assertEqual(ids(c), ["open"])
 
-    def test_плюс_в_подарок_и_пароль_иконкой(self):
-        self.assertEqual(собрать("plusgift", from_name="Алина", title="Плюс")["art"], {"app": True})
+    def test_плюс_знаком_пароль_иконкой(self):
+        self.assertEqual(собрать("plusgift", from_name="Алина", title="Плюс")["art"], {"symbol": "add"})
         self.assertEqual(собрать("pair_reset", title="Пароль меняют")["art"], {"app": True})
 
 
@@ -185,20 +185,24 @@ class ЧтоИзЗаписи(unittest.TestCase):
     """Экран блокировки видят и чужие: закрытое уходит без фото и названия."""
 
     def test_открытое_с_фото_и_названием(self):
-        ctx = pc.memory_ctx({"data": {"title": " Крыша ", "imageUrl": "pb://media/r/p.webp"}}, "Алина")
-        self.assertEqual(ctx, {"from_name": "Алина", "title": "Крыша", "photo": "pb://media/r/p.webp"})
+        ctx = pc.memory_ctx({"id": "m1", "data": {"title": " Крыша ", "imageUrl": "pb://media/r/p.webp"}}, "Алина")
+        self.assertEqual(ctx, {"from_name": "Алина", "title": "Крыша", "photo": "pb://media/r/p.webp",
+                               "cover": "", "place": "", "memory_id": "m1"})
 
     def test_секретное_18_и_капсула_без_фото(self):
         for ключ in ("isSecret", "isAdult", "sealed"):
-            данные = {"title": "Тайна", "imageUrl": "pb://media/r/p.webp", ключ: True}
-            self.assertEqual(pc.memory_ctx({"data": данные}, "Алина"), {"from_name": "Алина"}, ключ)
-            c = собрать("memory", **pc.memory_ctx({"data": данные}, "Алина"))
+            данные = {"title": "Тайна", "imageUrl": "pb://media/r/p.webp", "musicCoverUrl": "https://x/a.jpg",
+                      "locationName": "Дом", ключ: True}
+            # Номер записи остаётся: по нему открывается лента, а не содержимое.
+            self.assertEqual(pc.memory_ctx({"id": "m1", "data": данные}, "Алина"),
+                             {"from_name": "Алина", "memory_id": "m1"}, ключ)
+            c = собрать("memory", **pc.memory_ctx({"id": "m1", "data": данные}, "Алина"))
             self.assertEqual(c["art"], {"app": True}, ключ)
             self.assertNotIn("Тайна", str(c), ключ)
 
     def test_данные_строкой_как_из_базы(self):
         rec = {"data": '{"isSecret": true, "imageUrl": "pb://media/r/p.webp"}'}
-        self.assertEqual(pc.memory_ctx(rec, "Алина"), {"from_name": "Алина"})
+        self.assertEqual(pc.memory_ctx(rec, "Алина"), {"from_name": "Алина", "memory_id": ""})
         self.assertEqual(pc.memory_ctx({"data": "не json"}, "Алина")["photo"], "")
 
     def test_настроение(self):
@@ -255,6 +259,63 @@ class СвоиПоРасписанию(unittest.TestCase):
             c = собрать(вид, title="т", from_uid="u1")
             self.assertTrue(c["link"].startswith("loveapp://open/"), вид)
             self.assertNotIn("person", c, вид)
+
+
+class КакВМакете(unittest.TestCase):
+    """Таблица «Все уведомления» макета: волна голосового, обложка трека и
+    значок места, фото записи у комментария, «+» у Плюса, «Отменить»."""
+
+    def test_голосовое_волной(self):
+        c = собрать("chat", from_name="Алина", body="Голосовое", peaks="0123456789" * 5 + "x")
+        self.assertEqual(c["chat"]["peaks"], "0123456789" * 4)
+        self.assertEqual(собрать("chat", body="т")["chat"]["peaks"], "")
+
+    def test_воспоминание_обложкой_трека_и_значком_места(self):
+        песня = pc.memory_ctx({"id": "m1", "data": {"title": "Наша песня",
+                                                   "musicCoverUrl": "https://is1.mzstatic.com/a.jpg"}}, "Алина")
+        c = собрать("memory", **песня)
+        self.assertEqual(c["art"], {"url": "https://is1.mzstatic.com/a.jpg"})
+        self.assertEqual(c["link"], "loveapp://open/memories?memory=m1")
+        self.assertEqual([a["id"] for a in c["actions"]], ["open", "comment"])
+        self.assertEqual(c["actions"][1]["link"], "loveapp://open/memories?memory=m1&reply=1")
+        место = pc.memory_ctx({"id": "m2", "data": {"locationName": "Кафе", "latitude": 47.0}}, "А")
+        self.assertEqual(собрать("memory", **место)["art"], {"symbol": "location_on"})
+        фото = pc.memory_ctx({"id": "m3", "data": {"imageUrls": ["pb://media/r1/p.webp"],
+                                                  "musicCoverUrl": "https://x/a.jpg"}}, "А")
+        self.assertEqual(собрать("memory", **фото)["art"]["auth"], True)
+        секрет = pc.memory_ctx({"id": "m4", "data": {"isSecret": True, "musicCoverUrl": "https://x/a.jpg"}}, "А")
+        self.assertEqual(собрать("memory", **секрет)["art"], {"app": True})
+
+    def test_комментарий_с_фото_записи_и_ответом(self):
+        c = собрать("comment", from_name="Алина", body="Хочу туда", memory_id="m1",
+                    photo="pb://media/r1/p.webp")
+        self.assertEqual(c["art"]["auth"], True)
+        self.assertEqual(c["actions"][0], {"id": "comment", "label": "Ответить",
+                                           "link": "loveapp://open/memories?memory=m1&reply=1"})
+
+    def test_плюс_знаком_и_что_открылось(self):
+        c = собрать("plusgift", from_name="Алина", title="Togetherly+")
+        self.assertEqual(c["art"], {"symbol": "add"})
+        self.assertEqual(c["actions"][0]["label"], "Что открылось")
+
+    def test_отмена_смены_пароля_только_хозяину(self):
+        свой = собрать("pair_reset", title="Ваш пароль меняют", role="own")
+        # Свой вид — своя категория кнопок на iPhone.
+        self.assertEqual(свой["kind"], "pair_reset_own")
+        self.assertEqual([a["id"] for a in свой["actions"]], ["cancel_reset", "open"])
+        self.assertNotIn("link", свой["actions"][0])
+        self.assertEqual(свой["done"], "Смена пароля отменена")
+        партнёру = собрать("pair_reset", title="Код для Алины")
+        self.assertEqual([a["id"] for a in партнёру["actions"]], ["open"])
+        self.assertNotIn("done", партнёру)
+
+    def test_сезонный_сундук(self):
+        КАТАЛОГ["chest_winter"] = (["idle.webp", "still_w.png"], {})
+        c = собрать("chest", title="т", art_id="chest_winter")
+        self.assertTrue(c["art_big"]["url"].endswith("/chest_winter/still_w.png"))
+        self.assertTrue(собрать("chest", title="т")["art_big"]["url"].endswith("still_chest.png"))
+        # Записи нет — обычный, а не иконка.
+        self.assertTrue(собрать("chest", title="т", art_id="chest_x")["art_big"]["url"].endswith("still_chest.png"))
 
 
 class ЗовВЛентуИЗначок(unittest.TestCase):

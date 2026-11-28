@@ -31,6 +31,11 @@ object NotifActions {
             pickMood(ctx, cover, raw, action.removePrefix("mood:"), group, tag, id)
             return
         }
+        // Смена пароля — дело аккаунта, а не пары: пара тут не нужна.
+        if (action == "cancel_reset") {
+            cancelReset(ctx, cover, raw, tag, id)
+            return
+        }
         when (action) {
             "reply" -> {
                 if (chat == null || reply.isEmpty() || group.isEmpty()) return
@@ -98,6 +103,29 @@ object NotifActions {
         NotifChannel.showOrPlain(
             ctx, updated, choice.label, cover.body, tag, id,
             NotifCover.activeChannel(ctx, tag, id) ?: NotifCover.CHANNEL_PARTNER, ongoing = true, silent = true,
+        )
+    }
+
+    /**
+     * «Это не я»: хозяин аккаунта гасит смену пароля через партнёра — тот же
+     * запрос, что лист «Ваш пароль меняют» в приложении. Дошло — уведомление
+     * тем же видом говорит «Смена пароля отменена», без кнопок.
+     */
+    private fun cancelReset(ctx: Context, cover: Cover, raw: String, tag: String, id: Int) {
+        val r = if (NotifNet.token(ctx) == null) null
+        else NotifNet.call(ctx, "POST", "/api/auth/partner-reset/cancel", JSONObject(), budgetMs = BUDGET_MS)
+        if (r?.ok != true) {
+            NotifCover.plain(ctx, cover.title, cover.failed, tag, id, cover.link)
+            return
+        }
+        val updated = try {
+            JSONObject(raw).put("body", cover.done.ifEmpty { cover.body }).put("actions", org.json.JSONArray()).toString()
+        } catch (_: Exception) {
+            raw
+        }
+        NotifChannel.showOrPlain(
+            ctx, updated, cover.title, cover.done, tag, id,
+            NotifCover.activeChannel(ctx, tag, id) ?: NotifCover.CHANNEL_PARTNER, silent = true,
         )
     }
 

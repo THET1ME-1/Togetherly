@@ -32,6 +32,7 @@ F = "https://togetherly.day/api/files"
     "art_guide_wait": [["still_wait.png"], {}],
     "art_ach_together_365": [["still_year.png"], {}],
     "art_act_phone": [["still_phone.png"], {}],
+    "chest_winter": [["idle_w.webp", "still_winter.png"], {}],
 }
 
 ПРИМЕРЫ = [
@@ -69,6 +70,16 @@ F = "https://togetherly.day/api/files"
                      "from_uid": "u1", "avatar": "pb://media/r1/a.jpg"}),
     ("reels", "en", {"title": "Your partner invites you", "body": "Join"}),
     ("badge", "ru", {"title": "Вам вручён значок «Спонсор»!", "body": "Спасибо за поддержку"}),
+    # Таблица «Все уведомления» макета: волна, обложка трека, место, «Отменить».
+    ("chat", "en", {"from_name": "Alina", "body": "Voice message", "group_id": "g1", "from_uid": "u1",
+                    "peaks": "1357975312468642135797531246864213579753"}),
+    ("memory", "ru", {"from_name": "Алина", "title": "Наша песня", "memory_id": "m7",
+                      "cover": "https://is1.mzstatic.com/image/a.jpg"}),
+    ("memory", "en", {"from_name": "Alina", "title": "Cafe", "memory_id": "m8", "place": "1"}),
+    ("comment", "ru", {"from_name": "Алина", "body": "Хочу туда", "memory_id": "m1",
+                       "photo": "pb://media/r1/p.webp"}),
+    ("pair_reset", "en", {"title": "Your password is being changed", "body": "Via your partner", "role": "own"}),
+    ("chest", "ru", {"title": "Сундук снова полный", "body": "Загляни", "art_id": "chest_winter"}),
     ("mood_lock", "ru", {"group_id": "g1", "body": "Алина: Влюблённость", "mood_id": "sad",
                          "title": "Грущу", "choices": [{"id": "love", "label": "Люблю"},
                                                        {"id": "sad", "label": "Грущу"},

@@ -34,7 +34,7 @@ class NotifRenderer {
   /// Виды пушей с обложкой: у каждого своя категория кнопок `tg_<вид>`.
   static const List<String> coverKinds = [
     'miss', 'mood', 'chat', 'memory', 'date', 'snowball', 'gift', 'comment', 'draw',
-    'plusgift', 'pair_reset', 'security', 'date_remind', 'evening', 'chest',
+    'plusgift', 'pair_reset', 'pair_reset_own', 'security', 'date_remind', 'evening', 'chest',
     // Зов в совместную ленту и значок в подарок.
     'reels', 'badge',
     // Свои уведомления по расписанию.

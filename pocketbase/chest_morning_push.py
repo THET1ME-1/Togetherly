@@ -199,9 +199,24 @@ def post(url, body):
         return json.loads(r.read() or b"{}")
 
 
-def catalog_lookup(con):
+def season_chest(rows, today):
+    """Сезонный сундук, что сейчас стоит на экране сундука (`/api/chest/state`
+    отдаёт его списком `seasons` по тем же `from`/`until`): номер записи или "".
+    [rows] — `(id, files, data)` записей `kind = chest`, [today] — `ГГГГ-ММ-ДД`."""
+    for item_id, files, data in rows:
+        if not data.get("home"):
+            continue
+        if not any(str(f).startswith("still_") for f in files):
+            continue
+        начало, конец = str(data.get("from") or ""), str(data.get("until") or "")
+        if начало and начало <= today and (not конец or today < конец):
+            return item_id
+    return ""
+
+
+def catalog_lookup(con, today=None):
     """Картинка сундука для обложки — один раз на запуск: из потоков
-    рассылки к базе не ходим."""
+    рассылки к базе не ходим. В сезон — сезонный сундук (`look.season`)."""
     cache = {}
     for item_id in ("art_chest_idle2",):
         try:
@@ -211,7 +226,27 @@ def catalog_lookup(con):
                 cache[item_id] = (json.loads(row[0] or "[]"), json.loads(row[1] or "{}"))
         except (sqlite3.Error, ValueError):
             pass
-    return cache.get
+    rows = []
+    try:
+        for item_id, files, data in con.execute(
+                "SELECT id, files, data FROM catalog_items WHERE kind = 'chest' AND enabled = 1"):
+            try:
+                rows.append((item_id, json.loads(files or "[]"), json.loads(data or "{}")))
+            except ValueError:
+                pass
+    except sqlite3.Error:
+        rows = []
+    day = today or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    season = season_chest(rows, day)
+    for item_id, files, data in rows:
+        if item_id == season:
+            cache[item_id] = (files, data)
+
+    def look(item_id):
+        return cache.get(item_id)
+
+    look.season = season
+    return look
 
 
 _LOOK = lambda _id: None  # noqa: E731 — заменяется в main()
@@ -226,7 +261,11 @@ def relay_bodies(user, look):
     cover = None
     if push_cover is not None:
         try:
-            cover = push_cover.cover("chest", user.get("lang"), {"title": title, "body": body}, look)
+            ctx = {"title": title, "body": body}
+            # Сезонный сундук (зимний телевизор) — на обложке он, а не обычный.
+            if getattr(look, "season", ""):
+                ctx["art_id"] = look.season
+            cover = push_cover.cover("chest", user.get("lang"), ctx, look)
         except Exception:
             cover = None
     apns = {"token": user.get("apns_token") or "", "title": title, "body": body,

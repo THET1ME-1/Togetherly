@@ -3262,6 +3262,11 @@ class _CommentsSection extends StatefulWidget {
     required this.primary,
   });
 
+  /// Воспоминание, на которое ответили из уведомления («Ответить»): его поле
+  /// комментария откроется с клавиатурой. Одноразово — следующий показ
+  /// той же записи клавиатуру сам не поднимет.
+  static String? replyTo;
+
   @override
   State<_CommentsSection> createState() => _CommentsSectionState();
 }
@@ -3269,6 +3274,13 @@ class _CommentsSection extends StatefulWidget {
 class _CommentsSectionState extends State<_CommentsSection> {
   final TextEditingController _ctrl = TextEditingController();
   bool _sending = false;
+  late final bool _autofocus = _takeReply();
+
+  bool _takeReply() {
+    if (_CommentsSection.replyTo != widget.memoryId) return false;
+    _CommentsSection.replyTo = null;
+    return true;
+  }
 
   @override
   void dispose() {
@@ -3371,6 +3383,7 @@ class _CommentsSectionState extends State<_CommentsSection> {
                   Expanded(
                     child: TextField(
                       controller: _ctrl,
+                      autofocus: _autofocus,
                       textCapitalization: TextCapitalization.sentences,
                       maxLines: 4,
                       minLines: 1,

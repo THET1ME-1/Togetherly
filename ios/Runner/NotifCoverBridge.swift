@@ -236,6 +236,14 @@ enum NotifCoverBridge {
   // MARK: - Действия телефона
 
   private static func run(_ action: String, cover: Cover, text: String, thread: String, done: @escaping () -> Void) {
+    // Смена пароля — дело аккаунта, а не пары: пара тут не нужна.
+    if action == "cancel_reset" {
+      NotifNetIOS.cancelReset { ok in
+        notifyLocal(title: cover.bannerTitle, body: ok ? cover.done : cover.failed, thread: thread)
+        done()
+      }
+      return
+    }
     let group = cover.group.isEmpty ? (cover.chat?.groupId ?? "") : cover.group
     guard !group.isEmpty else { done(); return }
     switch action {

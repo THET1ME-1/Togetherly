@@ -32,6 +32,8 @@ data class Cover(
     val chat: ChatPart?,
     /** Котики «Моти» — кнопки настроения на экране блокировки (`mood_lock`). */
     val moods: List<MoodChoice> = emptyList(),
+    /** Подпись после действия из шторки, которое дошло («Смена пароля отменена»). */
+    val done: String = "",
 ) {
     /** Пуш от самого приложения: слева иконка, картинка события — в развёрнутом. */
     val fromApp: Boolean get() = art.app && artBig != null
@@ -84,6 +86,8 @@ data class ChatPart(
     val frameHole: Double,
     /** Фото или кадр кружка из сообщения. */
     val image: String,
+    /** Волна голосового: до 40 цифр 0–9 (`VoicePeaks`), пусто — не голосовое. */
+    val peaks: String = "",
     val quick: List<String>,
     val you: String,
     val queued: String,
@@ -92,7 +96,7 @@ data class ChatPart(
 
 object CoverParser {
     /** Действия, которые телефон выполняет сам (`ДЕЙСТВИЯ_ТЕЛЕФОНА` сервера). */
-    val NATIVE_ACTIONS = setOf("reply", "hug", "read", "throw")
+    val NATIVE_ACTIONS = setOf("reply", "hug", "read", "throw", "cancel_reset")
 
     /** Обложка из строки JSON или null: старая версия, мусор, пусто. */
     fun parse(raw: String?): Cover? {
@@ -120,6 +124,7 @@ object CoverParser {
             failed = o.optString("failed", ""),
             chat = o.optJSONObject("chat")?.let { chat(it) },
             moods = moods(o.optJSONArray("moods")),
+            done = o.optString("done", ""),
         )
     }
 
@@ -175,6 +180,7 @@ object CoverParser {
             frame = https("frame"),
             frameHole = o.optDouble("frame_hole", 31.0).let { if (it.isNaN()) 31.0 else it.coerceIn(18.0, 31.0) },
             image = https("image"),
+            peaks = o.optString("peaks", "").filter { it in '0'..'9' }.take(40),
             quick = quick,
             you = o.optString("you", "").ifEmpty { "You" },
             queued = o.optString("queued", ""),

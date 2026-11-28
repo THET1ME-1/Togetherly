@@ -1,5 +1,6 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:love_app/models/push_cover.dart';
 import 'package:love_app/services/notif_renderer.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
@@ -54,7 +55,7 @@ void main() {
     for (final c in NotifRenderer.iosCategories('ru')) {
       for (final a in c['actions']! as List) {
         final m = a as Map;
-        if (['reply', 'hug', 'read', 'throw'].contains(m['id'])) {
+        if (kCoverNativeActions.contains(m['id'])) {
           expect(m.containsKey('link'), isFalse, reason: '${c['kind']}/${m['id']}');
         } else {
           expect('${m['link']}', startsWith('loveapp://open/'), reason: '${c['kind']}/${m['id']}');

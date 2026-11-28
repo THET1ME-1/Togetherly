@@ -39,10 +39,16 @@ def memory_ctx(rec: dict, имя: str) -> dict:
             данные = {}
     if not isinstance(данные, dict):
         данные = {}
+    номер = str(rec.get("id") or "")
     if данные.get("isSecret") or данные.get("isAdult") or данные.get("sealed"):
-        return {"from_name": имя}
+        return {"from_name": имя, "memory_id": номер}
+    фото = данные.get("imageUrl") or next(iter(данные.get("imageUrls") or []), "")
+    # Без фото — обложка трека, книги или постер фильма; у места — значок.
+    обложка = данные.get("musicCoverUrl") or данные.get("bookCoverUrl") or данные.get("moviePosterUrl") or ""
+    место = данные.get("latitude") is not None or bool(str(данные.get("locationName") or "").strip())
     return {"from_name": имя, "title": str(данные.get("title") or "").strip(),
-            "photo": str(данные.get("imageUrl") or "")}
+            "photo": str(фото or ""), "cover": str(обложка), "place": "1" if место else "",
+            "memory_id": номер}
 
 
 def mood_ctx(rec: dict) -> dict:
@@ -56,7 +62,7 @@ def mood_ctx(rec: dict) -> dict:
     "a_mood", "a_task", "a_chest", "a_mood_back", "a_open_gift", "a_canvas",
     "q_hug", "q_miss", "q_love", "c_you", "c_queued", "c_hugged", "c_failed",
     "c_capsule", "c_celebration", "c_mascot", "c_invite", "a_open_letter", "c_days", "c_how_now",
-    "c_reels", "a_join", "c_badge",
+    "c_reels", "a_join", "c_badge", "a_plus_see", "a_cancel_reset", "c_reset_cancelled",
 )
 
 
@@ -124,6 +130,31 @@ def _картинка(url, **extra):
     return {"url": url, **extra} if url else {"app": True}
 
 
+def _обложка_записи(ctx):
+    """Картинка воспоминания: фото (закрытое, с пропуском), без него —
+    обложка трека, книги или постер фильма, без неё — значок места, иначе
+    иконка приложения (макет «Все уведомления»)."""
+    фото = _из_медиа(ctx.get("photo"), "400x400")
+    if фото:
+        return {"url": фото, "auth": True}
+    обложка = str(ctx.get("cover") or "").strip()
+    if обложка.startswith("pb://"):
+        return {"url": _из_медиа(обложка, "400x400"), "auth": True}
+    if обложка.startswith("https://"):
+        return {"url": обложка}
+    if ctx.get("place"):
+        return {"symbol": "location_on"}
+    return {"app": True}
+
+
+def _экран_записи(ctx, ответ=False):
+    """Лента на этом воспоминании; [ответ] — сразу с полем комментария."""
+    номер = str(ctx.get("memory_id") or "").strip()
+    if not номер:
+        return "memories"
+    return f"memories?memory={номер}" + ("&reply=1" if ответ else "")
+
+
 # Куда ведёт нажатие: своё пространство ссылок уведомлений. Ссылки виджетов
 # сами делают дело (`loveapp://miss` шлёт «Скучаю»), а уведомление только
 # открывает экран.
@@ -131,7 +162,7 @@ def _картинка(url, **extra):
 
 # Кнопки, которые телефон выполняет сам, не открывая приложение: ответ
 # текстом, «обнять», «прочитано», снежок в ответ. У остальных — ссылка.
-ДЕЙСТВИЯ_ТЕЛЕФОНА = ("reply", "hug", "read", "throw")
+ДЕЙСТВИЯ_ТЕЛЕФОНА = ("reply", "hug", "read", "throw", "cancel_reset")
 
 
 def _кнопки(lang, *items):
@@ -239,20 +270,23 @@ def _cover(kind, lang, ctx, look):
                 "queued": пуш("c_queued", lang),
                 "hugged": пуш("c_hugged", lang),
                 "image": _из_медиа(ctx.get("photo"), "400x400"),
+                # Голосовое — волна из 40 цифр (`VoicePeaks`), телефон рисует её
+                # картинкой в переписке, как пузырь в чате.
+                "peaks": "".join(ч for ч in str(ctx.get("peaks") or "") if ч.isdigit())[:40],
                 "quick": [пуш("q_hug", lang), пуш("q_miss", lang), пуш("q_love", lang)],
             },
         }
 
     if kind == "memory":
-        фото = _из_медиа(ctx.get("photo"), "400x400")
         return base | {
             "kicker": f"{пуш('c_memory', lang)} · {имя}",
             "title": title or пуш("c_memory_new", lang),
             "body": body,
             "tone": "memory",
-            "art": {"url": фото, "auth": True} if фото else {"app": True},
-            "actions": _кнопки(lang, ("open", "a_watch", "memories")),
-            "link": ОТКРЫТЬ + "memories",
+            "art": _обложка_записи(ctx),
+            "actions": _кнопки(lang, ("open", "a_watch", _экран_записи(ctx)),
+                               ("comment", "a_reply", _экран_записи(ctx, ответ=True))),
+            "link": ОТКРЫТЬ + _экран_записи(ctx),
         }
 
     if kind == "date":
@@ -295,15 +329,17 @@ def _cover(kind, lang, ctx, look):
         }
 
     if kind == "comment":
-        фото = _из_медиа(ctx.get("photo"), "400x400")
+        # Фото записи, к которой комментарий (`/internal/push-cover` берёт
+        # её по `memory_id`): «Ответить» открывает запись с полем комментария.
         return base | {
             "kicker": f"{пуш('c_comment', lang)} · {имя}",
             "title": title or пуш("c_memory", lang),
             "body": body,
             "tone": "memory",
-            "art": {"url": фото, "auth": True} if фото else {"app": True},
-            "actions": _кнопки(lang, ("open", "a_open", "memories")),
-            "link": ОТКРЫТЬ + "memories",
+            "art": _обложка_записи(ctx),
+            "actions": _кнопки(lang, ("comment", "a_reply", _экран_записи(ctx, ответ=True)),
+                               ("open", "a_open", _экран_записи(ctx))),
+            "link": ОТКРЫТЬ + _экран_записи(ctx),
         }
 
     if kind == "draw":
@@ -334,25 +370,36 @@ def _cover(kind, lang, ctx, look):
         }
 
     if kind == "plusgift":
+        # Знак Плюса на тёплой плашке (макет): подарок партнёра, а не реклама.
         return base | {
             "kicker": f"{пуш('c_gift', lang)} · {имя}",
             "title": title,
             "body": body,
             "tone": "plus",
-            "art": {"app": True},
-            "actions": _кнопки(lang, ("open", "a_open", "plus")),
+            "art": {"symbol": "add"},
+            "actions": _кнопки(lang, ("open", "a_plus_see", "plus")),
             "link": ОТКРЫТЬ + "plus",
         }
 
-    if kind in ("pair_reset", "security"):
+    if kind in ("pair_reset", "pair_reset_own", "security"):
+        # Хозяину аккаунта, чей пароль меняют через партнёра, — «Отменить»
+        # прямо из шторки (`/api/auth/partner-reset/cancel`). Вид свой
+        # (`pair_reset_own`): на iPhone кнопки задаёт категория `tg_<вид>`,
+        # и партнёру с кодом «Отменить» не нужна.
+        свой = kind == "pair_reset_own" or (kind == "pair_reset" and ctx.get("role") == "own")
+        кнопки = (("cancel_reset", "a_cancel_reset"), ("open", "a_open", "home")) if свой \
+            else (("open", "a_open", "home"),)
+        if свой:
+            base["kind"] = "pair_reset_own"
         return base | {
             "kicker": пуш("c_security", lang),
             "title": title,
             "body": body,
             "tone": "app",
             "art": {"app": True},
-            "actions": _кнопки(lang, ("open", "a_open", "home")),
+            "actions": _кнопки(lang, *кнопки),
             "link": ОТКРЫТЬ + "home",
+            **({"done": пуш("c_reset_cancelled", lang)} if свой else {}),
         }
 
     # ── От самого приложения: обложка — иконка, картинка — в развёрнутом ──
@@ -384,8 +431,11 @@ def _cover(kind, lang, ctx, look):
         }
 
     if kind == "chest":
-        # Обычный сундук с экрана сундука (`art_chest_idle2`, кадр покоя).
-        большая = _каталог(look, "art_chest_idle2")
+        # Сундук, что сейчас на экране сундука: в сезон — сезонный
+        # (`chest_winter`, крон передаёт его `art_id`), иначе обычный
+        # (`art_chest_idle2`, кадр покоя).
+        большая = (_каталог(look, ctx["art_id"]) if ctx.get("art_id") else None) \
+            or _каталог(look, "art_chest_idle2")
         return base | {
             "kicker": пуш("c_chest", lang),
             "title": title,

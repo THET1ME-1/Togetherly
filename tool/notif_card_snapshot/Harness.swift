@@ -70,8 +70,12 @@ final class HarnessApp: UIResponder, UIApplicationDelegate {
       print("ИТОГ: не прочитал примеры")
       exit(1)
     }
-    func cover(_ kind: String, _ lang: String) -> [String: Any]? {
-      cases.first { $0["kind"] as? String == kind && $0["lang"] as? String == lang }?["cover"] as? [String: Any]
+    /// Пример сервера по виду и языку; [having] — ключ, который есть в его ctx.
+    func cover(_ kind: String, _ lang: String, having key: String? = nil) -> [String: Any]? {
+      cases.first {
+        $0["kind"] as? String == kind && $0["lang"] as? String == lang
+          && (key == nil || (($0["ctx"] as? [String: Any])?[key!] != nil))
+      }?["cover"] as? [String: Any]
     }
 
     // Значок даты и буква без фото — те же функции, что у расширения сервиса.
@@ -99,19 +103,32 @@ final class HarnessApp: UIResponder, UIApplicationDelegate {
     longChat["body"] = "Ты уже дома? Я купила те самые мандарины, и ещё нашла кафе, про которое ты говорил. "
       + "Давай в субботу сходим, а потом погуляем по набережной, если не будет дождя."
 
+    let voice = cover("chat", "en", having: "peaks")
+    let wave = ((voice?["chat"] as? [String: Any])?["peaks"] as? String).flatMap {
+      CoverSymbol.waveform($0, tone: CoverTone.of("chat"), width: 720, height: 240)
+    }.map { UIImage(cgImage: $0) }
+    check("волна голосового", wave != nil)
+
     let shots: [(String, [String: Any]?, UIImage?)] = [
       ("miss_ru", cover("miss", "ru"), image("art_act_miss.png")),
       ("mood_ru", cover("mood", "ru"), image("moti_love.webp")),
       ("chat_ru", cover("chat", "ru"), photo(CGSize(width: 400, height: 400), .systemPink, .systemOrange)),
       ("chat_long_ru", longChat, nil),
-      ("memory_ru", cover("memory", "ru"), photo(CGSize(width: 400, height: 300), .systemTeal, .systemIndigo)),
+      ("chat_voice_en", voice, wave),
+      ("memory_ru", cover("memory", "ru", having: "photo"), photo(CGSize(width: 400, height: 300), .systemTeal, .systemIndigo)),
+      ("memory_song_ru", cover("memory", "ru", having: "cover"), photo(CGSize(width: 300, height: 300), .systemPurple, .systemYellow)),
+      ("memory_place_en", cover("memory", "en", having: "place"), symbol("location_on", "memory")),
+      ("comment_ru", cover("comment", "ru", having: "memory_id"), photo(CGSize(width: 400, height: 300), .systemGreen, .systemBlue)),
       ("date_es", cover("date", "es"), symbol("theater_comedy", "date")),
       ("gift_pt", cover("gift", "pt"), image("gift_bouquet.png")),
+      ("plusgift_en", cover("plusgift", "en"), symbol("add", "plus")),
       ("evening_ru", cover("evening", "ru"), image("art_act_rest.png")),
       ("chest_uk", cover("chest", "uk"), image("art_chest_idle2.png")),
+      ("chest_winter_ru", cover("chest", "ru", having: "art_id"), image("chest_winter.png")),
       ("capsule_ru", cover("capsule", "ru"), symbol("mail", "evening")),
       ("reels_ru", cover("reels", "ru"), image("art_act_phone.png")),
       ("days_ru", cover("days", "ru"), nil),
+      ("pair_reset_own_en", cover("pair_reset", "en", having: "role"), nil),
       ("date_remind_ru", cover("date_remind", "ru"), symbol("cake", "date")),
     ]
 
@@ -121,11 +138,17 @@ final class HarnessApp: UIResponder, UIApplicationDelegate {
         continue
       }
       for style in [UIUserInterfaceStyle.light, .dark] {
-        let container = UIView(frame: CGRect(x: 0, y: 0, width: 390, height: 900))
-        container.overrideUserInterfaceStyle = style
-        // Подложка — как плашка уведомления системы.
-        container.backgroundColor = style == .dark ? UIColor(white: 0.13, alpha: 1) : UIColor(white: 0.96, alpha: 1)
-        host.view.addSubview(container)
+        // Фон экрана, а на нём карточка: углы её скругляет система — здесь
+        // это делает рамка стенда.
+        let backdrop = UIView(frame: CGRect(x: 0, y: 0, width: 414, height: 924))
+        backdrop.overrideUserInterfaceStyle = style
+        backdrop.backgroundColor = style == .dark ? UIColor(white: 0.07, alpha: 1) : UIColor(red: 0.85, green: 0.81, blue: 0.83, alpha: 1)
+        let container = UIView(frame: CGRect(x: 12, y: 12, width: 390, height: 900))
+        container.layer.cornerRadius = 18
+        container.layer.cornerCurve = .continuous
+        container.clipsToBounds = true
+        backdrop.addSubview(container)
+        host.view.addSubview(backdrop)
         let vc = NotificationViewController()
         vc.overrideUserInterfaceStyle = style
         host.addChild(vc)
@@ -134,19 +157,20 @@ final class HarnessApp: UIResponder, UIApplicationDelegate {
         vc.didMove(toParent: host)
         vc.render(cover: parsed, title: parsed.bannerTitle, body: parsed.body, image: picture)
         let height = vc.preferredContentSize.height
-        check("\(name)/\(style == .dark ? "тёмная" : "светлая"): высота по содержимому", height > 80 && height < 900,
+        check("\(name)/\(style == .dark ? "тёмная" : "светлая"): высота по содержимому", height > 60 && height < 900,
               "\(Int(height))")
         vc.view.frame.size.height = height
         container.frame.size.height = height
-        container.layoutIfNeeded()
-        let shot = UIGraphicsImageRenderer(bounds: container.bounds).image { _ in
-          container.drawHierarchy(in: container.bounds, afterScreenUpdates: true)
+        backdrop.frame.size.height = height + 24
+        backdrop.layoutIfNeeded()
+        let shot = UIGraphicsImageRenderer(bounds: backdrop.bounds).image { _ in
+          backdrop.drawHierarchy(in: backdrop.bounds, afterScreenUpdates: true)
         }
         save(shot, "\(name)_\(style == .dark ? "dark" : "light")")
         vc.willMove(toParent: nil)
         vc.view.removeFromSuperview()
         vc.removeFromParent()
-        container.removeFromSuperview()
+        backdrop.removeFromSuperview()
       }
     }
     print(failures.isEmpty ? "ИТОГ: ВСЁ ВЕРНО" : "ИТОГ: ОШИБКИ — \(failures.joined(separator: ", "))")

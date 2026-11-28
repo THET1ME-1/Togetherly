@@ -111,6 +111,11 @@ enum CoverMedia {
       // Значок даты (капсула — письмо, праздник — торт) — плашкой тона,
       // как на Android: без картинки дата была бы единственной без обложки.
       content.attachments = [attachment]
+    } else if let peaks = cover.chat?.peaks, !peaks.isEmpty,
+              let wave = CoverSymbol.waveform(peaks, tone: CoverTone.of("chat"), width: 720, height: 240),
+              let bytes = png(wave), let attachment = attachment(png: bytes, name: cover.kind) {
+      // Голосовое — его волной, как пузырь в чате.
+      content.attachments = [attachment]
     }
     if let person = cover.person,
        let message = asMessage(content, cover: cover, person: person, avatar: got["avatar"], frame: got["frame"]) {

@@ -187,8 +187,10 @@ class PbPushService {
           'ts': r.data['ts'],
           'avatar': _partnerAvatar,
           'frame': AvatarFrames.instance.frameOf(partnerUid) ?? '',
-          // Кружок видеосообщения — его кадр картинкой в переписке.
+          // Кружок видеосообщения — его кадр картинкой в переписке,
+          // голосовое — волной, как пузырь в чате.
           'photo': r.data['note_thumb'] ?? '',
+          'peaks': '${r.data['voice_url'] ?? ''}'.isEmpty ? '' : (r.data['voice_peaks'] ?? ''),
         });
       } catch (err) {
         debugPrint('PbPush chat callback error: $err');
@@ -276,7 +278,7 @@ class PbPushService {
         if (r.data['deleted'] == true || !_pref('notif_new_memory')) return;
         final name = (r.data['author_name'] ?? partner).toString();
         _notify(('mem${r.id}').hashCode, name, trKey('pushNewMemory'),
-            thread: 'memory', cover: memoryCoverContext(_jsonMap(r.data['data']), name));
+            thread: 'memory', cover: memoryCoverContext(_jsonMap(r.data['data']), name, id: r.id));
       } catch (err) {
         debugPrint('PbPush memory callback error: $err');
       }

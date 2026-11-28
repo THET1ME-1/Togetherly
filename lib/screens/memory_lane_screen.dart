@@ -225,6 +225,10 @@ class MemoryLaneScreen extends StatefulWidget {
   /// Авто-открыть деталь конкретного пина после загрузки (переход из чата).
   final String? initialMemoryId;
 
+  /// «Ответить» из уведомления: деталь [initialMemoryId] открывается с
+  /// клавиатурой в поле комментария.
+  final bool replyToInitialMemory;
+
   /// Тап по вкладке общего навбара внутри Ленты (Главная/Виджеты/Пара/Профиль).
   /// Главный экран закрывает Ленту и переключает свою вкладку. null → навбар
   /// в Ленте не показывается (например, при входе из чата/лепестка).
@@ -246,6 +250,7 @@ class MemoryLaneScreen extends StatefulWidget {
     this.openCreateType,
     this.openCreateTaskId,
     this.initialMemoryId,
+    this.replyToInitialMemory = false,
     this.onNavTab,
     this.embedded = false,
     this.previewLimit = 3,
@@ -487,7 +492,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     if (target == null && _groupId.isNotEmpty) {
       target = await _memRepo.getById(id);
     }
-    if (target != null && mounted) _showMemoryDetail(target);
+    if (target != null && mounted) {
+      if (widget.replyToInitialMemory && memoryId == null) _CommentsSection.replyTo = target.id;
+      _showMemoryDetail(target);
+    }
   }
 
   void _onPairChanged() {

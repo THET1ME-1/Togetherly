@@ -185,6 +185,8 @@ onRecordAfterCreateSuccess((e) => {
       { cover: (lang) => ({
         from_name: name, title: T.t("comment", lang),
         from_uid: String(rec.getString("author_uid") || ""),
+        // Фото записи и «Ответить» в ней: запись hotpath берёт по номеру.
+        memory_id: String(rec.getString("memory_id") || ""),
       }) });
   } catch (err) {
     $app.logger().warn("apns: комментарий", "err", String(err));

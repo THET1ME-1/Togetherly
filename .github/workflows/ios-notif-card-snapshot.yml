@@ -52,6 +52,7 @@ jobs:
           get art_act_rest.png "$F/art_act_rest/still_9c34teapsj.png"
           get art_act_phone.png "$F/art_act_phone/still_gy44a8syf0.png"
           get art_chest_idle2.png "$F/art_chest_idle2/still_jn7sk4n5uf.png"
+          get chest_winter.png "$F/chest_winter/still_wwink18fib.png"
           get gift_bouquet.png "$F/gift_bouquet/still_3h6keh0jc3.png"
           get moti_love.webp "$F/moti/love_uethoqf2ox.webp"
           get frame.png "$F/frame_cloud/still_ltlq4nq8yu.png"

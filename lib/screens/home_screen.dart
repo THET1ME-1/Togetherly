@@ -848,12 +848,17 @@ class _HomeScreenState extends State<HomeScreen> {
         // Уведомление капсулы несёт её номер: лента откроет именно её
         // (тот же ключ, что у прежнего уведомления плагина).
         final capsule = query['capsule'] ?? '';
+        final memory = query['memory'] ?? '';
         if (capsule.isNotEmpty) {
           unawaited(SharedPreferences.getInstance()
               .then((p) => p.setString(CapsuleNotificationService.pendingKey, capsule))
               .then((_) {
             if (mounted) _openMemoryLane();
           }));
+        } else if (memory.isNotEmpty) {
+          // Воспоминание из уведомления; «Ответить» — сразу с клавиатурой в
+          // поле комментария.
+          _openMemoryLane(initialMemoryId: memory, replyToMemory: query['reply'] == '1');
         } else {
           _openMemoryLane();
         }
@@ -2116,6 +2121,8 @@ class _HomeScreenState extends State<HomeScreen> {
     bool openCreateOnStart = false,
     MemoryType? openCreateType,
     String? openCreateTaskId,
+    String? initialMemoryId,
+    bool replyToMemory = false,
   }) {
     Navigator.push(
       context,
@@ -2127,6 +2134,8 @@ class _HomeScreenState extends State<HomeScreen> {
           openCreateOnStart: openCreateOnStart,
           openCreateType: openCreateType,
           openCreateTaskId: openCreateTaskId,
+          initialMemoryId: initialMemoryId,
+          replyToInitialMemory: replyToMemory,
           onNavTab: (i) {
             Navigator.of(context).pop();
             setState(() => _selectedNavIndex = i);

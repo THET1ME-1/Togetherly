@@ -171,6 +171,15 @@ enum NotifNetIOS {
     }
   }
 
+  /// «Это не я»: хозяин аккаунта гасит смену пароля через партнёра — тот же
+  /// запрос, что лист «Ваш пароль меняют» в приложении. Повтор безвреден.
+  static func cancelReset(completion: @escaping (Bool) -> Void) {
+    guard token != nil else { completion(false); return }
+    call("POST", "/api/auth/partner-reset/cancel", json: [:]) { code, _ in
+      completion((200..<300).contains(code))
+    }
+  }
+
   /// Снежок в ответ. «Слишком часто» (429) — снежок уже летит, это успех.
   static func snowball(group: String, completion: @escaping (Bool) -> Void) {
     call("POST", "/api/group/snowball", json: ["groupId": group], idempotent: false) { code, _ in
