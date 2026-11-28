@@ -75,13 +75,17 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
   }
 
-  testWidgets('первый показ записывает привычку явным выбором', (tester) async {
+  // Привычку на телефоне считают по неполным данным (отметки только этой
+  // пары, прогресс до загрузки), и первый показ мог записать «выкл» тому,
+  // кто отмечает настроение каждый день. Пока решение не приходит с
+  // сервера, показ ничего не пишет (ревью 28.11.2026).
+  testWidgets('первый показ ничего не пишет', (tester) async {
     SharedPreferences.setMockInitialValues({});
     await pump(tester, moodHabit: true, taskHabit: false);
     expect(switchOf(tester, 'er-mood').value, isTrue);
     expect(switchOf(tester, 'er-task').value, isFalse);
     expect(find.text('21:00'), findsOneWidget);
-    expect(saved, [('on', 'off', null)], reason: 'время не выбирали — не шлём');
+    expect(saved, isEmpty);
   });
 
   testWidgets('выбор с сервера сильнее привычки и не переписывается', (tester) async {
@@ -179,11 +183,11 @@ void main() {
     expect(find.byType(TimePickerDialog), findsNothing);
   });
 
-  testWidgets('без пары строки задания нет и решать о нём нечего', (tester) async {
+  testWidgets('без пары строки задания нет', (tester) async {
     SharedPreferences.setMockInitialValues({});
     await pump(tester, paired: false, moodHabit: false, taskHabit: true);
     expect(find.byKey(const ValueKey('er-task')), findsNothing);
-    expect(saved, [('off', null, null)]);
+    expect(saved, isEmpty);
   });
 
   testWidgets('320 точек и крупный шрифт без переполнения', (tester) async {

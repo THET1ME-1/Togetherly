@@ -90,7 +90,6 @@ class _EveningReminderBlockState extends State<EveningReminderBlock> {
 
   Future<void> _load() async {
     await _readPrefs();
-    var serverAnswered = false;
     if (_undecided) {
       Map<String, dynamic>? server;
       try {
@@ -100,28 +99,16 @@ class _EveningReminderBlockState extends State<EveningReminderBlock> {
         server = null;
       }
       if (server != null) {
-        serverAnswered = true;
         await adoptEveningReminder(server);
         await _readPrefs();
       }
     }
     if (!mounted) return;
-    var decided = false;
-    setState(() {
-      // Решение первого показа — только когда сервер ответил: без ответа
-      // можно затереть выбор, сделанный на другом телефоне. Тогда показываем
-      // привычку и ждём нажатия или следующего открытия.
-      if (serverAnswered && _mood == null) {
-        _mood = widget.moodHabit ? 'on' : 'off';
-        decided = true;
-      }
-      if (serverAnswered && widget.paired && _task == null) {
-        _task = widget.taskHabit ? 'on' : 'off';
-        decided = true;
-      }
-      _loaded = true;
-    });
-    if (decided) _queueSave();
+    // Первый показ ничего не пишет: привычку телефон считает по неполным
+    // данным (отметки только этой пары, прогресс заданий до загрузки) и мог
+    // записать «выкл» тому, кто отмечает настроение каждый день. Нерешённый
+    // пункт остаётся за сервером, пишет только нажатие человека.
+    setState(() => _loaded = true);
   }
 
   static Future<Map<String, dynamic>?> _ownProfile() async {
