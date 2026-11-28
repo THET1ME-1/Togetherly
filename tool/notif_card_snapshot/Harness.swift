@@ -167,9 +167,11 @@ final class HarnessApp: UIResponder, UIApplicationDelegate {
         let height = vc.preferredContentSize.height
         check("\(name)/\(style == .dark ? "тёмная" : "светлая"): высота по содержимому", height > 60 && height < 900,
               "\(Int(height))")
-        vc.view.frame.size.height = height
-        container.frame.size.height = height
+        // Сперва рамка, потом карточка: вид карточки тянется по высоте вслед
+        // за рамкой, и уменьшение рамки с 900 точек схлопывало его в ноль.
         backdrop.frame.size.height = height + 24
+        container.frame.size.height = height
+        vc.view.frame = container.bounds
         backdrop.layoutIfNeeded()
         // Снимок слоями, а не с экрана: приложение стенда на экране может быть
         // неактивным, и система не успевает прорисовать текст. Каждый слой
