@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -45,27 +47,58 @@ class NotifPrefsSync {
   /// Выбор человека в вечернем напоминании: записать целиком с отметкой
   /// времени и отправить. Не уехало — останется «неотправленным» и уйдёт при
   /// следующей сверке с профилем, если к тому времени не появился выбор новее.
+  ///
+  /// [uid] и [push] подменяются в тестах.
   static Future<void> saveEveningReminder({
     String? mood,
     String? task,
     String? at,
+    String? uid,
+    Future<bool> Function(Map<String, dynamic> body)? push,
   }) async {
-    final uid = PocketBaseService().userId ?? '';
-    final prefs = await SharedPreferences.getInstance();
-    await _writeChoice(prefs, mood: mood, task: task, at: at);
-    await prefs.setInt(kRemindSetAtPref, DateTime.now().millisecondsSinceEpoch);
-    await prefs.setBool(kRemindPendingPref, true);
-    await prefs.setString(kRemindOwnerPref, uid);
-    if (uid.isEmpty) return;
-    if (await _pushChoice(uid, prefs)) {
-      await prefs.setBool(kRemindPendingPref, false);
-    }
+    final who = uid ?? PocketBaseService().userId ?? '';
+    return _eveningSerial(() async {
+      final prefs = await SharedPreferences.getInstance();
+      await _writeChoice(prefs, mood: mood, task: task, at: at);
+      await prefs.setInt(kRemindSetAtPref, DateTime.now().millisecondsSinceEpoch);
+      await prefs.setBool(kRemindPendingPref, true);
+      await prefs.setString(kRemindOwnerPref, who);
+      if (who.isEmpty) return;
+      if (await _pushChoice(who, prefs, push)) {
+        await prefs.setBool(kRemindPendingPref, false);
+      }
+    });
   }
 }
 
-Future<bool> _pushChoice(String uid, SharedPreferences prefs) async {
+/// Сохранение выбора и сверка с профилем пишут одни и те же ключи prefs, а
+/// сверку зовут без ожидания на каждой загрузке профиля. Вперемешку нажатие
+/// уходило на сервер прежним значением со свежей отметкой времени (тест
+/// «нажатие во время сверки не теряется»), поэтому обе идут по очереди.
+///
+/// Замок, а не цепочка `Future`: свободный — null, и завершённых `Future` он
+/// не держит (в тестах у каждого теста своя зона, и продолжение на `Future`
+/// из прошлой не запустилось бы).
+Completer<void>? _eveningBusy;
+
+Future<void> _eveningSerial(Future<void> Function() job) async {
+  while (_eveningBusy != null) {
+    await _eveningBusy!.future;
+  }
+  final mine = Completer<void>();
+  _eveningBusy = mine;
   try {
-    return await PbDataService().updateUserProfile(uid, {
+    await job();
+  } finally {
+    _eveningBusy = null;
+    mine.complete();
+  }
+}
+
+Future<bool> _pushChoice(String uid, SharedPreferences prefs,
+    Future<bool> Function(Map<String, dynamic> body)? push) async {
+  try {
+    final body = {
       ...eveningReminderBaseBody(tz: await deviceTimeZone()),
       ...eveningReminderChoiceBody(
         mood: prefs.getString(kRemindMoodPref),
@@ -73,7 +106,10 @@ Future<bool> _pushChoice(String uid, SharedPreferences prefs) async {
         at: prefs.getString(kRemindAtPref),
         setAt: prefs.getInt(kRemindSetAtPref) ?? 0,
       ),
-    });
+    };
+    return push != null
+        ? await push(body)
+        : await PbDataService().updateUserProfile(uid, body);
   } catch (e) {
     debugPrint('NotifPrefsSync: напоминание не уехало — $e');
     return false;
@@ -112,8 +148,13 @@ Future<void> reconcileEveningReminder(
   Map<String, dynamic> profile, {
   required String uid,
   Future<bool> Function(Map<String, dynamic> body)? push,
-}) async {
-  if (uid.isEmpty) return;
+}) {
+  if (uid.isEmpty) return Future.value();
+  return _eveningSerial(() => _reconcile(profile, uid, push));
+}
+
+Future<void> _reconcile(Map<String, dynamic> profile, String uid,
+    Future<bool> Function(Map<String, dynamic> body)? push) async {
   final prefs = await SharedPreferences.getInstance();
   if (prefs.getString(kRemindOwnerPref) != uid) {
     // Выбор другого аккаунта: на сервер не уходит, здесь не нужен.
@@ -127,19 +168,9 @@ Future<void> reconcileEveningReminder(
   final pending = prefs.getBool(kRemindPendingPref) ?? false;
 
   if (pending && localSetAt > serverSetAt) {
-    final body = eveningReminderChoiceBody(
-      mood: prefs.getString(kRemindMoodPref),
-      task: prefs.getString(kRemindTaskPref),
-      at: prefs.getString(kRemindAtPref),
-      setAt: localSetAt,
-    );
-    final ok = push != null
-        ? await push(body)
-        : await PbDataService().updateUserProfile(uid, {
-            ...eveningReminderBaseBody(tz: await deviceTimeZone()),
-            ...body,
-          });
-    if (ok) await prefs.setBool(kRemindPendingPref, false);
+    if (await _pushChoice(uid, prefs, push)) {
+      await prefs.setBool(kRemindPendingPref, false);
+    }
     return;
   }
 

@@ -25,12 +25,24 @@ class FieldsCache:
         self._at: float | None = None
         self._meta: dict[str, tuple[str, dict]] = {}
 
+    def _stale(self, now: float) -> bool:
+        return self._at is None or now - self._at >= self.ttl
+
     def get(self, db, lock, name: str) -> tuple[str, dict]:
         now = self.clock()
-        if self._at is None or now - self._at >= self.ttl:
+        if self._stale(now):
             with lock:
-                fresh = {n: load_fields(db, n) for n in self.names}
-            self._meta, self._at = fresh, now
+                # Пока ждали замок, схему мог перечитать другой поток.
+                if self._stale(now):
+                    try:
+                        self._meta = {n: load_fields(db, n) for n in self.names}
+                    except Exception:
+                        # Коллекцию правят прямо сейчас — работаем по прежней
+                        # схеме, а не роняем каждый ответ. Без неё (запуск)
+                        # ошибку видно сразу.
+                        if not self._meta:
+                            raise
+                    self._at = now
         return self._meta[name]
 
 

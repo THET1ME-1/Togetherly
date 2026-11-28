@@ -67,6 +67,8 @@ ACTIVE_DAYS = 14
 # 28.11.2026); релеи принимают запросы каждый своим потоком, так что скорость
 # растёт с числом потоков. 48 — 50 тысяч москвичей примерно за 17 минут.
 WORKERS = 48
+# Сколько раз за день пробуем дослать, если релей не принял.
+MAX_TRIES = 3
 DEFAULT_AT = "21:00"
 # Окно — час от времени человека: долгая рассылка держит `flock`, и крон
 # пропускает свои запуски; с окном в 15 минут время 21:05 выпало бы целиком
@@ -370,11 +372,24 @@ def pair_tasks(wanted):
     return {uid: best_tasks(items) for uid, items in found.items()}
 
 
-def state_db():
-    st = sqlite3.connect(STATE, timeout=15)
+def prepare_state(st):
+    """`sent` — кто сегодня получил; `tries` — сколько раз не дошло."""
     st.execute("CREATE TABLE IF NOT EXISTS sent (uid TEXT, day TEXT, at TEXT, "
                "PRIMARY KEY (uid, day))")
+    st.execute("CREATE TABLE IF NOT EXISTS tries (uid TEXT, day TEXT, n INTEGER, "
+               "PRIMARY KEY (uid, day))")
     return st
+
+
+def state_db():
+    return prepare_state(sqlite3.connect(STATE, timeout=15))
+
+
+def given_up(st, since_day):
+    """Кому за день не дошло [MAX_TRIES] раз — больше не пробуем: лежит
+    релей — каждый запуск часового окна иначе гнал бы всех заново."""
+    return {(u, d) for u, d in st.execute(
+        "SELECT uid, day FROM tries WHERE day >= ? AND n >= ?", (since_day, MAX_TRIES))}
 
 
 def post(url, body):
@@ -430,6 +445,9 @@ def send_all(todo, st, utc_now, *, send=send, workers=WORKERS, batch=200):
             results = list(ex.map(send, part))
             st.executemany("INSERT OR IGNORE INTO sent (uid, day, at) VALUES (?, ?, ?)",
                            [(u["id"], u["_day"], stamp) for (u, _), ok in zip(part, results) if ok])
+            st.executemany("INSERT INTO tries (uid, day, n) VALUES (?, ?, 1) "
+                           "ON CONFLICT (uid, day) DO UPDATE SET n = n + 1",
+                           [(u["id"], u["_day"]) for (u, _), ok in zip(part, results) if not ok])
             st.commit()
             total += sum(results)
     return total
@@ -465,9 +483,10 @@ def main():
     # Получившие сегодня отсеиваются до тяжёлых запросов: остальные запуски
     # в окне трогают базу только ради тех, у кого ещё не всё сделано.
     st = state_db()
-    sent = {(u, d) for u, d in st.execute(
-        "SELECT uid, day FROM sent WHERE day >= ?", ((utc_now - timedelta(days=2)).strftime("%Y-%m-%d"),))}
-    due = {u: v for u, v in due.items() if (u, v[0]) not in sent}
+    since_day = (utc_now - timedelta(days=2)).strftime("%Y-%m-%d")
+    sent = {(u, d) for u, d in st.execute("SELECT uid, day FROM sent WHERE day >= ?", (since_day,))}
+    skip = sent | given_up(st, since_day)
+    due = {u: v for u, v in due.items() if (u, v[0]) not in skip}
     if not due:
         log(f"знают напоминание: {len(times)}, активны: {len(pool)}, сейчас их время: никого")
         return
@@ -493,7 +512,9 @@ def main():
 
     started = time.time()
     total = send_all(todo, st, utc_now, workers=args.workers)
-    st.execute("DELETE FROM sent WHERE day < ?", ((utc_now - timedelta(days=7)).strftime("%Y-%m-%d"),))
+    week_ago = (utc_now - timedelta(days=7)).strftime("%Y-%m-%d")
+    st.execute("DELETE FROM sent WHERE day < ?", (week_ago,))
+    st.execute("DELETE FROM tries WHERE day < ?", (week_ago,))
     st.commit()
     log(f"отправлено {total} из {len(todo)} за {time.time() - started:.0f} с")
 

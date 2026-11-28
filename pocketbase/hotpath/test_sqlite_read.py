@@ -147,5 +147,18 @@ db.execute("UPDATE _collections SET fields = ? WHERE name = 'gifts'", (json.dump
 часы[0] += 61
 проверить("после срока новое поле видно", "fresh_field" in кэш.get(db, lock, "gifts")[1])
 
+# Сломанное чтение схемы (правят коллекцию, строки нет) не валит ответы: в
+# работе остаётся прежняя схема, следующая попытка — через срок.
+сломан = FieldsCache(["gifts", "нет_такой"], ttl=60.0, clock=lambda: часы[0])
+сломан._meta = {"gifts": кэш.get(db, lock, "gifts"), "нет_такой": ("x", {})}
+сломан._at = часы[0] - 61
+try:
+    живая = "price" in сломан.get(db, lock, "gifts")[1]
+except Exception as e:  # noqa: BLE001
+    живая = False
+    print("  упало:", e)
+проверить("ошибка чтения схемы оставляет прежнюю", живая)
+проверить("после ошибки срок сдвинут", сломан._at == часы[0])
+
 print(f"итог: провалов {len(провалы)}" + (f" — {провалы}" if провалы else ""))
 raise SystemExit(1 if провалы else 0)

@@ -176,7 +176,7 @@ class Отправка(unittest.TestCase):
         # пяти минут — следующий запуск не должен слать тем же людям заново.
         import sqlite3
         st = sqlite3.connect(":memory:")
-        st.execute("CREATE TABLE sent (uid TEXT, day TEXT, at TEXT, PRIMARY KEY (uid, day))")
+        m.prepare_state(st)
         todo = [({"id": f"u{i}", "_day": "2026-11-28"}, {"mood"}) for i in range(5)]
         calls = []
 
@@ -190,6 +190,18 @@ class Отправка(unittest.TestCase):
             m.send_all(todo, st, СЕЙЧАС, send=send, workers=1, batch=2)
         got = {r[0] for r in st.execute("SELECT uid FROM sent")}
         self.assertEqual(got, {"u0", "u1"})
+
+    def test_неудачи_не_повторяются_весь_час(self):
+        # Окно — час, запусков в нём 12. Лежит релей — без счёта попыток каждый
+        # запуск заново гнал бы всех, и пуш пришёл бы к концу окна.
+        import sqlite3
+        st = sqlite3.connect(":memory:")
+        m.prepare_state(st)
+        todo = [({"id": "u1", "_day": "2026-11-28"}, {"mood"})]
+        for _ in range(m.MAX_TRIES):
+            self.assertEqual(m.send_all(todo, st, СЕЙЧАС, send=lambda item: False, workers=1), 0)
+        self.assertIn(("u1", "2026-11-28"), m.given_up(st, "2026-11-27"))
+        self.assertNotIn(("u2", "2026-11-28"), m.given_up(st, "2026-11-27"))
 
 
 if __name__ == "__main__":

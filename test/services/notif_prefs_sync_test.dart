@@ -173,6 +173,44 @@ void main() {
         expect(prefs.getBool(kRemindPendingPref), isFalse);
       });
 
+      // Сверку зовут без ожидания на каждой загрузке профиля. Нажатие во
+      // время неё не должно уйти на сервер прежним значением со свежей
+      // отметкой времени — тогда «вкл» осталось бы навсегда (ревью 28.11.2026).
+      test('нажатие во время сверки не теряется', () async {
+        // Нажатие приходит на любом шаге сверки: сдвигаем его старт.
+        final lost = <int>[];
+        for (var shift = 0; shift < 30; shift++) {
+          final prefs = await prefsWith({kRemindOwnerPref: 'other'});
+          final rec = reconcileEveningReminder({'remindMood': 'on', 'remindSetAt': 5},
+              uid: 'me', push: push);
+          for (var i = 0; i < shift; i++) {
+            await Future<void>.value();
+          }
+          final save = NotifPrefsSync.saveEveningReminder(
+              mood: 'off', task: null, at: null, uid: 'me', push: push);
+          await Future.wait([rec, save]);
+          final ok = prefs.getString(kRemindMoodPref) == 'off' &&
+              pushed.isNotEmpty &&
+              pushed.last['remindMood'] == 'off' &&
+              prefs.getBool(kRemindPendingPref) == false;
+          if (!ok) lost.add(shift);
+        }
+        expect(lost, isEmpty, reason: 'сдвиги, где нажатие пропало');
+      });
+
+      test('сбой записи при сверке не роняет её и оставляет выбор неотправленным', () async {
+        final prefs = await prefsWith({
+          kRemindOwnerPref: 'me',
+          kRemindMoodPref: 'off',
+          kRemindSetAtPref: 300,
+          kRemindPendingPref: true,
+        });
+        await reconcileEveningReminder({'remindSetAt': 200},
+            uid: 'me', push: (_) async => throw StateError('сеть'));
+        expect(prefs.getBool(kRemindPendingPref), isTrue);
+        expect(prefs.getString(kRemindMoodPref), 'off');
+      });
+
       test('на телефоне вошёл другой аккаунт — чужой выбор не уходит', () async {
         final prefs = await prefsWith({
           kRemindOwnerPref: 'other',

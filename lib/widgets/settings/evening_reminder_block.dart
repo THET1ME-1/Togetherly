@@ -80,19 +80,30 @@ class _EveningReminderBlockState extends State<EveningReminderBlock> {
     _load();
   }
 
-  Future<void> _readPrefs() async {
+  static Future<(String?, String?, String?)> _prefsValues() async {
     final prefs = await SharedPreferences.getInstance();
-    _mood = remindModeOf(prefs.getString(kRemindMoodPref));
-    _task = remindModeOf(prefs.getString(kRemindTaskPref));
-    _at = remindAtValid(prefs.getString(kRemindAtPref));
+    return (
+      remindModeOf(prefs.getString(kRemindMoodPref)),
+      remindModeOf(prefs.getString(kRemindTaskPref)),
+      remindAtValid(prefs.getString(kRemindAtPref)),
+    );
+  }
+
+  void _apply((String?, String?, String?) v) {
+    _mood = v.$1;
+    _task = v.$2;
+    _at = v.$3;
   }
 
   Future<void> _load() async {
-    await _readPrefs();
+    final first = await _prefsValues();
     if (!mounted) return;
     // Показ ничего не пишет: не тронутое человеком сервер и так считает
     // включённым, а лишняя запись затёрла бы выбор с другого телефона.
-    setState(() => _loaded = true);
+    setState(() {
+      _apply(first);
+      _loaded = true;
+    });
 
     // Свериться с профилем: выбор мог быть сделан на другом телефоне.
     Map<String, dynamic>? server;
@@ -105,9 +116,11 @@ class _EveningReminderBlockState extends State<EveningReminderBlock> {
     if (server == null || !mounted || _touched) return;
     await reconcileEveningReminder(server,
         uid: widget.uid ?? PocketBaseService().userId ?? '');
+    final fresh = await _prefsValues();
+    // Проверка — прямо перед применением: нажатие могло прийти, пока читались
+    // prefs, а его сохранение ещё стоит в очереди.
     if (!mounted || _touched) return;
-    await _readPrefs();
-    if (mounted) setState(() {});
+    setState(() => _apply(fresh));
   }
 
   static Future<Map<String, dynamic>?> _ownProfile() async {
