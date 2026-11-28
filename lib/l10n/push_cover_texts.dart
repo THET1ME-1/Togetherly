@@ -457,6 +457,17 @@ const Map<String, Map<String, String>> kPushCoverTexts = {
     'zh': '在一起的日子',
     'uk': 'Дні разом',
   },
+  'c_how_now': {
+    'ru': 'Как ты сейчас?',
+    'en': 'How are you now?',
+    'de': 'Wie geht es dir gerade?',
+    'fr': 'Comment tu te sens ?',
+    'es': '¿Cómo estás ahora?',
+    'it': 'Come stai adesso?',
+    'pt': 'Como você está agora?',
+    'zh': '你现在心情如何？',
+    'uk': 'Як ти зараз?',
+  },
   'partner': {
     'ru': 'Партнёр',
     'en': 'Partner',

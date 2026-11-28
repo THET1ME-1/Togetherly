@@ -24,9 +24,13 @@ object NotifActions {
     /** Итог отправки: дошло, стоит повторить, повторять бесполезно. */
     enum class Sent { OK, RETRY, GIVE_UP }
 
-    fun run(ctx: Context, cover: Cover, action: String, reply: String, tag: String, id: Int) {
+    fun run(ctx: Context, cover: Cover, raw: String, action: String, reply: String, tag: String, id: Int) {
         val chat = cover.chat
         val group = cover.group.ifEmpty { chat?.groupId.orEmpty() }
+        if (action.startsWith("mood:")) {
+            pickMood(ctx, cover, raw, action.removePrefix("mood:"), group, tag, id)
+            return
+        }
         when (action) {
             "reply" -> {
                 if (chat == null || reply.isEmpty() || group.isEmpty()) return
@@ -67,6 +71,34 @@ object NotifActions {
             }
             else -> Log.i(TAG, "незнакомое действие $action")
         }
+    }
+
+    /**
+     * Котик со шторки экрана блокировки: настроение уходит тем же путём, что
+     * с плиток виджета (фоновый Dart, `loveapp://mood?id=…`, `main.dart`), а
+     * плашка сразу показывает выбранного котика.
+     */
+    private fun pickMood(ctx: Context, cover: Cover, raw: String, moodId: String, group: String, tag: String, id: Int) {
+        val choice = cover.moods.firstOrNull { it.id == moodId } ?: return
+        try {
+            // Без пары в ссылке Dart возьмёт пару виджета (`tgmood_latest_group`).
+            val uri = if (group.isEmpty()) "loveapp://mood?id=$moodId" else "loveapp://mood?group=$group&id=$moodId"
+            es.antonborri.home_widget.HomeWidgetBackgroundIntent.getBroadcast(ctx, android.net.Uri.parse(uri)).send()
+        } catch (e: Exception) {
+            Log.w(TAG, "не удалось разбудить Dart: ${e.message}")
+        }
+        val updated = try {
+            JSONObject(raw)
+                .put("title", choice.label.ifEmpty { cover.title })
+                .put("art", JSONObject().put("url", choice.url))
+                .toString()
+        } catch (_: Exception) {
+            raw
+        }
+        NotifChannel.showOrPlain(
+            ctx, updated, choice.label, cover.body, tag, id,
+            NotifCover.activeChannel(ctx, tag, id) ?: NotifCover.CHANNEL_PARTNER, ongoing = true, silent = true,
+        )
     }
 
     /** Сообщение в чат пары. «Уже есть» — тоже успех: прошлый повтор дошёл. */

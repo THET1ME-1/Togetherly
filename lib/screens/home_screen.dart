@@ -1490,6 +1490,9 @@ class _HomeScreenState extends State<HomeScreen> {
       myName: widget.userData.displayName,
       partnerMood: partnerEntry?.labelFor(_partnerGender) ?? '',
       partnerName: _pairData.partnerDisplayName,
+      // Котик слева и пара, в которую отмечают котики-кнопки.
+      myMoodId: myEntry?.moodId ?? '',
+      groupId: _pairData.pairId,
     );
   }
 

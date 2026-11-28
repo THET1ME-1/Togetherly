@@ -3,7 +3,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show Color;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../dict_strings.dart' show ruEn;
+import '../models/mood_entry.dart' show MoodOption;
 import '../utils/notification_permission.dart';
+import 'notif_renderer.dart';
 
 /// Сервис постоянного уведомления с настроением на Android.
 ///
@@ -72,12 +74,20 @@ class MoodNotificationService {
   //  SHOW / HIDE
   // ─────────────────────────────────────────────────────────────────────────
 
+  /// Котики «Моти» — кнопки настроения на плашке (уведомления «А»).
+  static const List<String> lockChoices = ['love', 'happy', 'missing', 'tired', 'sad'];
+
   /// Показать / обновить постоянное уведомление с настроением.
+  ///
+  /// [myMoodId] — номер моего настроения на сегодня (котик слева),
+  /// [groupId] — пара: нажатие на котика отмечает настроение в неё.
   Future<void> show({
     required String myMood,
     required String myName,
     String partnerMood = '',
     String partnerName = '',
+    String myMoodId = '',
+    String groupId = '',
   }) async {
     if (!Platform.isAndroid) return;
     if (!_initialized) await init();
@@ -91,6 +101,30 @@ class MoodNotificationService {
     final granted = await requestNotificationPermissionSafely(androidPlugin);
     if (!granted) {
       debugPrint('MoodNotificationService: notification permission denied');
+      return;
+    }
+
+    // Видом «А»: «Как ты сейчас?» и котики «Моти» кнопками — настроение
+    // отмечается прямо с экрана блокировки, как с плиток виджета.
+    final partnerLine = partnerMood.isEmpty
+        ? ''
+        : '${partnerName.isNotEmpty ? partnerName : ruEn('Партнёр', 'Partner')}: $partnerMood';
+    if (await NotifRenderer.showKind(
+      kind: 'mood_lock',
+      title: myMood,
+      body: partnerLine,
+      id: _kNotificationId,
+      channel: _kChannelId,
+      ongoing: true,
+      silent: true,
+      ctx: {
+        'mood_id': myMoodId,
+        'group_id': groupId,
+        'choices': [
+          for (final id in lockChoices) {'id': id, 'label': MoodOption.byId(id)?.myLabel ?? id},
+        ],
+      },
+    )) {
       return;
     }
 

@@ -12,7 +12,8 @@ F = "https://togetherly.day/api/files"
     "art_act_rest": (["still_rest.png"], {}),
     "art_act_wake": (["still_wake.png"], {}),
     "art_act_draw": (["still_draw.png"], {}),
-    "moti": ([], {"moods": [{"id": "love", "url": f"{F}/catalog_items/moti/love_x.webp"}]}),
+    "moti": ([], {"moods": [{"id": "love", "url": f"{F}/catalog_items/moti/love_x.webp"},
+                            {"id": "sad", "url": f"{F}/catalog_items/moti/sad_x.webp"}]}),
     "gift_bouquet": (["sm_b.webp", "still_bouquet.png"], {}),
     "frame_hearts": (["still_hearts.png"], {}),
     "art_chest_idle2": (["sm_c.webp", "still_chest.png"], {}),
@@ -221,6 +222,21 @@ class СвоиПоРасписанию(unittest.TestCase):
         c = собрать("celebration", title="Год вместе", body="Сегодня", art_id="art_ach_together_365")
         self.assertEqual(c["art_big"]["url"], f"{F}/catalog_items/art_ach_together_365/still_y.png")
         self.assertEqual(собрать("celebration", title="ДР")["art_big"], {"symbol": "cake"})
+
+    def test_настроение_на_экране_блокировки_котики_кнопками(self):
+        выбор = [{"id": "love", "label": "Люблю"}, {"id": "sad", "label": "Грущу"},
+                 {"id": "pride", "label": "Горжусь"}]
+        c = собрать("mood_lock", choices=выбор, group_id="g1", body="Алина: Влюблённость")
+        self.assertEqual(c["title"], "Как ты сейчас?")
+        self.assertEqual(c["art"], {"app": True})
+        self.assertEqual(c["kicker"], "Настроение")
+        # Котика нет в наборе (pride) — кнопки нет: розовых рожиц не ставим.
+        self.assertEqual([m["id"] for m in c["moods"]], ["love", "sad"])
+        self.assertTrue(c["moods"][0]["url"].endswith("/moti/love_x.webp"))
+        self.assertEqual(c["group"], "g1")
+        отмечено = собрать("mood_lock", choices=выбор, mood_id="love", title="Люблю")
+        self.assertEqual(отмечено["art"]["url"], f"{F}/catalog_items/moti/love_x.webp")
+        self.assertEqual(отмечено["title"], "Люблю")
 
     def test_дни_вместе_без_кнопок(self):
         c = собрать("days", title="128 дней вместе", body="И это только начало")

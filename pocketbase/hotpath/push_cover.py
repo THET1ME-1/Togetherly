@@ -55,7 +55,7 @@ def mood_ctx(rec: dict) -> dict:
     "a_hug_back", "a_hug", "a_write", "a_reply", "a_read", "a_open", "a_watch", "a_throw",
     "a_mood", "a_task", "a_chest", "a_mood_back", "a_open_gift", "a_canvas",
     "q_hug", "q_miss", "q_love", "c_you", "c_queued", "c_hugged", "c_failed",
-    "c_capsule", "c_celebration", "c_mascot", "c_invite", "a_open_letter", "c_days",
+    "c_capsule", "c_celebration", "c_mascot", "c_invite", "a_open_letter", "c_days", "c_how_now",
 )
 
 
@@ -422,6 +422,26 @@ def _cover(kind, lang, ctx, look):
             "art_big": _картинка(_каталог(look, "art_act_sad")),
             "actions": _кнопки(lang, ("open", "a_open", "home")),
             "link": ОТКРЫТЬ + "home",
+        }
+
+    if kind == "mood_lock":
+        # Настроение на экране блокировки: котики «Моти» — кнопки, отметка
+        # уходит прямо со шторки. Котика нет в наборе — нет и кнопки:
+        # розовые рожицы запасного набора сюда не ставим.
+        выбор = []
+        for m in ctx.get("choices") or []:
+            url = _моти(look, m.get("id"))
+            if url:
+                выбор.append({"id": m["id"], "label": str(m.get("label") or ""), "url": url})
+        return base | {
+            "kicker": пуш("c_mood", lang),
+            "title": title or пуш("c_how_now", lang),
+            "body": body,
+            "tone": "mood",
+            "art": _картинка(_моти(look, ctx.get("mood_id"))),
+            "actions": [],
+            "link": ОТКРЫТЬ + "mood",
+            "moods": выбор,
         }
 
     if kind == "days":

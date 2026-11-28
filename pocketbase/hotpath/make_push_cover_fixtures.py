@@ -63,6 +63,10 @@ F = "https://togetherly.day/api/files"
     ("mascot_miss", "de", {"title": "Tu vermisst dich", "body": "Schau rein"}),
     ("invite", "pt", {"title": "Convide seu par", "body": "O código espera"}),
     ("days", "ru", {"title": "128 дней вместе", "body": "И это только начало"}),
+    ("mood_lock", "ru", {"group_id": "g1", "body": "Алина: Влюблённость", "mood_id": "sad",
+                         "title": "Грущу", "choices": [{"id": "love", "label": "Люблю"},
+                                                       {"id": "sad", "label": "Грущу"},
+                                                       {"id": "pride", "label": "Горжусь"}]}),
 ]
 
 

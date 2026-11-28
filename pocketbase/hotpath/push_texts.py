@@ -365,6 +365,11 @@ English»). Теперь приложение кладёт код языка в 
         "ru": "Приглашение", "en": "Invitation", "de": "Einladung", "fr": "Invitation",
         "es": "Invitación", "it": "Invito", "pt": "Convite", "zh": "邀请", "uk": "Запрошення",
     },
+    "c_how_now": {
+        "ru": "Как ты сейчас?", "en": "How are you now?", "de": "Wie geht es dir gerade?",
+        "fr": "Comment tu te sens ?", "es": "¿Cómo estás ahora?", "it": "Come stai adesso?",
+        "pt": "Como você está agora?", "zh": "你现在心情如何？", "uk": "Як ти зараз?",
+    },
     "c_days": {
         "ru": "Дни вместе", "en": "Days together", "de": "Tage zusammen", "fr": "Jours ensemble",
         "es": "Días juntos", "it": "Giorni insieme", "pt": "Dias juntos", "zh": "在一起的日子",

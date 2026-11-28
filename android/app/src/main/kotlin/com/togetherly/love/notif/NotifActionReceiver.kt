@@ -29,7 +29,7 @@ class NotifActionReceiver : BroadcastReceiver() {
         val pending = goAsync()
         Thread {
             try {
-                NotifActions.run(app, cover, action, reply, tag, id)
+                NotifActions.run(app, cover, raw, action, reply, tag, id)
             } catch (e: Exception) {
                 Log.w(TAG, "действие $action сорвалось: ${e.message}")
             } finally {

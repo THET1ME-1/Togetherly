@@ -30,6 +30,8 @@ data class Cover(
     /** Подпись, если действие из шторки не дошло. */
     val failed: String,
     val chat: ChatPart?,
+    /** Котики «Моти» — кнопки настроения на экране блокировки (`mood_lock`). */
+    val moods: List<MoodChoice> = emptyList(),
 ) {
     /** Пуш от самого приложения: слева иконка, картинка события — в развёрнутом. */
     val fromApp: Boolean get() = art.app && artBig != null
@@ -65,6 +67,9 @@ data class Art(
 data class CoverAction(val id: String, val label: String, val link: String) {
     val native: Boolean get() = link.isEmpty()
 }
+
+/** Котик «Моти»: номер настроения, подпись, картинка. */
+data class MoodChoice(val id: String, val label: String, val url: String)
 
 /** Часть обложки чата: переписка как в мессенджере. */
 data class ChatPart(
@@ -114,7 +119,22 @@ object CoverParser {
             eventId = o.optString("event_id", ""),
             failed = o.optString("failed", ""),
             chat = o.optJSONObject("chat")?.let { chat(it) },
+            moods = moods(o.optJSONArray("moods")),
         )
+    }
+
+    private fun moods(arr: JSONArray?): List<MoodChoice> {
+        if (arr == null) return emptyList()
+        val out = ArrayList<MoodChoice>()
+        for (i in 0 until arr.length()) {
+            val m = arr.optJSONObject(i) ?: continue
+            val id = m.optString("id", "")
+            val url = m.optString("url", "")
+            // Номер уходит в ссылку настроения — только буквы, цифры и `_`.
+            if (id.isEmpty() || !id.all { it.isLetterOrDigit() || it == '_' } || !url.startsWith("https://")) continue
+            out.add(MoodChoice(id, m.optString("label", ""), url))
+        }
+        return out.take(5)
     }
 
     /** Только свои ссылки уведомлений; чужая или пустая — главная. */

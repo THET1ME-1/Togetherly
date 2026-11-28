@@ -393,6 +393,29 @@ Map<String, Object?>? _buildCover(
         ]),
         'link': '${kCoverOpen}home',
       };
+    case 'mood_lock':
+      // Настроение на экране блокировки: котики «Моти» — кнопки, отметка
+      // уходит прямо со шторки. Котика нет в наборе — нет и кнопки:
+      // розовые рожицы запасного набора сюда не ставим.
+      final choices = <Map<String, Object?>>[];
+      for (final raw in (ctx['choices'] as List?) ?? const []) {
+        final m = raw as Map;
+        final id = '${m['id'] ?? ''}';
+        final url = id.isEmpty ? null : look.moti(id);
+        if (url != null) choices.add({'id': id, 'label': '${m['label'] ?? ''}', 'url': url});
+      }
+      final moodId = _s(ctx, 'mood_id');
+      return {
+        ...base,
+        'kicker': _t('c_mood', lang),
+        'title': or(title, _t('c_how_now', lang)),
+        'body': body,
+        'tone': 'mood',
+        'art': _picture(moodId.isEmpty ? null : look.moti(moodId)),
+        'actions': const <Map<String, Object?>>[],
+        'link': '${kCoverOpen}mood',
+        'moods': choices,
+      };
     case 'days':
       // Постоянная тихая плашка «N дней вместе»: иконка приложения, без кнопок.
       return {

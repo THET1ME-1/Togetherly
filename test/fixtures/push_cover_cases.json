@@ -943,6 +943,57 @@
     "actions": [],
     "link": "loveapp://open/home"
    }
+  },
+  {
+   "kind": "mood_lock",
+   "lang": "ru",
+   "ctx": {
+    "group_id": "g1",
+    "body": "Алина: Влюблённость",
+    "mood_id": "sad",
+    "title": "Грущу",
+    "choices": [
+     {
+      "id": "love",
+      "label": "Люблю"
+     },
+     {
+      "id": "sad",
+      "label": "Грущу"
+     },
+     {
+      "id": "pride",
+      "label": "Горжусь"
+     }
+    ]
+   },
+   "cover": {
+    "v": 1,
+    "kind": "mood_lock",
+    "failed": "Не отправилось, открой приложение",
+    "group": "g1",
+    "kicker": "Настроение",
+    "title": "Грущу",
+    "body": "Алина: Влюблённость",
+    "tone": "mood",
+    "art": {
+     "url": "https://togetherly.day/api/files/catalog_items/moti/sad_x.webp"
+    },
+    "actions": [],
+    "link": "loveapp://open/mood",
+    "moods": [
+     {
+      "id": "love",
+      "label": "Люблю",
+      "url": "https://togetherly.day/api/files/catalog_items/moti/love_x.webp"
+     },
+     {
+      "id": "sad",
+      "label": "Грущу",
+      "url": "https://togetherly.day/api/files/catalog_items/moti/sad_x.webp"
+     }
+    ]
+   }
   }
  ]
 }

@@ -57,6 +57,10 @@ object NotifCover {
             NotifChat.show(ctx, cover, raw, tag, id, channel)
             return
         }
+        if (cover.kind == "mood_lock") {
+            showMoodLock(ctx, cover, raw, tag, id, channel)
+            return
+        }
         val tone = Tones.of(cover.tone)
         val density = ctx.resources.displayMetrics.density
         val smallSide = (44 * density).toInt()
@@ -103,6 +107,72 @@ object NotifCover {
                 },
             )
         post(ctx, tag, id, builder)
+    }
+
+    /**
+     * Настроение на экране блокировки: постоянная тихая плашка, видна без
+     * разблокировки; развёрнуто — ряд котиков «Моти», каждый отмечает
+     * настроение прямо со шторки (`NotifActions`, действие `mood:<номер>`).
+     */
+    private fun showMoodLock(ctx: Context, cover: Cover, raw: String, tag: String, id: Int, channel: String) {
+        val tone = Tones.of(cover.tone)
+        val density = ctx.resources.displayMetrics.density
+        val wanted = buildMap<String, Art> {
+            if (cover.art.url.isNotEmpty()) put("art", cover.art)
+            cover.moods.forEachIndexed { i, m -> put("m$i", Art(url = m.url)) }
+        }
+        val got = NotifArt.fetchAll(ctx, wanted, IMAGES_BUDGET_MS)
+        val collapsed = RemoteViews(ctx.packageName, R.layout.notif_cover)
+        val expanded = RemoteViews(ctx.packageName, R.layout.notif_mood_lock_big)
+        fillTexts(ctx, collapsed, cover, tone, NotifArt.tile(ctx, cover.art, got["art"], tone, (44 * density).toInt()))
+        fillTexts(ctx, expanded, cover, tone, NotifArt.tile(ctx, cover.art, got["art"], tone, (56 * density).toInt()))
+        val slots = listOf(R.id.notif_mood1, R.id.notif_mood2, R.id.notif_mood3, R.id.notif_mood4, R.id.notif_mood5)
+        val side = (48 * density).toInt()
+        slots.forEachIndexed { i, slot ->
+            val choice = cover.moods.getOrNull(i)
+            val bitmap = got["m$i"]
+            if (choice == null || bitmap == null) {
+                expanded.setViewVisibility(slot, android.view.View.GONE)
+                return@forEachIndexed
+            }
+            // Котик уменьшенным: пять картинок в одном уведомлении.
+            val k = side.toFloat() / maxOf(bitmap.width, bitmap.height)
+            val small = Bitmap.createScaledBitmap(bitmap, maxOf(1, (bitmap.width * k).toInt()), maxOf(1, (bitmap.height * k).toInt()), true)
+            expanded.setImageViewBitmap(slot, small)
+            expanded.setContentDescription(slot, choice.label)
+            expanded.setOnClickPendingIntent(slot, NotifActionReceiver.pending(ctx, "mood:${choice.id}", tag, id, mutable = false, raw = raw))
+        }
+        if (cover.moods.isEmpty()) expanded.setViewVisibility(R.id.notif_moods, android.view.View.GONE)
+        val builder = NotificationCompat.Builder(ctx, channel)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setColor(ACCENT)
+            .setContentTitle(cover.title.ifEmpty { cover.kicker })
+            .setContentText(cover.body)
+            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            .setCustomContentView(collapsed)
+            .setCustomBigContentView(expanded)
+            .setContentIntent(open(ctx, cover.link))
+            .setOngoing(true)
+            .setAutoCancel(false)
+            .setSilent(true)
+            .setOnlyAlertOnce(true)
+            .setShowWhen(false)
+            // Видна без разблокировки: ради этого плашку и включают.
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+        post(ctx, tag, id, builder)
+    }
+
+    /** Канал уведомления, что сейчас в шторке, — чтобы перерисовать туда же. */
+    fun activeChannel(ctx: Context, tag: String, id: Int): String? {
+        if (Build.VERSION.SDK_INT < 26) return null
+        return try {
+            ctx.getSystemService(NotificationManager::class.java)?.activeNotifications
+                ?.firstOrNull { (it.tag ?: "") == tag && it.id == id }?.notification?.channelId
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun fillTexts(ctx: Context, views: RemoteViews, cover: Cover, tone: Tone, tile: Bitmap) {

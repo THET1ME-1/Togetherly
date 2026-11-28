@@ -157,6 +157,21 @@ class CoverTest {
     }
 
     @Test
+    fun котики_экрана_блокировки_только_свои_и_не_больше_пяти() {
+        val lock = cases().first { it.getString("kind") == "mood_lock" }
+        val cover = CoverParser.parse(lock.getJSONObject("cover").toString())!!
+        assertEquals(listOf("love", "sad"), cover.moods.map { it.id })
+        assertTrue(cover.moods.all { it.url.startsWith("https://") })
+        // Номер уходит в ссылку настроения: чужие знаки и http не проходят.
+        val raw = """{"v":1,"kind":"mood_lock","title":"x","moods":[
+            {"id":"love&x=1","label":"a","url":"https://t/a.webp"},
+            {"id":"sad","label":"b","url":"http://t/b.webp"},
+            {"id":"a","url":"https://t/1"},{"id":"b","url":"https://t/2"},{"id":"c","url":"https://t/3"},
+            {"id":"d","url":"https://t/4"},{"id":"e","url":"https://t/5"},{"id":"f","url":"https://t/6"}]}"""
+        assertEquals(listOf("a", "b", "c", "d", "e"), CoverParser.parse(raw)!!.moods.map { it.id })
+    }
+
+    @Test
     fun буква_без_аватара() {
         assertEquals("А", Tones.monogram(" алина"))
         assertEquals("?", Tones.monogram("  "))
