@@ -157,6 +157,39 @@ class CoverTest {
     }
 
     @Test
+    fun список_дней_с_сегодняшнего_дня_и_плашка_после_перезагрузки() {
+        val day = 24 * 3600 * 1000L
+        // Сегодня 14:00, срабатывание завтра в 00:10, список — с сегодняшнего дня.
+        val today = 1_795_000_000_000L
+        val tomorrow = today + day
+        val e = NotifAlarm.Entry(
+            id = 9101, whenMs = tomorrow, cover = "{}", title = "10 дней", body = "", tag = "", channel = "c",
+            exact = false, daily = true, ongoing = true, titles = listOf("10 дней", "11 дней", "12 дней"),
+            titlesFrom = today,
+        )
+        // В 00:10 — завтрашнее число, после перезагрузки сегодня — сегодняшнее.
+        assertEquals("11 дней", e.titleAt(e.whenMs))
+        assertEquals("10 дней", e.titleAt(today + 3600_000L))
+        val stored = NotifAlarm.Entry.of(e.toJson())
+        assertEquals(today, stored.titlesFrom)
+        assertTrue(NotifAlarm.showsAtBoot(stored))
+        // Разовое и не постоянное после перезагрузки сразу не показываем.
+        assertFalse(NotifAlarm.showsAtBoot(e.copy(ongoing = false)))
+        assertFalse(NotifAlarm.showsAtBoot(e.copy(daily = false)))
+    }
+
+    @Test
+    fun картинка_с_диска_по_адресу_без_пропуска() {
+        // Ключ кэша — адрес без пропуска: закрытые фото с пропуском не копятся.
+        val a = NotifArt.cacheName("https://togetherly.day/api/files/catalog_items/x/still_a.png")
+        val b = NotifArt.cacheName("https://togetherly.day/api/files/catalog_items/x/still_b.png")
+        assertNotNull(a)
+        assertTrue(a != b)
+        assertEquals(a, NotifArt.cacheName("https://togetherly.day/api/files/catalog_items/x/still_a.png"))
+        assertNull(NotifArt.cacheName(""))
+    }
+
+    @Test
     fun котики_экрана_блокировки_только_свои_и_не_больше_пяти() {
         val lock = cases().first { it.getString("kind") == "mood_lock" }
         val cover = CoverParser.parse(lock.getJSONObject("cover").toString())!!

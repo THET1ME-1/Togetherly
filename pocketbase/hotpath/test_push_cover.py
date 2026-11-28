@@ -257,6 +257,35 @@ class СвоиПоРасписанию(unittest.TestCase):
             self.assertNotIn("person", c, вид)
 
 
+class ЗовВЛентуИЗначок(unittest.TestCase):
+    """Зов в совместную ленту — событие партнёра (Ту с телефоном, вход в
+    ту же ленту одним нажатием); значок в подарок — от приложения."""
+
+    def test_зов_в_ленту_ведёт_в_ту_же_ленту(self):
+        КАТАЛОГ["art_act_phone"] = (["still_phone.png"], {})
+        c = собрать("reels", from_name="Алина", title="Алина зовёт смотреть TikTok", body="Заходи",
+                    feed="tiktok", group_id="g1", from_uid="u1")
+        self.assertEqual(c["kicker"], "Ленты вдвоём · Алина")
+        self.assertEqual(c["title"], "Алина зовёт смотреть TikTok")
+        self.assertTrue(c["art"]["url"].endswith("/art_act_phone/still_phone.png"))
+        self.assertEqual(c["link"], "loveapp://open/reels?feed=tiktok&group=g1")
+        self.assertEqual(c["actions"], [{"id": "join", "label": "Смотреть вместе",
+                                         "link": "loveapp://open/reels?feed=tiktok&group=g1"}])
+        self.assertEqual(c["person"]["uid"], "u1")
+
+    def test_зов_без_ленты_открывает_ленты(self):
+        c = собрать("reels", title="т")
+        self.assertEqual(c["link"], "loveapp://open/reels")
+
+    def test_значок_от_приложения(self):
+        c = собрать("badge", title="Вам вручён значок", body="Спасибо", from_uid="u1")
+        self.assertEqual(c["kicker"], "Новый значок")
+        self.assertEqual(c["art"], {"app": True})
+        self.assertEqual(c["art_big"], {"symbol": "workspace_premium"})
+        self.assertEqual(c["link"], "loveapp://open/profile")
+        self.assertNotIn("person", c)
+
+
 class Отправитель(unittest.TestCase):
     """iPhone ставит слева аватар партнёра в рамке (уведомление о сообщении):
     у событий партнёра в обложке есть `person`, у уведомлений приложения — нет."""

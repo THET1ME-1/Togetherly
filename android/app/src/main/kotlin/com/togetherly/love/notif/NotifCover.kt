@@ -106,6 +106,11 @@ object NotifCover {
                     else -> NotificationCompat.CATEGORY_SOCIAL
                 },
             )
+        if (ongoing) {
+            // Постоянная плашка («Дни вместе») — как была у плагина: без
+            // времени показа и видна на экране блокировки.
+            builder.setShowWhen(false).setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+        }
         post(ctx, tag, id, builder)
     }
 
@@ -263,18 +268,32 @@ object NotifCover {
      * Запасной показ: обложка не разобралась или рисование упало. Пуш данными
      * система сама не покажет, поэтому без этого человек не узнал бы ничего.
      */
-    fun plain(ctx: Context, title: String, body: String, tag: String, id: Int, link: String = "loveapp://open/home") {
-        ensureChannel(ctx, CHANNEL_PARTNER)
-        val builder = NotificationCompat.Builder(ctx, CHANNEL_PARTNER)
+    fun plain(
+        ctx: Context, title: String, body: String, tag: String, id: Int, link: String = "loveapp://open/home",
+        channel: String = CHANNEL_PARTNER, ongoing: Boolean = false, silent: Boolean = false,
+    ) {
+        // Свой канал уведомления (тихий у «Дней вместе»); его нет — канал партнёра.
+        val ch = if (channel == CHANNEL_PARTNER || channelExists(ctx, channel)) channel else CHANNEL_PARTNER
+        ensureChannel(ctx, ch)
+        val builder = NotificationCompat.Builder(ctx, ch)
             .setSmallIcon(R.drawable.ic_notification)
             .setColor(ACCENT)
             .setContentTitle(title.ifEmpty { "Togetherly" })
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setContentIntent(open(ctx, link))
-            .setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(!ongoing)
+            .setOngoing(ongoing)
+            .setSilent(silent)
+            .setOnlyAlertOnce(silent)
+            .setPriority(if (silent) NotificationCompat.PRIORITY_LOW else NotificationCompat.PRIORITY_HIGH)
+        if (ongoing) builder.setShowWhen(false).setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
         post(ctx, tag, id, builder)
+    }
+
+    private fun channelExists(ctx: Context, channel: String): Boolean {
+        if (Build.VERSION.SDK_INT < 26) return true
+        return ctx.getSystemService(NotificationManager::class.java)?.getNotificationChannel(channel) != null
     }
 
     /** Убрать уведомление после выполненного действия из шторки. */

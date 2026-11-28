@@ -54,6 +54,21 @@ object NotifArt {
 
     private fun fetch(ctx: Context, art: Art, budgetMs: Long): Bitmap? {
         if (art.url.isEmpty()) return null
+        // Открытые картинки (каталог, аватары) по одному адресу не меняются:
+        // новый файл — новое имя. Берём с диска, а скачанное кладём туда же —
+        // уведомление по расписанию в 00:10 без сети встаёт с картинкой.
+        val cached = if (art.auth) null else cacheFile(ctx, art.url)
+        if (cached != null && cached.length() > 0) {
+            try {
+                val bytes = cached.readBytes()
+                decode(bytes, 512)?.let {
+                    cached.setLastModified(System.currentTimeMillis())
+                    return it
+                }
+            } catch (e: Exception) {
+                Log.i(TAG, "кэш картинки не прочитался: ${e.message}")
+            }
+        }
         val url = if (art.auth) {
             NotifNet.withFileToken(ctx, art.url, budgetMs / 2) ?: return null
         } else {
@@ -61,7 +76,40 @@ object NotifArt {
         }
         val reply = NotifNet.call(ctx, "GET", url, auth = false, budgetMs = budgetMs, maxBytes = 6 * 1024 * 1024)
         if (!reply.ok || reply.body.isEmpty()) return null
-        return decode(reply.body, 512)
+        val bitmap = decode(reply.body, 512) ?: return null
+        if (cached != null) store(cached, reply.body)
+        return bitmap
+    }
+
+    /** Имя файла кэша по адресу картинки; пустой адрес — null. */
+    fun cacheName(url: String): String? {
+        if (url.isEmpty()) return null
+        val digest = java.security.MessageDigest.getInstance("SHA-1").digest(url.toByteArray())
+        return digest.joinToString("") { "%02x".format(it) }
+    }
+
+    private const val CACHE_DIR = "notif_art"
+    private const val CACHE_KEEP_MS = 30L * 24 * 3600 * 1000
+
+    private fun cacheFile(ctx: Context, url: String): java.io.File? {
+        val name = cacheName(url) ?: return null
+        return java.io.File(java.io.File(ctx.cacheDir, CACHE_DIR), name)
+    }
+
+    /** Записать через временный файл: оборванная запись не оставит битый кэш. */
+    private fun store(file: java.io.File, bytes: ByteArray) {
+        try {
+            val dir = file.parentFile ?: return
+            dir.mkdirs()
+            // Месяц без показа — убираем: картинки сменились, а место не резиновое.
+            val old = System.currentTimeMillis() - CACHE_KEEP_MS
+            dir.listFiles()?.filter { it.lastModified() < old }?.forEach { it.delete() }
+            val tmp = java.io.File(dir, file.name + ".tmp")
+            tmp.writeBytes(bytes)
+            if (!tmp.renameTo(file)) tmp.delete()
+        } catch (e: Exception) {
+            Log.i(TAG, "кэш картинки не записался: ${e.message}")
+        }
     }
 
     /** Разжать с уменьшением до [maxSide]: обложке больше не нужно. */

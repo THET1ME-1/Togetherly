@@ -89,7 +89,7 @@ Map<String, Object?> memoryCoverContext(Map<String, dynamic>? data, String name)
 /// События партнёра: у них в обложке отправитель (`person`) — iPhone ставит
 /// его аватар в рамке слева. Как `ОТ_ПАРТНЁРА` сервера.
 const Set<String> kCoverFromPartner = {
-  'miss', 'mood', 'chat', 'memory', 'date', 'snowball', 'gift', 'comment', 'draw',
+  'miss', 'mood', 'chat', 'memory', 'date', 'snowball', 'gift', 'comment', 'draw', 'reels',
 };
 
 /// Обложка вида [kind] на языке [lang] или null, если вид обложки не знает
@@ -272,6 +272,24 @@ Map<String, Object?>? _buildCover(
         ]),
         'link': '${kCoverOpen}draw',
       };
+    case 'reels':
+      // Партнёр зовёт в совместную ленту: Ту с телефоном, нажатие сразу
+      // входит в ту же ленту (`_openFromNotification`, `TogetherLauncher`).
+      final feed = _s(ctx, 'feed');
+      final pair = _s(ctx, 'group_id');
+      final screen = 'reels${feed.isNotEmpty && pair.isNotEmpty ? '?feed=$feed&group=$pair' : ''}';
+      return {
+        ...base,
+        'kicker': '${_t('c_reels', lang)} · $name',
+        'title': title,
+        'body': body,
+        'tone': 'draw',
+        'art': _picture(look.still('art_act_phone')),
+        'actions': _buttons(lang, [
+          ['join', 'a_join', screen],
+        ]),
+        'link': '$kCoverOpen$screen',
+      };
     case 'plusgift':
       return {
         ...base,
@@ -427,6 +445,21 @@ Map<String, Object?>? _buildCover(
         'art': {'app': true},
         'actions': const <Map<String, Object?>>[],
         'link': '${kCoverOpen}home',
+      };
+    case 'badge':
+      // Значок в подарок от команды (спонсорам, помощникам): от приложения.
+      return {
+        ...base,
+        'kicker': _t('c_badge', lang),
+        'title': title,
+        'body': body,
+        'tone': 'gift',
+        'art': {'app': true},
+        'art_big': {'symbol': 'workspace_premium'},
+        'actions': _buttons(lang, [
+          ['open', 'a_open', 'profile'],
+        ]),
+        'link': '${kCoverOpen}profile',
       };
     case 'invite':
       return {

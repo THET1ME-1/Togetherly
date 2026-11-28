@@ -86,6 +86,12 @@
     "still_year.png"
    ],
    {}
+  ],
+  "art_act_phone": [
+   [
+    "still_phone.png"
+   ],
+   {}
   ]
  },
  "cases": [
@@ -942,6 +948,106 @@
     },
     "actions": [],
     "link": "loveapp://open/home"
+   }
+  },
+  {
+   "kind": "reels",
+   "lang": "ru",
+   "ctx": {
+    "from_name": "Алина",
+    "title": "Алина зовёт смотреть TikTok",
+    "body": "Заходи, листаем вместе",
+    "feed": "tiktok",
+    "group_id": "g1",
+    "from_uid": "u1",
+    "avatar": "pb://media/r1/a.jpg"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "reels",
+    "failed": "Не отправилось, открой приложение",
+    "group": "g1",
+    "kicker": "Ленты вдвоём · Алина",
+    "title": "Алина зовёт смотреть TikTok",
+    "body": "Заходи, листаем вместе",
+    "tone": "draw",
+    "art": {
+     "url": "https://togetherly.day/api/files/catalog_items/art_act_phone/still_phone.png"
+    },
+    "actions": [
+     {
+      "id": "join",
+      "label": "Смотреть вместе",
+      "link": "loveapp://open/reels?feed=tiktok&group=g1"
+     }
+    ],
+    "link": "loveapp://open/reels?feed=tiktok&group=g1",
+    "person": {
+     "uid": "u1",
+     "name": "Алина",
+     "avatar": "https://togetherly.day/api/files/media/r1/a.jpg",
+     "frame": "",
+     "frame_hole": 31
+    }
+   }
+  },
+  {
+   "kind": "reels",
+   "lang": "en",
+   "ctx": {
+    "title": "Your partner invites you",
+    "body": "Join"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "reels",
+    "failed": "Didn’t go through, open the app",
+    "kicker": "Feeds together · Partner",
+    "title": "Your partner invites you",
+    "body": "Join",
+    "tone": "draw",
+    "art": {
+     "url": "https://togetherly.day/api/files/catalog_items/art_act_phone/still_phone.png"
+    },
+    "actions": [
+     {
+      "id": "join",
+      "label": "Watch together",
+      "link": "loveapp://open/reels"
+     }
+    ],
+    "link": "loveapp://open/reels"
+   }
+  },
+  {
+   "kind": "badge",
+   "lang": "ru",
+   "ctx": {
+    "title": "Вам вручён значок «Спонсор»!",
+    "body": "Спасибо за поддержку"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "badge",
+    "failed": "Не отправилось, открой приложение",
+    "kicker": "Новый значок",
+    "title": "Вам вручён значок «Спонсор»!",
+    "body": "Спасибо за поддержку",
+    "tone": "gift",
+    "art": {
+     "app": true
+    },
+    "art_big": {
+     "symbol": "workspace_premium"
+    },
+    "actions": [
+     {
+      "id": "open",
+      "label": "Открыть",
+      "link": "loveapp://open/profile"
+     }
+    ],
+    "link": "loveapp://open/profile"
    }
   },
   {

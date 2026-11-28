@@ -35,9 +35,26 @@ for c in cases {
   for a in cover.actions {
     check("\(kind)/\(a.id): действие телефона или экран", a.isNative || a.link.hasPrefix("loveapp://open/"))
   }
-  // Миниатюра — та же картинка, что у сервера (у приложения — из развёрнутого).
-  let expected = (raw["art_big"] ?? raw["art"]) as? [String: Any] ?? [:]
-  check("\(kind)/\(lang): миниатюра", cover.thumbnail.url == (expected["url"] as? String ?? ""))
+  // Миниатюра — та же картинка, что у сервера (у приложения — из
+  // развёрнутого); у сообщения — его фото, а аватар только без отправителя.
+  let expectedURL: String
+  if kind == "chat" {
+    let photo = (raw["chat"] as? [String: Any])?["image"] as? String ?? ""
+    let avatar = (raw["art"] as? [String: Any])?["url"] as? String ?? ""
+    expectedURL = !photo.isEmpty ? photo : (raw["person"] == nil ? avatar : "")
+  } else {
+    expectedURL = ((raw["art_big"] ?? raw["art"]) as? [String: Any])?["url"] as? String ?? ""
+  }
+  check("\(kind)/\(lang): миниатюра", (cover.thumbnail?.url ?? "") == expectedURL,
+        "\(cover.thumbnail?.url ?? "—") ≠ \(expectedURL)")
+  if kind == "chat", let photo = cover.thumbnail, !photo.url.isEmpty, cover.person != nil {
+    check("chat/\(lang): фото сообщения закрытое — с пропуском", photo.auth)
+  }
+  // Значок даты уходит миниатюрой-плашкой, а не пропадает.
+  let symbol = ((raw["art_big"] ?? raw["art"]) as? [String: Any])?["symbol"] as? String ?? ""
+  if !symbol.isEmpty {
+    check("\(kind)/\(lang): значок миниатюрой", cover.thumbnail?.symbol == symbol)
+  }
   // Отправитель — у событий партнёра с номером, у приложения его нет.
   let rawPerson = raw["person"] as? [String: Any]
   check("\(kind)/\(lang): отправитель", (cover.person != nil) == (rawPerson != nil))

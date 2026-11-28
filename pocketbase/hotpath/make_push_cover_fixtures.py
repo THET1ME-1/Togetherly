@@ -31,6 +31,7 @@ F = "https://togetherly.day/api/files"
     "art_act_sad": [["still_sad.png"], {}],
     "art_guide_wait": [["still_wait.png"], {}],
     "art_ach_together_365": [["still_year.png"], {}],
+    "art_act_phone": [["still_phone.png"], {}],
 }
 
 ПРИМЕРЫ = [
@@ -63,6 +64,11 @@ F = "https://togetherly.day/api/files"
     ("mascot_miss", "de", {"title": "Tu vermisst dich", "body": "Schau rein"}),
     ("invite", "pt", {"title": "Convide seu par", "body": "O código espera"}),
     ("days", "ru", {"title": "128 дней вместе", "body": "И это только начало"}),
+    ("reels", "ru", {"from_name": "Алина", "title": "Алина зовёт смотреть TikTok",
+                     "body": "Заходи, листаем вместе", "feed": "tiktok", "group_id": "g1",
+                     "from_uid": "u1", "avatar": "pb://media/r1/a.jpg"}),
+    ("reels", "en", {"title": "Your partner invites you", "body": "Join"}),
+    ("badge", "ru", {"title": "Вам вручён значок «Спонсор»!", "body": "Спасибо за поддержку"}),
     ("mood_lock", "ru", {"group_id": "g1", "body": "Алина: Влюблённость", "mood_id": "sad",
                          "title": "Грущу", "choices": [{"id": "love", "label": "Люблю"},
                                                        {"id": "sad", "label": "Грущу"},

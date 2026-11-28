@@ -52,23 +52,30 @@ object NotifChannel {
                     if (id == null || whenMs == null) {
                         result.success(false)
                     } else {
-                        NotifAlarm.schedule(
-                            ctx,
-                            NotifAlarm.Entry(
-                                id = id, whenMs = whenMs,
-                                cover = call.argument<String>("cover").orEmpty(),
-                                title = call.argument<String>("title").orEmpty(),
-                                body = call.argument<String>("body").orEmpty(),
-                                tag = call.argument<String>("tag").orEmpty(),
-                                channel = call.argument<String>("channel").orEmpty().ifEmpty { NotifCover.CHANNEL_PARTNER },
-                                exact = call.argument<Boolean>("exact") ?: false,
-                                daily = call.argument<Boolean>("daily") ?: false,
-                                ongoing = call.argument<Boolean>("ongoing") ?: false,
-                                silent = call.argument<Boolean>("silent") ?: false,
-                                titles = call.argument<List<String>>("titles").orEmpty(),
-                            ),
+                        val entry = NotifAlarm.Entry(
+                            id = id, whenMs = whenMs,
+                            cover = call.argument<String>("cover").orEmpty(),
+                            title = call.argument<String>("title").orEmpty(),
+                            body = call.argument<String>("body").orEmpty(),
+                            tag = call.argument<String>("tag").orEmpty(),
+                            channel = call.argument<String>("channel").orEmpty().ifEmpty { NotifCover.CHANNEL_PARTNER },
+                            exact = call.argument<Boolean>("exact") ?: false,
+                            daily = call.argument<Boolean>("daily") ?: false,
+                            ongoing = call.argument<Boolean>("ongoing") ?: false,
+                            silent = call.argument<Boolean>("silent") ?: false,
+                            titles = call.argument<List<String>>("titles").orEmpty(),
+                            titlesFrom = call.argument<Number>("titles_from")?.toLong() ?: whenMs,
                         )
+                        NotifAlarm.schedule(ctx, entry)
                         result.success(true)
+                        // Картинки — заранее, на диск: в срок сети может не быть.
+                        worker.execute {
+                            try {
+                                NotifAlarm.prefetch(ctx, entry)
+                            } catch (e: Exception) {
+                                Log.i(TAG, "картинки расписания не скачались: ${e.message}")
+                            }
+                        }
                     }
                 }
                 "cancelScheduled" -> {
@@ -93,12 +100,15 @@ object NotifChannel {
         val cover = CoverParser.parse(raw)
         return try {
             if (cover != null) NotifCover.show(ctx, cover, raw, tag, id, channel, ongoing, silent)
-            else NotifCover.plain(ctx, title, body, tag, id)
+            else NotifCover.plain(ctx, title, body, tag, id, channel = channel, ongoing = ongoing, silent = silent)
             true
         } catch (e: Exception) {
             Log.w(TAG, "обложка не нарисовалась: ${e.message}")
             try {
-                NotifCover.plain(ctx, cover?.title?.ifEmpty { title } ?: title, cover?.body ?: body, tag, id, cover?.link ?: "loveapp://open/home")
+                NotifCover.plain(
+                    ctx, cover?.title?.ifEmpty { title } ?: title, cover?.body ?: body, tag, id,
+                    cover?.link ?: "loveapp://open/home", channel = channel, ongoing = ongoing, silent = silent,
+                )
                 true
             } catch (e2: Exception) {
                 Log.w(TAG, "и обычное не показалось: ${e2.message}")

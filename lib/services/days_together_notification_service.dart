@@ -288,13 +288,15 @@ class DaysTogetherNotificationService {
       final now = tz.TZDateTime.now(tz.local);
       var next = tz.TZDateTime(tz.local, now.year, now.month, now.day, 0, 10);
       if (!next.isAfter(now)) next = next.add(const Duration(days: 1));
-      // Число на каждый день вперёд (по календарным суткам): своё расписание
-      // берёт заголовок своего дня, и плашка не застывает на одном числе,
-      // пока приложение не открыли (прежний повтор плагина повторял один текст).
+      // Число на каждый день, начиная с сегодняшнего (по календарным суткам):
+      // своё расписание берёт заголовок своего дня, и плашка не застывает на
+      // одном числе, пока приложение не открыли (прежний повтор плагина
+      // повторял один текст). Сегодняшнее нужно после перезагрузки: плашка
+      // встаёт сразу, а не в 00:10.
+      final today = DateTime(now.year, now.month, now.day);
       final titles = [
         for (var i = 0; i < _androidDaysAhead; i++)
-          s.daysTogetherNotifBody(
-              _daysAt(start, DateTime(next.year, next.month, next.day + i))),
+          s.daysTogetherNotifBody(_daysAt(start, DateTime(today.year, today.month, today.day + i))),
       ];
 
       await NotifRenderer.schedule(
@@ -309,6 +311,7 @@ class DaysTogetherNotificationService {
         mode: AndroidScheduleMode.inexactAllowWhileIdle,
         daily: true, // повтор каждый день
         dailyTitles: titles,
+        titlesFrom: today,
         ongoing: true,
         silent: true,
       );

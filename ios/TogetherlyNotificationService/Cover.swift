@@ -99,9 +99,19 @@ struct Cover: Equatable {
   /// Пуш от самого приложения: слева иконка, картинка события — миниатюрой.
   var fromApp: Bool { art.isApp && artBig != nil }
 
-  /// Картинка для миниатюры справа: у событий партнёра — его картинка, у
-  /// уведомлений приложения — картинка события из развёрнутого вида.
-  var thumbnail: CoverArt { artBig ?? art }
+  /// Картинка для миниатюры справа и карточки: у событий партнёра — его
+  /// картинка, у уведомлений приложения — картинка события из развёрнутого
+  /// вида (или значок даты). У сообщения — фото из него (кадр кружка,
+  /// закрытое); без фото — ничего: аватар уже стоит слева, повторять его
+  /// справа незачем. Только если отправителя нет — аватар миниатюрой.
+  var thumbnail: CoverArt? {
+    if let chat {
+      if !chat.image.isEmpty { return CoverArt(url: chat.image, auth: true) }
+      return person == nil && !art.url.isEmpty ? art : nil
+    }
+    let picture = artBig ?? art
+    return picture.isApp ? nil : picture
+  }
 
   /// Категория кнопок, как ставит релей APNs (`tg_<вид>`).
   var category: String { "tg_\(kind)" }

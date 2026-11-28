@@ -973,6 +973,7 @@ class _LoveAppState extends State<LoveApp> with WidgetsBindingObserver {
         if (granted) {
           await PbPushService().showLocal(
             id: 8801,
+            kind: 'badge',
             title: '🎉 Вам вручён значок «Спонсор»!',
             body:
                 'Спасибо за поддержку — теперь рядом с вашим именем '
@@ -984,6 +985,7 @@ class _LoveAppState extends State<LoveApp> with WidgetsBindingObserver {
         if (granted) {
           await PbPushService().showLocal(
             id: 8802,
+            kind: 'badge',
             title: '🎉 Вам вручён значок «Помощник»!',
             body: 'Спасибо за помощь проекту — особый бейдж теперь ваш 💖',
           );
@@ -994,6 +996,7 @@ class _LoveAppState extends State<LoveApp> with WidgetsBindingObserver {
         if (granted) {
           await PbPushService().showLocal(
             id: 8803,
+            kind: 'badge',
             title: '🎣 Вам вручён значок «Рыбка»!',
             body: 'Особый бейдж для любителей рыбалки теперь ваш 💖',
           );

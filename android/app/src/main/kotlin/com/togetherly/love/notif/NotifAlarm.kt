@@ -112,6 +112,28 @@ object NotifAlarm {
         arm(ctx, entry)
     }
 
+    /**
+     * Картинки обложки скачать сейчас, пока приложение открыто и сеть есть:
+     * в момент срабатывания (00:10, сон телефона, самолёт) их берут с диска
+     * (`NotifArt`), и вместо Ту не встаёт иконка.
+     */
+    fun prefetch(ctx: Context, entry: Entry) {
+        val cover = CoverParser.parse(entry.cover) ?: return
+        val arts = buildMap<String, Art> {
+            if (cover.art.url.isNotEmpty() && !cover.art.auth) put("art", cover.art)
+            val big = cover.artBig
+            if (big != null && big.url.isNotEmpty() && !big.auth) put("big", big)
+        }
+        if (arts.isNotEmpty()) NotifArt.fetchAll(ctx, arts, NotifCover.IMAGES_BUDGET_MS)
+    }
+
+    /**
+     * Показать ли запись сразу после перезагрузки: постоянная плашка («Дни
+     * вместе») пропадает вместе со шторкой, а до своего часа (00:10) ждать
+     * её не должны. Разовые — только в свой срок.
+     */
+    fun showsAtBoot(entry: Entry): Boolean = entry.ongoing && entry.daily
+
     fun cancel(ctx: Context, id: Int) {
         prefs(ctx).edit().remove(id.toString()).apply()
         ctx.getSystemService(AlarmManager::class.java)?.cancel(pending(ctx, id))
@@ -155,7 +177,17 @@ object NotifAlarm {
     /** Сработал будильник [id]: показать и, если ежедневный, переставить. */
     fun fire(ctx: Context, id: Int) {
         val entry = load(ctx, id) ?: return
-        val title = entry.titleAt(entry.whenMs)
+        show(ctx, entry, entry.whenMs)
+        if (entry.daily) {
+            schedule(ctx, entry.copy(whenMs = nextDay(entry.whenMs, System.currentTimeMillis())))
+        } else {
+            prefs(ctx).edit().remove(id.toString()).apply()
+        }
+    }
+
+    /** Показать запись с заголовком дня [atMs]. */
+    private fun show(ctx: Context, entry: Entry, atMs: Long) {
+        val title = entry.titleAt(atMs)
         val cover = if (entry.titles.isEmpty()) entry.cover else try {
             JSONObject(entry.cover).put("title", title).toString()
         } catch (_: Exception) {
@@ -164,16 +196,13 @@ object NotifAlarm {
         NotifChannel.showOrPlain(
             ctx, cover, title, entry.body, entry.tag, entry.id, entry.channel, entry.ongoing, entry.silent,
         )
-        if (entry.daily) {
-            schedule(ctx, entry.copy(whenMs = nextDay(entry.whenMs, System.currentTimeMillis())))
-        } else {
-            prefs(ctx).edit().remove(id.toString()).apply()
-        }
     }
 
     /**
      * После перезагрузки будильников нет: ставим заново. Прошедший разовый
      * не показываем (как плагин уведомлений), ежедневный — на ближайший день.
+     * Постоянную плашку показываем сразу, с сегодняшним числом. Зовётся не с
+     * главного потока: показ качает картинки.
      */
     fun rearm(ctx: Context) {
         val now = System.currentTimeMillis()
@@ -182,6 +211,13 @@ object NotifAlarm {
                 e.whenMs > now -> arm(ctx, e)
                 e.daily -> schedule(ctx, e.copy(whenMs = nextDay(e.whenMs, now)))
                 else -> prefs(ctx).edit().remove(e.id.toString()).apply()
+            }
+            if (showsAtBoot(e)) {
+                try {
+                    show(ctx, e, now)
+                } catch (err: Exception) {
+                    Log.w(TAG, "плашка после перезагрузки не встала: ${err.message}")
+                }
             }
         }
     }
@@ -212,7 +248,21 @@ class NotifAlarmBoot : BroadcastReceiver() {
         when (intent.action) {
             Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_MY_PACKAGE_REPLACED,
             Intent.ACTION_TIME_CHANGED, Intent.ACTION_TIMEZONE_CHANGED,
-            -> NotifAlarm.rearm(context.applicationContext)
+            -> {
+                // Плашка «Дней вместе» встаёт сразу, а это картинки и диск —
+                // не на главном потоке.
+                val app = context.applicationContext
+                val pending = goAsync()
+                Thread {
+                    try {
+                        NotifAlarm.rearm(app)
+                    } catch (e: Exception) {
+                        Log.w("NotifAlarm", "расписание после перезагрузки сорвалось: ${e.message}")
+                    } finally {
+                        pending.finish()
+                    }
+                }.start()
+            }
         }
     }
 }

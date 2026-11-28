@@ -56,6 +56,7 @@ def mood_ctx(rec: dict) -> dict:
     "a_mood", "a_task", "a_chest", "a_mood_back", "a_open_gift", "a_canvas",
     "q_hug", "q_miss", "q_love", "c_you", "c_queued", "c_hugged", "c_failed",
     "c_capsule", "c_celebration", "c_mascot", "c_invite", "a_open_letter", "c_days", "c_how_now",
+    "c_reels", "a_join", "c_badge",
 )
 
 
@@ -147,7 +148,7 @@ def _кнопки(lang, *items):
 # События партнёра: у них в обложке отправитель (`person`) — iPhone ставит
 # его аватар в рамке слева, как у сообщения в мессенджере. У уведомлений
 # самого приложения и служебных (Плюс, пароль) слева иконка приложения.
-ОТ_ПАРТНЁРА = ("miss", "mood", "chat", "memory", "date", "snowball", "gift", "comment", "draw")
+ОТ_ПАРТНЁРА = ("miss", "mood", "chat", "memory", "date", "snowball", "gift", "comment", "draw", "reels")
 
 
 def cover(kind, lang, ctx, look):
@@ -316,6 +317,22 @@ def _cover(kind, lang, ctx, look):
             "link": ОТКРЫТЬ + "draw",
         }
 
+    if kind == "reels":
+        # Партнёр зовёт в совместную ленту: Ту с телефоном, нажатие сразу
+        # входит в ту же ленту (`_openFromNotification`, `TogetherLauncher`).
+        лента = str(ctx.get("feed") or "").strip()
+        пара = str(ctx.get("group_id") or "").strip()
+        экран = "reels" + (f"?feed={лента}&group={пара}" if лента and пара else "")
+        return base | {
+            "kicker": f"{пуш('c_reels', lang)} · {имя}",
+            "title": title,
+            "body": body,
+            "tone": "draw",
+            "art": _картинка(_каталог(look, "art_act_phone")),
+            "actions": _кнопки(lang, ("join", "a_join", экран)),
+            "link": ОТКРЫТЬ + экран,
+        }
+
     if kind == "plusgift":
         return base | {
             "kicker": f"{пуш('c_gift', lang)} · {имя}",
@@ -454,6 +471,19 @@ def _cover(kind, lang, ctx, look):
             "art": {"app": True},
             "actions": [],
             "link": ОТКРЫТЬ + "home",
+        }
+
+    if kind == "badge":
+        # Значок в подарок от команды (спонсорам, помощникам): от приложения.
+        return base | {
+            "kicker": пуш("c_badge", lang),
+            "title": title,
+            "body": body,
+            "tone": "gift",
+            "art": {"app": True},
+            "art_big": {"symbol": "workspace_premium"},
+            "actions": _кнопки(lang, ("open", "a_open", "profile")),
+            "link": ОТКРЫТЬ + "profile",
         }
 
     if kind == "invite":

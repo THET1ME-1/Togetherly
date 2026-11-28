@@ -131,8 +131,12 @@ enum NotifCoverBridge {
   private static func schedule(_ cover: Cover, raw: String, id: Int, whenMs: Int64, title: String, body: String,
                                silent: Bool, done: @escaping (Bool) -> Void) {
     let content = local(cover, raw: raw, title: title, body: body, thread: cover.kind)
-    // «Дни вместе» — без звука, как прежде.
-    if silent { content.sound = nil }
+    // «Дни вместе» — без звука и без баннера поверх открытого приложения,
+    // как у плагина (`presentAlert: false`): только строка в центре уведомлений.
+    if silent {
+      content.sound = nil
+      content.userInfo["tg_silent"] = true
+    }
     let seconds = max(1, Double(whenMs - NotifNetIOS.nowMs()) / 1000)
     CoverMedia.urls(for: cover) { urls in
       CoverMedia.fetch(urls) { got in
@@ -170,12 +174,16 @@ enum NotifCoverBridge {
     }
   }
 
-  /// Своё уведомление с обложкой показываем и поверх открытого приложения:
-  /// его ставит `PbPushService`, только когда это уместно (не в открытом чате).
-  static func presentsItself(_ notification: UNNotification) -> Bool {
+  /// Как показать своё уведомление с обложкой поверх открытого приложения;
+  /// nil — не наше. Его ставит `PbPushService`, только когда это уместно (не
+  /// в открытом чате) — баннером; тихое по расписанию («Дни вместе») —
+  /// только строкой в центре уведомлений.
+  static func presentation(_ notification: UNNotification) -> UNNotificationPresentationOptions? {
     let request = notification.request
-    guard !(request.trigger is UNPushNotificationTrigger) else { return false }
-    return request.content.userInfo["cover"] != nil && (request.content.userInfo["tg_local"] as? Bool) == true
+    guard !(request.trigger is UNPushNotificationTrigger) else { return nil }
+    let info = request.content.userInfo
+    guard info["cover"] != nil, (info["tg_local"] as? Bool) == true else { return nil }
+    return (info["tg_silent"] as? Bool) == true ? [.list] : [.banner, .list, .sound]
   }
 
   // MARK: - Нажатия

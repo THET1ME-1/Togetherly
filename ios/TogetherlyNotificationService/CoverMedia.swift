@@ -57,8 +57,7 @@ enum CoverMedia {
       if !p.avatar.isEmpty { urls["avatar"] = p.avatar }
       if !p.frame.isEmpty { urls["frame"] = p.frame }
     }
-    let thumb = cover.thumbnail
-    guard !thumb.url.isEmpty else { done(urls); return }
+    guard let thumb = cover.thumbnail, !thumb.url.isEmpty else { done(urls); return }
     guard thumb.auth else {
       urls["thumb"] = thumb.url
       done(urls)
@@ -106,6 +105,12 @@ enum CoverMedia {
   static func apply(_ cover: Cover, to content: UNMutableNotificationContent, media got: [String: Data]) -> UNNotificationContent {
     if let data = got["thumb"], let attachment = attachment(from: data, name: cover.kind) {
       content.attachments = [attachment]
+    } else if let symbol = cover.thumbnail?.symbol, !symbol.isEmpty,
+              let tile = CoverSymbol.tile(symbol, tone: CoverTone.of(cover.tone), side: 300),
+              let bytes = png(tile), let attachment = attachment(png: bytes, name: cover.kind) {
+      // Значок даты (капсула — письмо, праздник — торт) — плашкой тона,
+      // как на Android: без картинки дата была бы единственной без обложки.
+      content.attachments = [attachment]
     }
     if let person = cover.person,
        let message = asMessage(content, cover: cover, person: person, avatar: got["avatar"], frame: got["frame"]) {
@@ -147,6 +152,11 @@ enum CoverMedia {
   /// Миниатюра файлом PNG: WebP вложением система не принимает.
   static func attachment(from data: Data, name: String) -> UNNotificationAttachment? {
     guard let img = image(data, side: 600), let bytes = png(img) else { return nil }
+    return attachment(png: bytes, name: name)
+  }
+
+  /// Готовый PNG вложением: система переносит файл к себе.
+  static func attachment(png bytes: Data, name: String) -> UNNotificationAttachment? {
     let dir = FileManager.default.temporaryDirectory.appendingPathComponent("tg_notif", isDirectory: true)
     try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     let file = dir.appendingPathComponent("\(name)-\(UUID().uuidString).png")
@@ -157,20 +167,20 @@ enum CoverMedia {
   }
 
   /// Аватар в рамке, как `FramedAvatar` приложения: рамка в 100/62 раза
-  /// больше фото, фото ужато до `hole / 31`. Без фото — только рамка.
-  static func framedAvatar(avatar: Data?, frame: Data?, hole: Double) -> Data? {
+  /// больше фото, фото ужато до `hole / 31`. Без фото — кружок с буквой
+  /// имени цвета [tone] (как `NotifArt.avatar` на Android), в рамке, если она есть.
+  static func framedAvatar(avatar: Data?, frame: Data?, hole: Double, name: String, tone: CoverTone) -> Data? {
     let side = 256
     let photo = avatar.flatMap { image($0, side: side) }
     let ring = frame.flatMap { image($0, side: side) }
-    guard photo != nil || ring != nil else { return nil }
-    guard let ctx = CGContext(
-      data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: 0,
-      space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-    ) else { return nil }
+    guard let ctx = CoverSymbol.context(side) else { return nil }
     let s = CGFloat(side)
     let photoSide = ring != nil ? s * 62 / 100 * CGFloat(hole / 31) : s
     let origin = (s - photoSide) / 2
     let circle = CGRect(x: origin, y: origin, width: photoSide, height: photoSide)
+    if photo == nil {
+      CoverSymbol.monogram(name, tone: tone, in: ctx, rect: circle)
+    }
     if let photo {
       ctx.saveGState()
       ctx.addEllipse(in: circle)
@@ -194,7 +204,9 @@ enum CoverMedia {
   static func asMessage(
     _ content: UNMutableNotificationContent, cover: Cover, person: CoverPerson, avatar: Data?, frame: Data?
   ) -> UNNotificationContent? {
-    let face = framedAvatar(avatar: avatar, frame: frame, hole: person.frameHole).map { INImage(imageData: $0) }
+    let face = framedAvatar(
+      avatar: avatar, frame: frame, hole: person.frameHole, name: person.name, tone: CoverTone.of(cover.tone)
+    ).map { INImage(imageData: $0) }
     let sender = INPerson(
       personHandle: INPersonHandle(value: person.uid, type: .unknown),
       nameComponents: nil,

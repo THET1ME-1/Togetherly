@@ -114,7 +114,7 @@ function sendTo(uid, title, body, thread, opts) {
   // пуш уходит по-старому. iPhone получает обложку всегда (без расширения
   // она не мешает), Android — данными и только сборкам с `users.notif_v`.
   // Виды, у которых есть обложка (`push_cover.py`): остальным лишний запрос.
-  const COVER_KINDS = { gift: 1, comment: 1, draw: 1, plusgift: 1, pair_reset: 1, security: 1 };
+  const COVER_KINDS = { gift: 1, comment: 1, draw: 1, plusgift: 1, pair_reset: 1, security: 1, reels: 1 };
   let cover = null;
   if (COVER_KINDS[thread]) {
     try {

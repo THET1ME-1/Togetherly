@@ -44,7 +44,8 @@ const Set<String> kWidgetHostsNeedingPair = {
 };
 
 /// Экраны уведомлений «А» (`loveapp://open/<экран>`), которым нужна пара.
-/// Главная, Плюс, подарок и задание дня открываются и без неё.
+/// Главная, Плюс и профиль открываются и без неё; подарку нужен список
+/// входящих пары, заданию — набор дня пары, ленте — её комната.
 const Set<String> kNotificationScreensNeedingPair = {
   'chat',
   'miss',
@@ -53,6 +54,9 @@ const Set<String> kNotificationScreensNeedingPair = {
   'dates',
   'draw',
   'chest',
+  'gifts',
+  'task',
+  'reels',
 };
 
 bool widgetActionNeedsPair(Uri uri) {

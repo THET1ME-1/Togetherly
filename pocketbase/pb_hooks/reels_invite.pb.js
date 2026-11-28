@@ -72,7 +72,12 @@ routerAdd("POST", "/api/reels/invite", (e) => {
   push.notifyGroup(groupId, me,
     (lang) => rule.message(name, feed, lang).title,
     (lang) => rule.message(name, feed, lang).body, "reels",
-    { force: true, data: { feed: feed, group: groupId, by: me, name: name } });
+    {
+      force: true, data: { feed: feed, group: groupId, by: me, name: name },
+      // Обложка «А»: Ту с телефоном, кнопка «Смотреть вместе» входит в эту
+      // ленту (`push_cover.py`, вид `reels`), слева на iPhone — зовущий.
+      cover: { feed: feed, group_id: groupId, from_uid: me, from_name: name },
+    });
   $app.store().set(lastKey, now);
   $app.logger().warn("зов в ленту отправлен", "uid", me, "group", groupId, "feed", feed);
   return e.json(200, { ok: true, sent: true });

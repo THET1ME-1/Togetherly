@@ -379,6 +379,22 @@ English»). Теперь приложение кладёт код языка в 
         "ru": "Прочитать", "en": "Read", "de": "Lesen", "fr": "Lire", "es": "Leer", "it": "Leggi",
         "pt": "Ler", "zh": "阅读", "uk": "Прочитати",
     },
+    # Зов в совместную ленту (`reels_invite.pb.js`) и значок в подарок.
+    "c_reels": {
+        "ru": "Ленты вдвоём", "en": "Feeds together", "de": "Feeds zu zweit",
+        "fr": "Fils à deux", "es": "Feeds juntos", "it": "Feed in due",
+        "pt": "Feeds a dois", "zh": "一起刷视频", "uk": "Стрічки удвох",
+    },
+    "a_join": {
+        "ru": "Смотреть вместе", "en": "Watch together", "de": "Zusammen schauen",
+        "fr": "Regarder ensemble", "es": "Ver juntos", "it": "Guarda insieme",
+        "pt": "Assistir juntos", "zh": "一起看", "uk": "Дивитися разом",
+    },
+    "c_badge": {
+        "ru": "Новый значок", "en": "New badge", "de": "Neues Abzeichen", "fr": "Nouveau badge",
+        "es": "Nueva insignia", "it": "Nuovo badge", "pt": "Novo selo", "zh": "新徽章",
+        "uk": "Новий значок",
+    },
     "c_failed": {
         "ru": "Не отправилось, открой приложение", "en": "Didn’t go through, open the app",
         "de": "Nicht gesendet, öffne die App", "fr": "Échec de l’envoi, ouvre l’appli",

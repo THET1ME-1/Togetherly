@@ -35,9 +35,42 @@ class NotifRenderer {
   static const List<String> coverKinds = [
     'miss', 'mood', 'chat', 'memory', 'date', 'snowball', 'gift', 'comment', 'draw',
     'plusgift', 'pair_reset', 'security', 'date_remind', 'evening', 'chest',
+    // Зов в совместную ленту и значок в подарок.
+    'reels', 'badge',
     // Свои уведомления по расписанию.
     'capsule', 'celebration', 'mascot_miss', 'invite', 'days',
   ];
+
+  /// Записи каталога, из которых обложка вида [kind] берёт картинку. Каталог
+  /// на телефоне бывает неполным (целиком он не доходит на плохой сети), а
+  /// без записи вместо Ту или котика встала бы иконка приложения.
+  static List<String> artIdsFor(String kind, Map<String, Object?> ctx) {
+    final giftKey = '${ctx['gift_key'] ?? ''}';
+    return switch (kind) {
+      'miss' => const ['art_act_miss'],
+      'mood' || 'mood_lock' => const ['moti'],
+      'snowball' => const ['art_act_wake'],
+      'draw' => const ['art_act_draw'],
+      'reels' => const ['art_act_phone'],
+      'mascot_miss' => const ['art_act_sad'],
+      'invite' => const ['art_guide_wait'],
+      'celebration' => ['${ctx['art_id'] ?? ''}'].where((id) => id.isNotEmpty).toList(),
+      'gift' when giftKey.isNotEmpty => [giftKey.startsWith('frame_') ? giftKey : 'gift_$giftKey'],
+      _ => const <String>[],
+    };
+  }
+
+  /// Догрузить записи каталога для обложки, если телефон их не знает. Сеть
+  /// не ответила за 4 с — обложка соберётся с тем, что есть.
+  static Future<void> ensureArt(String kind, Map<String, Object?> ctx) async {
+    final ids = artIdsFor(kind, ctx);
+    if (ids.isEmpty) return;
+    try {
+      await CatalogService.instance.ensureCatalogIds(ids).timeout(const Duration(seconds: 4));
+    } catch (e) {
+      debugPrint('NotifRenderer: картинки каталога не догрузились: $e');
+    }
+  }
 
   /// Категории кнопок для iPhone. Подпись кнопки iPhone берёт из категории,
   /// а не из пуша, поэтому регистрируем их на языке приложения при запуске и
@@ -94,14 +127,22 @@ class NotifRenderer {
     AndroidScheduleMode mode = AndroidScheduleMode.inexactAllowWhileIdle,
     String? payload,
     // Ежедневно в то же время (Android); [dailyTitles] — заголовок на каждый
-    // день вперёд: Dart в момент срабатывания не запущен, а число меняется.
+    // день, начиная с дня [titlesFrom] (без него — с дня [when]): Dart в
+    // момент срабатывания не запущен, а число меняется.
     bool daily = false,
     List<String> dailyTitles = const [],
+    DateTime? titlesFrom,
     // Постоянная тихая плашка («Дни вместе»).
     bool ongoing = false,
     bool silent = false,
   }) async {
+    // Как у плагина: время в прошлом — ошибка, а не показ сразу. Своё
+    // расписание (будильник, расписание iPhone) показало бы его немедленно.
+    if (!when.isAfter(tz.TZDateTime.now(when.location))) {
+      throw ArgumentError.value(when, 'when', 'Must be a date in the future');
+    }
     if (canShow) {
+      await ensureArt(kind, ctx);
       final cover = buildPushCover(
           kind, LocaleService.instance.language.code, {...ctx, 'title': title, 'body': body}, const CatalogCoverLook());
       if (cover != null) {
@@ -123,6 +164,7 @@ class NotifRenderer {
             'exact': mode == AndroidScheduleMode.exactAllowWhileIdle || mode == AndroidScheduleMode.exact,
             'daily': daily,
             'titles': dailyTitles,
+            'titles_from': (titlesFrom ?? when).millisecondsSinceEpoch,
             'ongoing': ongoing,
             'silent': silent,
           });
@@ -173,6 +215,7 @@ class NotifRenderer {
     bool silent = false,
   }) async {
     if (!canShow) return false;
+    await ensureArt(kind, ctx);
     final cover = buildPushCover(
         kind, LocaleService.instance.language.code, {...ctx, 'title': title, 'body': body}, const CatalogCoverLook());
     if (cover == null) return false;

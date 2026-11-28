@@ -59,6 +59,7 @@ class PbPushService {
   // Для обложки «А» своего уведомления: пара, партнёр и его аватар — то же,
   // что сервер кладёт в пуш (`push_cover.py`).
   String _groupId = '';
+  String _partnerUid = '';
   String _partnerAvatar = '';
   // дедуп: последний показанный счётчик «скучаю» и настроение партнёра
   int? _lastMissCount;
@@ -150,6 +151,7 @@ class PbPushService {
     await init();
     await _stopLocked();
     _groupId = groupId;
+    _partnerUid = partnerUid;
     _partnerAvatar = partnerAvatarUrl;
 
     // Имя партнёра могли не передать (пара только собралась, профиль ещё не
@@ -335,13 +337,18 @@ class PbPushService {
   /// Публичный показ локального уведомления (бейджи, награды и т.п.).
   /// Заменяет прежний FirebaseService.showLocalNotification. Гарантирует
   /// инициализацию плагина перед показом.
+  ///
+  /// [kind] — вид обложки «А» (`badge` — значок в подарок): уведомление
+  /// рисуется тем же видом, что пуши, а место в шторке остаётся своим ([id]).
   Future<void> showLocal({
     required int id,
     required String title,
     required String body,
+    String? kind,
   }) async {
     await init();
-    await _notify(id, title, body);
+    await _notify(id, title, body,
+        coverKind: kind, cover: kind == null ? null : {'title': title, 'body': body});
   }
 
   /// json-поле записи из канала: карта или её строка.
@@ -361,9 +368,16 @@ class PbPushService {
   ///
   /// [cover] — что известно о событии для обложки «А» (как у `push_cover.py`).
   /// На Android уведомление рисует `NotifCover` тем же видом, что пуш; не
-  /// вышло — прежним видом.
+  /// вышло — прежним видом. Вид обложки — [coverKind], без него [thread].
+  ///
+  /// У событий партнёра отправитель (номер, аватар, рамка) добавляется сам,
+  /// как его кладёт сервер (`_notify_group`): без него iPhone не поставит
+  /// аватар партнёра слева, и своё уведомление отличалось бы от пуша.
   Future<void> _notify(int id, String title, String body,
-      {bool pierceQuiet = false, String? thread, Map<String, Object?>? cover}) async {
+      {bool pierceQuiet = false,
+      String? thread,
+      String? coverKind,
+      Map<String, Object?>? cover}) async {
     if (_muted && !pierceQuiet) {
       debugPrint('PbPush: тихая ночь — уведомление не показываем');
       return;
@@ -372,11 +386,22 @@ class PbPushService {
     // отвечает «Error 2003, Source is not authorized», и без перехвата это
     // было 436 отчётов в сутки (Bugsink, 23.10.2026).
     final slot = pushSlot(thread: thread, ownId: id, android: Platform.isAndroid);
-    if (cover != null && thread != null && NotifRenderer.canShow) {
+    final kind = coverKind ?? thread;
+    if (cover != null && kind != null && NotifRenderer.canShow) {
+      final fromPartner = kCoverFromPartner.contains(kind) && _partnerUid.isNotEmpty;
+      await NotifRenderer.ensureArt(kind, cover);
       final built = buildPushCover(
-        thread,
+        kind,
         LocaleService.instance.language.code,
-        {'group_id': _groupId, ...cover},
+        {
+          'group_id': _groupId,
+          if (fromPartner) ...{
+            'from_uid': _partnerUid,
+            'avatar': _partnerAvatar,
+            'frame': AvatarFrames.instance.frameOf(_partnerUid) ?? '',
+          },
+          ...cover,
+        },
         const CatalogCoverLook(),
       );
       if (built != null &&
@@ -384,7 +409,7 @@ class PbPushService {
             cover: built,
             title: title,
             body: body,
-            tag: slot.tag ?? thread,
+            tag: slot.tag ?? kind,
             id: slot.id,
           )) {
         return;

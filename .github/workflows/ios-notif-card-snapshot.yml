@@ -1,0 +1,139 @@
+name: iOS → снимки карточки уведомления «А» на симуляторе
+
+# Зачем: увидеть карточку уведомления по долгому нажатию (расширение
+# TogetherlyNotificationContent) без телефона и без Mac. Её файлы и файлы
+# расширения сервиса (разбор обложки, цвета, значок даты, аватар без фото)
+# собираются вместе со стендом tool/notif_card_snapshot/Harness.swift в
+# маленькое приложение под симулятор. Обложки — примеры сервера, картинки —
+# настоящие записи каталога. Снимки в светлой и тёмной теме — в артефакте
+# notif-card-snapshot, строка «ИТОГ» — в журнале.
+#
+# Flutter тут не нужен, прогон занимает минуты. Ничего не подписывает и не
+# публикует.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'ios/TogetherlyNotificationContent/**'
+      - 'ios/TogetherlyNotificationService/**'
+      - 'tool/notif_card_snapshot/**'
+      - 'test/fixtures/push_cover_cases.json'
+      - '.github/workflows/ios-notif-card-snapshot.yml'
+
+concurrency:
+  group: notif-card-snapshot
+  cancel-in-progress: true
+
+jobs:
+  snapshot:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Самый свежий Xcode
+        run: |
+          set -euo pipefail
+          NEWEST=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1 || true)
+          [ -z "$NEWEST" ] && NEWEST=/Applications/Xcode.app
+          sudo xcode-select -s "$NEWEST"
+          xcodebuild -version
+
+      - name: Картинки каталога
+        run: |
+          set -euo pipefail
+          F=https://togetherly.day/api/files/catalog_items
+          D=/tmp/fixtures
+          mkdir -p "$D"
+          get() { curl -fsS --retry 3 -o "$D/$1" "$2"; echo "$1: $(wc -c < "$D/$1") байт"; }
+          get art_act_miss.png "$F/art_act_miss/still_4abf2jwi5r.png"
+          get art_act_rest.png "$F/art_act_rest/still_9c34teapsj.png"
+          get art_act_phone.png "$F/art_act_phone/still_gy44a8syf0.png"
+          get art_chest_idle2.png "$F/art_chest_idle2/still_jn7sk4n5uf.png"
+          get gift_bouquet.png "$F/gift_bouquet/still_3h6keh0jc3.png"
+          get moti_love.webp "$F/moti/love_uethoqf2ox.webp"
+          get frame.png "$F/frame_cloud/still_ltlq4nq8yu.png"
+          python3 -m pip install --quiet --break-system-packages pillow || python3 -m pip install --quiet pillow
+          python3 -c "
+          from PIL import Image, ImageDraw
+          im = Image.new('RGB', (400, 400), (214, 120, 140))
+          d = ImageDraw.Draw(im)
+          d.ellipse((120, 80, 280, 240), fill=(250, 222, 205))
+          d.rectangle((90, 260, 310, 400), fill=(120, 80, 160))
+          im.save('$D/avatar.jpg')
+          "
+          cp test/fixtures/push_cover_cases.json "$D/"
+
+      - name: Сборка стенда из файлов расширений
+        run: |
+          set -euo pipefail
+          APP=/tmp/CardHarness.app
+          mkdir -p "$APP/fixtures"
+          SRC="ios/TogetherlyNotificationContent/NotificationViewController.swift \
+               ios/TogetherlyNotificationService/Cover.swift \
+               ios/TogetherlyNotificationService/CoverTone.swift \
+               ios/TogetherlyNotificationService/CoverMedia.swift \
+               tool/notif_card_snapshot/Harness.swift"
+          xcrun -sdk iphonesimulator swiftc -parse-as-library \
+            -target arm64-apple-ios17.0-simulator -O \
+            $SRC -o "$APP/CardHarness"
+          cp /tmp/fixtures/* "$APP/fixtures/"
+          # Шрифты — как в расширении (Unbounded) и в приложении (значки).
+          cp ios/TogetherlyNotificationContent/Unbounded-SemiBold.ttf "$APP/"
+          cp assets/fonts/MaterialSymbolsRounded.ttf "$APP/"
+          cat > "$APP/Info.plist" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>CFBundleIdentifier</key><string>com.togetherly.notifcardsnapshot</string>
+            <key>CFBundleExecutable</key><string>CardHarness</string>
+            <key>CFBundleName</key><string>CardHarness</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleShortVersionString</key><string>1.0</string>
+            <key>CFBundleVersion</key><string>1</string>
+            <key>MinimumOSVersion</key><string>17.0</string>
+            <key>UILaunchScreen</key><dict/>
+            <key>CFBundleSupportedPlatforms</key><array><string>iPhoneSimulator</string></array>
+          </dict></plist>
+          PLIST
+          sed -i '' 's/^          //' "$APP/Info.plist"
+          codesign --force --sign - "$APP"
+          ls -la "$APP" "$APP/fixtures"
+
+      - name: Симулятор и снимки
+        run: |
+          set -euo pipefail
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys, re
+          d = json.load(sys.stdin)["devices"]
+          best = None
+          for rt, devs in d.items():
+              m = re.search(r"iOS-(\d+)-(\d+)", rt)
+              if not m: continue
+              ver = (int(m.group(1)), int(m.group(2)))
+              for dv in devs:
+                  if dv["name"].startswith("iPhone") and (best is None or ver > best[0]):
+                      best = (ver, dv["udid"], dv["name"])
+          print(best[1]); print(best, file=sys.stderr)
+          ')
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl install "$UDID" /tmp/CardHarness.app
+          set +e
+          perl -e 'alarm 180; exec @ARGV' xcrun simctl launch --console-pty --terminate-running-process "$UDID" com.togetherly.notifcardsnapshot 2>&1 | tee /tmp/harness.log
+          set -e
+          DATA=$(xcrun simctl get_app_container "$UDID" com.togetherly.notifcardsnapshot data)
+          mkdir -p /tmp/out
+          cp "$DATA/Documents/"*.png /tmp/out/ 2>/dev/null || echo "снимков НЕТ"
+          cp /tmp/harness.log /tmp/out/
+          ls -la /tmp/out
+          grep -q "ИТОГ: ВСЁ ВЕРНО" /tmp/harness.log
+
+      - name: Снимки
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: notif-card-snapshot
+          path: /tmp/out

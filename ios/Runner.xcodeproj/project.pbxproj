@@ -50,6 +50,9 @@
 		FD000000000000000000D007 /* CoverMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD000000000000000000A005 /* CoverMedia.swift */; };
 		FC000000000000000000D001 /* NotificationViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC000000000000000000A001 /* NotificationViewController.swift */; };
 		FC000000000000000000D002 /* Cover.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD000000000000000000A001 /* Cover.swift */; };
+		FD000000000000000000D008 /* CoverTone.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD000000000000000000A006 /* CoverTone.swift */; };
+		FD000000000000000000D009 /* CoverTone.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD000000000000000000A006 /* CoverTone.swift */; };
+		FC000000000000000000D004 /* CoverTone.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD000000000000000000A006 /* CoverTone.swift */; };
 		FC000000000000000000D003 /* Unbounded-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = FC000000000000000000A002 /* Unbounded-SemiBold.ttf */; };
 		FC000000000000000000E001 /* TogetherlyNotificationContent.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = FC000000000000000000C001 /* TogetherlyNotificationContent.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
@@ -178,6 +181,7 @@
 		FD000000000000000000A003 /* NotifCoverBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotifCoverBridge.swift; sourceTree = "<group>"; };
 		FD000000000000000000A004 /* NotifNetIOS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotifNetIOS.swift; sourceTree = "<group>"; };
 		FD000000000000000000A005 /* CoverMedia.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoverMedia.swift; sourceTree = "<group>"; };
+		FD000000000000000000A006 /* CoverTone.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoverTone.swift; sourceTree = "<group>"; };
 		FD000000000000000000B002 /* TogetherlyNotificationService.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TogetherlyNotificationService.entitlements; sourceTree = "<group>"; };
 		FC000000000000000000A001 /* NotificationViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationViewController.swift; sourceTree = "<group>"; };
 		FC000000000000000000A002 /* Unbounded-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Unbounded-SemiBold.ttf"; sourceTree = "<group>"; };
@@ -350,6 +354,7 @@
 				FD000000000000000000A002 /* NotificationService.swift */,
 				FD000000000000000000A001 /* Cover.swift */,
 				FD000000000000000000A005 /* CoverMedia.swift */,
+				FD000000000000000000A006 /* CoverTone.swift */,
 				FD000000000000000000B001 /* Info.plist */,
 				FD000000000000000000B002 /* TogetherlyNotificationService.entitlements */,
 			);
@@ -679,6 +684,7 @@
 				FD000000000000000000D004 /* NotifCoverBridge.swift in Sources */,
 				FD000000000000000000D005 /* NotifNetIOS.swift in Sources */,
 				FD000000000000000000D007 /* CoverMedia.swift in Sources */,
+				FD000000000000000000D009 /* CoverTone.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -716,6 +722,7 @@
 				FD000000000000000000D002 /* NotificationService.swift in Sources */,
 				FD000000000000000000D001 /* Cover.swift in Sources */,
 				FD000000000000000000D006 /* CoverMedia.swift in Sources */,
+				FD000000000000000000D008 /* CoverTone.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -725,6 +732,7 @@
 			files = (
 				FC000000000000000000D001 /* NotificationViewController.swift in Sources */,
 				FC000000000000000000D002 /* Cover.swift in Sources */,
+				FC000000000000000000D004 /* CoverTone.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

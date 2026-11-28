@@ -371,8 +371,8 @@ import WidgetKit
   ) {
     // Своё уведомление «А» (из сокета, `NotifCoverBridge.show`) — баннером:
     // плагины чужое уведомление не покажут.
-    if NotifCoverBridge.presentsItself(notification) {
-      completionHandler([.banner, .list, .sound])
+    if let options = NotifCoverBridge.presentation(notification) {
+      completionHandler(options)
       return
     }
     pushArrived(notification.request.content.userInfo)

@@ -50,6 +50,8 @@
 				<string>tg_mascot_miss</string>
 				<string>tg_invite</string>
 				<string>tg_days</string>
+				<string>tg_reels</string>
+				<string>tg_badge</string>
 			</array>
 			<key>UNNotificationExtensionDefaultContentHidden</key>
 			<true/>

@@ -48,6 +48,13 @@ avatar, frame = lite.execute(
     ("draw", {"from_name": "Алина", "title": "Порисуем?"}),
     ("plusgift", {"from_name": "Алина", "title": "Плюс"}),
     ("pair_reset", {"title": "Пароль меняют"}),
+    ("reels", {"from_name": "Алина", "title": "Алина зовёт смотреть TikTok", "feed": "tiktok",
+               "group_id": "g1", "from_uid": "u1"}),
+    ("badge", {"title": "Вам вручён значок", "body": "Спасибо"}),
+    ("mascot_miss", {"title": "Ту скучает"}),
+    ("invite", {"title": "Позови партнёра"}),
+    ("mood_lock", {"mood_id": "love", "choices": [{"id": "love", "label": "Люблю"},
+                                                  {"id": "sad", "label": "Грущу"}]}),
 ]
 
 
@@ -83,10 +90,18 @@ for вид, ctx in ВИДЫ:
     размер = len(json.dumps(c, ensure_ascii=False).encode())
     art = c.get("art")
     print(f"  {вид}: art={json.dumps(art, ensure_ascii=False)[:70]} · {размер} байт")
-    if вид in ("miss", "mood", "snowball", "gift", "draw") and art == {"app": True} \
+    if вид in ("miss", "mood", "snowball", "gift", "draw", "reels", "mood_lock") and art == {"app": True} \
             and ctx.get("mood_id") != "kiss":
         print(f"✗ {вид}: ждал картинку, а стоит иконка")
         плохо += 1
+    if вид in ("mascot_miss", "invite") and not (c.get("art_big") or {}).get("url"):
+        print(f"✗ {вид}: ждал картинку события в развёрнутом виде")
+        плохо += 1
+    for котик in c.get("moods") or []:
+        ответ = код(котик["url"])
+        if ответ != 200:
+            print(f"✗ {вид} котик {котик['id']}: {ответ}")
+            плохо += 1
     for ключ, url in ссылки(c):
         ответ = код(url)
         if ответ != 200:

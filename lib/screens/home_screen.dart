@@ -125,6 +125,7 @@ import 'profile_screen.dart';
 import '../theme/profile_theme.dart';
 import '../services/cycle_service.dart';
 import '../services/daily_task_service.dart';
+import '../models/daily_task.dart';
 import '../services/apns_service.dart';
 import '../services/fcm_service.dart';
 import '../services/lang_tag.dart';
@@ -912,9 +913,61 @@ class _HomeScreenState extends State<HomeScreen> {
             builder: (_) => PlusScreen(scheme: ProfileTheme.themeFor(_t).colorScheme),
           ),
         );
+      case 'gifts' when paired:
+        // «Открыть подарок»: сам подарок, а не главная со списком.
+        setState(() => _selectedNavIndex = 0);
+        unawaited(_openGiftFromNotification());
+      case 'task' when paired:
+        // «Задание» из вечернего напоминания: сразу форма несделанного задания.
+        setState(() => _selectedNavIndex = 0);
+        unawaited(_openTaskFromNotification());
+      case 'reels' when paired:
+        // Зов в совместную ленту: входим в ту же ленту, как касание по
+        // прежнему пушу (`ReelsInviteBus`, `opened`).
+        final invite = ReelsInvite.parse(
+          {'kind': 'reels', 'feed': query['feed'] ?? '', 'group': query['group'] ?? ''},
+          groupId: _pairData.pairId,
+        );
+        if (invite != null) {
+          unawaited(_onReelsInvite((invite: invite, opened: true)));
+        } else {
+          setState(() => _selectedNavIndex = _navTabShown(4) ? 4 : 0);
+        }
+      case 'profile':
+        setState(() => _selectedNavIndex = 3);
       default:
         setState(() => _selectedNavIndex = 0);
     }
+  }
+
+  /// Подарок из уведомления: список входящих мог ещё не доехать.
+  Future<void> _openGiftFromNotification() async {
+    await _loadIncomingGifts();
+    if (!mounted) return;
+    final shown = shownIncomingGifts(_incomingGifts);
+    if (shown.isNotEmpty) await _openIncomingGift(shown.first);
+  }
+
+  /// Первое несделанное задание дня, после трёх основных — бонус. Прогресс
+  /// сперва сверяется с сервером: иначе открылось бы уже сделанное.
+  Future<void> _openTaskFromNotification() async {
+    final tasks = DailyTaskService.instance..bind(groupId: _pairData.pairId);
+    try {
+      await tasks.refresh().timeout(const Duration(seconds: 3));
+    } catch (_) {
+      // Без сети — по прогрессу на телефоне.
+    }
+    if (!mounted) return;
+    DailyTask? next;
+    for (final t in tasks.today) {
+      if (!tasks.isDone(t)) {
+        next = t;
+        break;
+      }
+    }
+    if (next == null && tasks.allDone && !tasks.bonusDone) next = tasks.bonus;
+    if (next == null) return;
+    _openMemoryLane(openCreateType: next.type, openCreateTaskId: next.id);
   }
 
   void _openLiveMapFromWidget() {
@@ -3211,6 +3264,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Открывает подарок: свечу задувают, коробку открывают, зайчика ловят.
   Future<void> _openIncomingGift(Map<String, dynamic> raw) async {
+    // Подарок открывают и событие канала, и нажатие на уведомление: два
+    // листа одного подарка друг на друге не нужны.
+    if (_giftOpening) return;
+    _giftOpening = true;
+    try {
+      await _openIncomingGiftNow(raw);
+    } finally {
+      _giftOpening = false;
+    }
+  }
+
+  bool _giftOpening = false;
+
+  Future<void> _openIncomingGiftNow(Map<String, dynamic> raw) async {
     final frameKey =
         FrameGiftService.frameKeyOf((raw['gift_key'] ?? '').toString());
     if (frameKey != null) {

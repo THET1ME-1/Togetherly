@@ -4,10 +4,11 @@ import UserNotifications
 import UserNotificationsUI
 
 /// Карточка уведомления «А» по долгому нажатию на iPhone: баннер рисует
-/// система, а карточку — мы. Панель в цвете события, крупная картинка
-/// (миниатюра, которую положило расширение сервиса), подпись тона,
-/// заголовок Unbounded и текст целиком. Кнопки под карточкой — категория
-/// `tg_<вид>`, их регистрирует приложение (`NotifCoverBridge`).
+/// система, а карточку — мы. Панель в цвете события, подпись тона,
+/// заголовок Unbounded и текст целиком; картинка — вложение, которое
+/// положило расширение сервиса (Ту, котик «Моти», подарок, значок даты, фото).
+/// У сообщения порядок как в переписке: имя, текст, под ним фото из него.
+/// Кнопки под карточкой — категория `tg_<вид>` (`NotifCoverBridge`).
 final class NotificationViewController: UIViewController, UNNotificationContentExtension {
   private let panel = UIView()
   private let stack = UIStackView()
@@ -15,7 +16,9 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
   private let kicker = UILabel()
   private let titleLabel = UILabel()
   private let body = UILabel()
+  private let photo = UIImageView()
   private var artHeight: NSLayoutConstraint?
+  private var photoHeight: NSLayoutConstraint?
 
   override func viewDidLoad() {
     super.viewDidLoad()
@@ -27,34 +30,43 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
     panel.translatesAutoresizingMaskIntoConstraints = false
     view.addSubview(panel)
 
-    art.contentMode = .scaleAspectFit
-    art.clipsToBounds = true
-    art.layer.cornerCurve = .continuous
-    art.isAccessibilityElement = false
+    for image in [art, photo] {
+      image.clipsToBounds = true
+      image.layer.cornerCurve = .continuous
+      image.isAccessibilityElement = false
+      image.isHidden = true
+    }
+    photo.contentMode = .scaleAspectFill
+    photo.layer.cornerRadius = 16
 
-    kicker.font = .systemFont(ofSize: 12, weight: .bold)
-    kicker.numberOfLines = 1
+    kicker.font = UIFontMetrics(forTextStyle: .footnote).scaledFont(for: .systemFont(ofSize: 12, weight: .bold))
     kicker.adjustsFontForContentSizeCategory = true
+    kicker.numberOfLines = 1
 
     titleLabel.font = CardFont.title(size: 22)
+    titleLabel.adjustsFontForContentSizeCategory = true
     titleLabel.numberOfLines = 3
     titleLabel.textColor = .label
 
     body.font = .preferredFont(forTextStyle: .body)
     body.adjustsFontForContentSizeCategory = true
-    body.numberOfLines = 6
+    // Текст целиком: ради него карточку и открывают.
+    body.numberOfLines = 0
     body.textColor = .secondaryLabel
 
     stack.axis = .vertical
     stack.alignment = .fill
     stack.spacing = 6
     stack.translatesAutoresizingMaskIntoConstraints = false
-    for v in [art, kicker, titleLabel, body] { stack.addArrangedSubview(v) }
+    for v in [art, kicker, titleLabel, body, photo] { stack.addArrangedSubview(v) }
     stack.setCustomSpacing(16, after: art)
+    stack.setCustomSpacing(12, after: body)
     panel.addSubview(stack)
 
-    let height = art.heightAnchor.constraint(equalToConstant: 128)
-    artHeight = height
+    let artHeight = art.heightAnchor.constraint(equalToConstant: 140)
+    let photoHeight = photo.heightAnchor.constraint(equalToConstant: 200)
+    self.artHeight = artHeight
+    self.photoHeight = photoHeight
     NSLayoutConstraint.activate([
       panel.topAnchor.constraint(equalTo: view.topAnchor, constant: 12),
       panel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
@@ -64,54 +76,95 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
       stack.leadingAnchor.constraint(equalTo: panel.leadingAnchor, constant: 20),
       stack.trailingAnchor.constraint(equalTo: panel.trailingAnchor, constant: -20),
       stack.bottomAnchor.constraint(equalTo: panel.bottomAnchor, constant: -20),
-      height,
+      artHeight,
+      photoHeight,
     ])
   }
 
   func didReceive(_ notification: UNNotification) {
     let content = notification.request.content
-    guard let cover = Cover.parse(content.userInfo["cover"]) else {
+    render(cover: Cover.parse(content.userInfo["cover"]), title: content.title, body: content.body,
+           image: attachmentImage(content))
+  }
+
+  /// Нарисовать карточку. Отдельно от [didReceive]: стенд снимков
+  /// (`tool/notif_card_snapshot`) зовёт её без уведомления.
+  func render(cover: Cover?, title: String, body text: String, image: UIImage?) {
+    loadViewIfNeeded()
+    art.isHidden = true
+    photo.isHidden = true
+    guard let cover else {
       // Не наша обложка — обычные тексты, без картинки.
       panel.backgroundColor = .secondarySystemBackground
       kicker.isHidden = true
-      art.isHidden = true
-      titleLabel.text = content.title
-      body.text = content.body
+      titleLabel.text = title
+      body.text = text
+      body.isHidden = text.isEmpty
       fit()
       return
     }
-    let tone = CardTone.of(cover.tone)
-    panel.backgroundColor = tone.panel
-    kicker.textColor = tone.label
+    let tone = CoverTone.of(cover.tone)
+    panel.backgroundColor = Self.color(light: tone.tint, dark: tone.deep, darkAlpha: 0.32)
+    kicker.textColor = Self.color(light: tone.label, dark: tone.labelNight)
     kicker.text = cover.kicker.uppercased()
     kicker.isHidden = cover.kicker.isEmpty
-    titleLabel.text = cover.chat != nil ? cover.title : cover.bannerTitle
-    let text = cover.body.isEmpty ? content.body : cover.body
-    body.text = text
-    body.isHidden = text.isEmpty
+    titleLabel.text = cover.bannerTitle
+    titleLabel.isHidden = cover.bannerTitle.isEmpty
+    let full = cover.body.isEmpty ? text : cover.body
+    body.text = full
+    body.isHidden = full.isEmpty
 
-    if let image = attachmentImage(content) {
-      art.image = image
-      art.isHidden = false
-      // Аватар человека — кругом, картинка события — плашкой.
-      let round = cover.chat != nil
-      artHeight?.constant = round ? 96 : 128
-      art.layer.cornerRadius = round ? 48 : 22
-      art.contentMode = round ? .scaleAspectFill : .scaleAspectFit
-    } else {
-      art.isHidden = true
+    if let image {
+      if cover.chat != nil {
+        // Фото из сообщения — под текстом, как в переписке.
+        photo.image = image
+        photo.isHidden = false
+        photoHeight?.constant = height(of: image, maxHeight: 220)
+      } else if cover.thumbnail?.auth == true {
+        // Фото воспоминания — во всю ширину, со скруглением.
+        art.image = image
+        art.contentMode = .scaleAspectFill
+        art.layer.cornerRadius = 18
+        artHeight?.constant = height(of: image, maxHeight: 200)
+        art.isHidden = false
+      } else {
+        // Картинка каталога (Ту, котик, подарок) или значок — целиком.
+        art.image = image
+        art.contentMode = .scaleAspectFit
+        art.layer.cornerRadius = 0
+        artHeight?.constant = 140
+        art.isHidden = false
+      }
     }
     fit()
   }
 
-  /// Высота карточки по содержимому: система держит её до перерисовки.
+  /// Высота картинки по ширине карточки (поля панели и стопки — 64 точки):
+  /// не выше [maxHeight].
+  private func height(of image: UIImage, maxHeight: CGFloat) -> CGFloat {
+    let outer = view.bounds.width > 0 ? view.bounds.width : UIScreen.main.bounds.width
+    let width = max(1, outer - 64)
+    guard image.size.width > 0 else { return maxHeight }
+    return min(maxHeight, max(120, width * image.size.height / image.size.width))
+  }
+
+  private static func color(light: UInt32, dark: UInt32, darkAlpha: CGFloat = 1) -> UIColor {
+    UIColor { traits in
+      traits.userInterfaceStyle == .dark
+        ? UIColor(cgColor: CoverTone.cg(dark, alpha: darkAlpha))
+        : UIColor(cgColor: CoverTone.cg(light))
+    }
+  }
+
+  /// Высота карточки по содержимому.
   private func fit() {
+    view.setNeedsLayout()
     view.layoutIfNeeded()
     let width = view.bounds.width > 0 ? view.bounds.width : UIScreen.main.bounds.width
     let size = view.systemLayoutSizeFitting(
       CGSize(width: width, height: UIView.layoutFittingCompressedSize.height),
       withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel)
-    preferredContentSize = CGSize(width: width, height: size.height)
+    preferredContentSize = CGSize(width: width, height: ceil(size.height))
   }
 
   /// Картинка, которую расширение сервиса положило вложением.
@@ -139,41 +192,4 @@ enum CardFont {
     let base = name.flatMap { UIFont(name: $0, size: size) } ?? .systemFont(ofSize: size, weight: .semibold)
     return UIFontMetrics(forTextStyle: .title2).scaledFont(for: base)
   }
-}
-
-/// Цвета карточки по виду события — как `Tones.kt` на Android: плашка тона
-/// и подпись; в тёмной теме плашка — насыщенный цвет приглушённо, подпись
-/// светлая.
-struct CardTone {
-  let panel: UIColor
-  let label: UIColor
-
-  private static func c(_ hex: UInt32) -> UIColor {
-    UIColor(red: CGFloat((hex >> 16) & 0xFF) / 255, green: CGFloat((hex >> 8) & 0xFF) / 255,
-            blue: CGFloat(hex & 0xFF) / 255, alpha: 1)
-  }
-
-  private static func make(tint: UInt32, label: UInt32, deep: UInt32, labelNight: UInt32) -> CardTone {
-    CardTone(
-      panel: UIColor { $0.userInterfaceStyle == .dark ? c(deep).withAlphaComponent(0.32) : c(tint) },
-      label: UIColor { $0.userInterfaceStyle == .dark ? c(labelNight) : c(label) }
-    )
-  }
-
-  private static let all: [String: CardTone] = [
-    "miss": make(tint: 0xFFE1DC, label: 0x8C2F27, deep: 0xB8433A, labelNight: 0xFFB4A9),
-    "mood": make(tint: 0xFFEDE4, label: 0x9A4458, deep: 0xB4506A, labelNight: 0xFFB1C3),
-    "chat": make(tint: 0xE8E6FB, label: 0x3F3794, deep: 0x4F46A8, labelNight: 0xC4BFFF),
-    "memory": make(tint: 0xCFE3DB, label: 0x245446, deep: 0x2E6B5A, labelNight: 0x9DD3BF),
-    "gift": make(tint: 0xEFE6FA, label: 0x5A3C90, deep: 0x6C4BA6, labelNight: 0xD2BCFF),
-    "evening": make(tint: 0xE6E4F7, label: 0x2D2A60, deep: 0x33306B, labelNight: 0xC3C0F5),
-    "chest": make(tint: 0xFBEBD3, label: 0x714812, deep: 0x8A5A1F, labelNight: 0xF2C27E),
-    "plus": make(tint: 0xFBEBD3, label: 0x714812, deep: 0x8A5A1F, labelNight: 0xF2C27E),
-    "date": make(tint: 0xFFE6EC, label: 0x8A3550, deep: 0xA8405F, labelNight: 0xFFB0C6),
-    "draw": make(tint: 0xE2F0FB, label: 0x24557A, deep: 0x2D6690, labelNight: 0xA6CDF0),
-    "snow": make(tint: 0xE2F0FB, label: 0x24557A, deep: 0x2D6690, labelNight: 0xA6CDF0),
-    "app": make(tint: 0xF3E9EB, label: 0x6B5B5C, deep: 0x8C2F27, labelNight: 0xD9C2C4),
-  ]
-
-  static func of(_ name: String) -> CardTone { all[name] ?? all["app"]! }
 }
