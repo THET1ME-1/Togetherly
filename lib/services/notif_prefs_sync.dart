@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'device_time_zone.dart';
-import 'notif_renderer.dart';
 import 'pb_data_service.dart';
 import 'pocketbase_service.dart';
 
@@ -36,7 +35,6 @@ class NotifPrefsSync {
         // уходит после его действия, иначе этот телефон затирал бы выбор,
         // сделанный на другом (см. [reconcileEveningReminder]).
         ...eveningReminderBaseBody(tz: await deviceTimeZone()),
-        ...notifCoverBody(NotifRenderer.version),
         // Метка говорит серверу, что нули в колонках — выбор человека, а не
         // незаполненное поле.
         'notifSyncedAt': DateTime.now().toUtc().toIso8601String(),
@@ -256,13 +254,6 @@ String remindAtOf(int minutes) {
   final m = minutes % 60;
   return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
 }
-
-/// Уведомления «А» (28.11.2026): версия отрисовки этой сборки
-/// ([NotifRenderer.version]). С ней сервер шлёт Android пуш только данными, и
-/// сборка рисует его сама; без отрисовки метки нет — пуш данными такая
-/// сборка не показала бы вовсе.
-Map<String, dynamic> notifCoverBody(int version) =>
-    version > 0 ? {'notifV': version} : const {};
 
 /// Уходит при каждом запуске: метка сборки и пояс телефона (пояс нужен и
 /// человеку без пары — записи виджета с поясом у него может не быть).

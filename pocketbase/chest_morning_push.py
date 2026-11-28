@@ -158,7 +158,7 @@ def candidates(utc_now):
 
 def load_users(con, uids):
     cols = ["id", "fcm_token", "apns_token", "apns_sandbox", "notif_chest_off",
-            "notif_synced_at", "lang", "notif_v", *NOTIF_FIELDS]
+            "notif_synced_at", "lang", "notif_v", "notif_v_token", *NOTIF_FIELDS]
     have = {r[1] for r in con.execute("PRAGMA table_info(users)")}
     picked = [c for c in cols if c in have]
     users = {}
@@ -236,7 +236,9 @@ def relay_bodies(user, look):
            "tag": "chest", "data": data, "sync": True}
     if cover:
         apns["cover"] = cover
-        if int(user.get("notif_v") or 0) >= 1:
+        # Данными — только токену, за который ручается сборка с отрисовкой.
+        if push_cover.android_draws_itself(user.get("notif_v"), user.get("notif_v_token"),
+                                           user.get("fcm_token")):
             fcm["cover"] = cover
             fcm["data_only"] = True
     return apns, fcm

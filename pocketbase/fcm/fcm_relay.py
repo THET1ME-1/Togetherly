@@ -98,6 +98,20 @@ def access_token() -> str:
 
 FCM_MAX_DATA_BYTES = 4000  # предел FCM 4096, запас на служебные ключи
 
+# Выключатель уведомлений «А»: есть файл — пуш данными не уходит никому, все
+# получают прежний `notification`. На случай, если отрисовка в сборке
+# сломалась: возврат без выпуска (`touch /opt/fcm/cover.off`).
+COVER_OFF_FILE = os.environ.get("FCM_COVER_OFF_FILE", "/opt/fcm/cover.off")
+_cover_off_cache = (0.0, False)
+
+
+def _cover_off() -> bool:
+    global _cover_off_cache
+    now = time.monotonic()
+    if now - _cover_off_cache[0] > 10:
+        _cover_off_cache = (now, os.path.exists(COVER_OFF_FILE))
+    return _cover_off_cache[1]
+
 
 def build_message(req: dict, token: str) -> dict:
     """Запрос релея → тело FCM.
@@ -123,7 +137,7 @@ def build_message(req: dict, token: str) -> dict:
     # `notification` система нарисовала бы его за неё. Старым сборкам
     # отправитель `data_only` не ставит, и они получают прежнее.
     cover = req.get("cover")
-    if isinstance(cover, dict) and req.get("data_only"):
+    if isinstance(cover, dict) and req.get("data_only") and not _cover_off():
         rich = dict(data)
         rich["cover"] = json.dumps(cover, ensure_ascii=False)
         rich.setdefault("title", req.get("title") or "Togetherly")

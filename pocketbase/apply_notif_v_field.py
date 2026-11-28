@@ -30,6 +30,11 @@ PB_PW = os.environ.get("PB_PW", "")
 
 WANTED = [
     {"name": "notif_v", "type": "number", "onlyInt": True},
+    # Токен FCM, за который ручается сборка с отрисовкой: метка стоит на
+    # человеке, а токен у него один, и старая сборка на втором телефоне
+    # переписывает `fcm_token`. Данными шлём, только когда они совпали
+    # (`push_cover.android_draws_itself`).
+    {"name": "notif_v_token", "type": "text", "max": 512},
 ]
 
 

@@ -4,6 +4,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import 'notif_renderer.dart';
 import 'pocketbase_service.dart';
 
 /// Нужен ли фоновый сокет-сервис вместо пушей.
@@ -28,6 +29,17 @@ bool socketServiceNeeded({
 /// читает её первым делом. Отметки нет — ведём себя как раньше: остаться без
 /// уведомлений хуже, чем со строкой в шторке.
 bool bootedServiceShouldStop(bool? savedFcmReady) => savedFcmReady == true;
+
+/// Тело записи токена. Сборка, которая рисует уведомления «А» сама
+/// ([NotifRenderer.version] > 0), пишет рядом метку и тот же токен: сервер
+/// шлёт пуш только данными, лишь когда `notif_v_token` совпал с `fcm_token`
+/// (`push_cover.android_draws_itself`). Старая сборка на втором телефоне того
+/// же человека переписывает один `fcm_token`, и данными ей больше не шлют —
+/// иначе она промолчала бы.
+Map<String, dynamic> fcmTokenBody(String token, int notifVersion) => {
+      'fcm_token': token,
+      if (notifVersion > 0) ...{'notif_v': notifVersion, 'notif_v_token': token},
+    };
 
 /// Токен устройства для пушей Google (Android).
 ///
@@ -109,7 +121,9 @@ class FcmService {
     final uid = svc.userId;
     if (uid == null || uid.isEmpty || !svc.isLoggedIn) return;
     try {
-      await svc.pb.collection('users').update(uid, body: {'fcm_token': token});
+      await svc.pb
+          .collection('users')
+          .update(uid, body: fcmTokenBody(token, NotifRenderer.version));
       debugPrint('FcmService: токен устройства записан в профиль');
     } catch (e) {
       debugPrint('FcmService: токен не записался — $e');

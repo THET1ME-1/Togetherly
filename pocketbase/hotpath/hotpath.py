@@ -907,7 +907,8 @@ def _push_candidates(group_id: str, author_uid: str,
                     # Язык приложения: на нём пишется текст уведомления.
                     "lang": u[9] or "",
                     # Сборка рисует уведомление «А» сама (пуш данными).
-                    "notif_v": int(u[10] or 0)})
+                    "notif_v": int(u[10] or 0),
+                    "notif_v_token": u[11] or ""})
     return out
 
 
@@ -917,15 +918,17 @@ _notif_v_есть: tuple[float, bool] = (0.0, False)
 
 
 def _колонка_notif_v() -> str:
+    """`notif_v, notif_v_token` — метка сборки и токен, за который она
+    ручается (`push_cover.android_draws_itself`); без колонок — нули."""
     global _notif_v_есть
     now = time.monotonic()
     if now - _notif_v_есть[0] > 60:
         try:
             cols = {r[1] for r in lite.execute("PRAGMA table_info(users)")}
-            _notif_v_есть = (now, "notif_v" in cols)
+            _notif_v_есть = (now, {"notif_v", "notif_v_token"} <= cols)
         except sqlite3.Error:
             _notif_v_есть = (now, False)
-    return "notif_v" if _notif_v_есть[1] else "0"
+    return "notif_v, notif_v_token" if _notif_v_есть[1] else "0, ''"
 
 
 # Записи каталога для обложки пуша (позы Ту, «Моти», подарки, рамки):
@@ -1116,7 +1119,8 @@ async def _notify_group(group_id: str, author_uid: str, title, body,
                     # Одна строка на вид события — как в apns_push.js.
                     "tag": thread, "data": {"kind": thread},
                     **({"cover": обложка, "data_only": True}
-                       if обложка and t.get("notif_v", 0) >= 1 else {}),
+                       if обложка and push_cover.android_draws_itself(
+                           t.get("notif_v"), t.get("notif_v_token"), t["fcm"]) else {}),
                 })
                 if (r.json() or {}).get("gone"):
                     await asyncio.to_thread(_forget_token, t["uid"], "fcm_token")

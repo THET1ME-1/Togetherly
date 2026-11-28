@@ -86,7 +86,9 @@ class ОтПартнёра(unittest.TestCase):
         c = собрать("chat", from_name="Алина", body="Ты уже дома?",
                     avatar="pb://media/rec1/profile.jpg", frame="hearts", message_id="m1",
                     group_id="g1", from_uid="u1")
-        self.assertEqual(c["chat"]["avatar"], f"{F}/media/rec1/profile.jpg?thumb=200x200")
+        # Аватар — оригиналом: у `media.file` объявлена одна миниатюра 400x400,
+        # и она у аватара тяжелее оригинала (143 КБ против 43 КБ, 28.11.2026).
+        self.assertEqual(c["chat"]["avatar"], f"{F}/media/rec1/profile.jpg")
         self.assertEqual(c["chat"]["frame"], f"{F}/catalog_items/frame_hearts/still_hearts.png")
         self.assertEqual(c["chat"]["message_id"], "m1")
         self.assertEqual(len(c["chat"]["quick"]), 3)
@@ -201,6 +203,23 @@ class ЧтоИзЗаписи(unittest.TestCase):
     def test_настроение(self):
         self.assertEqual(pc.mood_ctx({"mood_id": "love", "label": " Влюблённость "}),
                          {"mood_id": "love", "label": "Влюблённость"})
+
+
+class КомуДанными(unittest.TestCase):
+    """Пуш только данными — лишь токену, за который ручается сборка с
+    отрисовкой: старая сборка на втором телефоне того же человека
+    переписывает `fcm_token`, а метка остаётся."""
+
+    def test_метка_и_свой_токен(self):
+        self.assertTrue(pc.android_draws_itself(1, "tokA", "tokA"))
+
+    def test_токен_переписала_старая_сборка(self):
+        self.assertFalse(pc.android_draws_itself(1, "tokA", "tokB"))
+
+    def test_без_метки_и_без_токена(self):
+        self.assertFalse(pc.android_draws_itself(0, "tokA", "tokA"))
+        self.assertFalse(pc.android_draws_itself(1, "", ""))
+        self.assertFalse(pc.android_draws_itself(None, None, "tokA"))
 
 
 class Прочее(unittest.TestCase):

@@ -90,13 +90,32 @@ def _дырка_рамки(look, ключ):
     return 31
 
 
-def _из_медиа(pb, size):
-    """`pb://media/<запись>/<файл>` → ссылка PocketBase с миниатюрой."""
+def android_draws_itself(notif_v, notif_v_token, fcm_token) -> bool:
+    """Слать ли Android пуш только данными (рисует сборка, `notif/NotifCover.kt`).
+
+    Метка стоит на человеке, а токен FCM у него один: старая сборка на втором
+    телефоне (или после отката) переписывает `fcm_token`, а `notif_v`
+    остаётся, и пуш данными ушёл бы в тишину. Поэтому сборка с отрисовкой
+    пишет рядом токен, за который ручается (`notif_v_token`), и данными шлём
+    только ему."""
+    try:
+        v = int(notif_v or 0)
+    except (TypeError, ValueError):
+        v = 0
+    token = (fcm_token or "").strip()
+    return v >= 1 and bool(token) and (notif_v_token or "").strip() == token
+
+
+def _из_медиа(pb, size=None):
+    """`pb://media/<запись>/<файл>` → ссылка PocketBase; [size] — миниатюра.
+
+    У `media.file` объявлена одна миниатюра — 400x400; другой размер
+    PocketBase отдаёт оригиналом."""
     pb = (pb or "").strip()
     if not pb.startswith("pb://"):
         return pb if pb.startswith("https://") else ""
     path = pb[len("pb://"):]
-    return f"{ФАЙЛЫ}/{path}?thumb={size}"
+    return f"{ФАЙЛЫ}/{path}" + (f"?thumb={size}" if size else "")
 
 
 def _картинка(url, **extra):
@@ -172,7 +191,8 @@ def cover(kind, lang, ctx, look):
             "title": имя,
             "body": body,
             "tone": "chat",
-            "art": _картинка(_из_медиа(ctx.get("avatar"), "200x200")),
+            # Аватар оригиналом: он маленький, а миниатюра 400x400 тяжелее.
+            "art": _картинка(_из_медиа(ctx.get("avatar"))),
             "actions": _кнопки(lang, ("reply", "a_reply"), ("hug", "a_hug"), ("read", "a_read")),
             "link": ОТКРЫТЬ + "chat",
             "chat": {
@@ -182,7 +202,7 @@ def cover(kind, lang, ctx, look):
                 "message_id": ctx.get("message_id") or "",
                 # Время сообщения: «прочитано» отмечает до него, а не до «сейчас».
                 "ts": int(ctx.get("ts") or 0),
-                "avatar": _из_медиа(ctx.get("avatar"), "200x200"),
+                "avatar": _из_медиа(ctx.get("avatar")),
                 "frame": (_каталог(look, "frame_" + ctx["frame"]) or "") if ctx.get("frame") else "",
                 # Радиус фото под рамкой в единицах 0..100 (`AvatarFrame.hole`):
                 # фото ужимается, чтобы рамка не закрывала его край.

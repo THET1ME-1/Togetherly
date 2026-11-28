@@ -38,6 +38,24 @@ class BuildMessage(unittest.TestCase):
         self.assertEqual(json.loads(msg["data"]["cover"]), cover)
         self.assertEqual(msg["data"]["kind"], "miss")
 
+    def test_выключатель_возвращает_прежний_пуш(self):
+        # Файл-выключатель: если с отрисовкой что-то пошло не так, все
+        # получают прежние пуши без выпуска сборки.
+        import tempfile
+        with tempfile.NamedTemporaryFile() as off:
+            old = fcm_relay.COVER_OFF_FILE
+            fcm_relay.COVER_OFF_FILE = off.name
+            fcm_relay._cover_off_cache = (0.0, False)
+            try:
+                msg = fcm_relay.build_message({"title": "А", "body": "Б", "tag": "miss",
+                                               "data": {"kind": "miss"}, "cover": {"v": 1},
+                                               "data_only": True}, "tok")
+            finally:
+                fcm_relay.COVER_OFF_FILE = old
+                fcm_relay._cover_off_cache = (0.0, False)
+        self.assertIn("notification", msg)
+        self.assertNotIn("cover", msg["data"])
+
     def test_большая_обложка_уходит_прежним_пушем(self):
         # FCM отбивает данные больше 4096 байт: новая сборка получит обычный
         # пуш системы, а не тишину.

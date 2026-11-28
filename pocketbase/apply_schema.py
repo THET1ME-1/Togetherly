@@ -103,8 +103,9 @@ USERS_CUSTOM = [
     # их никто не читает, на проде ждут удаления в тихий час.
     number("remind_v"), text("remind_mood"), text("remind_task"),
     text("remind_at"), text("remind_tz"), number("remind_set_at"),
-    # Уведомления «А»: сборка рисует пуш сама (apply_notif_v_field.py).
-    number("notif_v"),
+    # Уведомления «А»: сборка рисует пуш сама и ручается за свой токен
+    # (apply_notif_v_field.py).
+    number("notif_v"), text("notif_v_token"),
     jsonf("solo_timers"),
     date("updated_at"), date("last_daily_bonus_at"),
     date("last_memory_reward_at"), text("ad_rewards_date"),

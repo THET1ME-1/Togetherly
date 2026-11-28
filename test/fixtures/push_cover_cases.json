@@ -221,7 +221,7 @@
     "body": "Ты уже дома?",
     "tone": "chat",
     "art": {
-     "url": "https://togetherly.day/api/files/media/r1/a.jpg?thumb=200x200"
+     "url": "https://togetherly.day/api/files/media/r1/a.jpg"
     },
     "actions": [
      {
@@ -244,7 +244,7 @@
      "group_id": "g1",
      "message_id": "m1",
      "ts": 1795873555018,
-     "avatar": "https://togetherly.day/api/files/media/r1/a.jpg?thumb=200x200",
+     "avatar": "https://togetherly.day/api/files/media/r1/a.jpg",
      "frame": "https://togetherly.day/api/files/catalog_items/frame_cloud/still_cloud.png",
      "frame_hole": 27,
      "you": "Вы",

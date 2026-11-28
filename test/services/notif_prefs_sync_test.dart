@@ -19,15 +19,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('уведомления «А»: метка сборки', () {
-    test('сборка с отрисовкой шлёт notifV, без неё — ничего', () {
-      // С notif_v сервер шлёт Android пуш только данными: сборка, которая
-      // рисовать не умеет, такой пуш не показала бы вовсе.
-      expect(notifCoverBody(1), {'notifV': 1});
-      expect(notifCoverBody(0), isEmpty);
-    });
-  });
-
   group('тело запроса', () {
     test('пустые настройки — всё включено, как показывает приложение', () {
       expect(notifPrefsBody(const {}), {

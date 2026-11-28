@@ -4,6 +4,19 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:love_app/services/fcm_service.dart';
 
 void main() {
+  group('уведомления «А»: метка рядом с токеном', () {
+    test('сборка с отрисовкой ручается за свой токен', () {
+      // Сервер шлёт пуш данными, только если notif_v_token совпал с
+      // fcm_token: старая сборка на втором телефоне переписывает токен, и
+      // данными ей больше не шлют.
+      expect(fcmTokenBody('tok', 1), {'fcm_token': 'tok', 'notif_v': 1, 'notif_v_token': 'tok'});
+    });
+
+    test('сборка без отрисовки пишет только токен', () {
+      expect(fcmTokenBody('tok', 0), {'fcm_token': 'tok'});
+    });
+  });
+
   group('socketServiceNeeded', () {
     test('пуши работают — фоновый сервис не поднимаем', () {
       // Ради этого всё и затевалось: у человека пропадает строка

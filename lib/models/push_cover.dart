@@ -48,10 +48,12 @@ String _t(String key, String lang) {
 
 String _s(Map<String, Object?> ctx, String key) => (ctx[key] ?? '').toString().trim();
 
-String _fromMedia(Object? pb, String size) {
+/// `pb://media/<запись>/<файл>` → ссылка; [size] — миниатюра. У `media.file`
+/// объявлена одна, 400x400: другой размер PocketBase отдал бы оригиналом.
+String _fromMedia(Object? pb, [String? size]) {
   final s = (pb ?? '').toString().trim();
   if (!s.startsWith('pb://')) return s.startsWith('https://') ? s : '';
-  return '$_files/${s.substring('pb://'.length)}?thumb=$size';
+  return '$_files/${s.substring('pb://'.length)}${size == null ? '' : '?thumb=$size'}';
 }
 
 Map<String, Object?> _picture(String? url) =>
@@ -130,7 +132,8 @@ Map<String, Object?>? buildPushCover(
       };
     case 'chat':
       final frame = _s(ctx, 'frame');
-      final avatar = _fromMedia(ctx['avatar'], '200x200');
+      // Аватар оригиналом: он маленький, а миниатюра 400x400 тяжелее.
+      final avatar = _fromMedia(ctx['avatar']);
       final ts = ctx['ts'];
       return {
         ...base,

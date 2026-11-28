@@ -133,8 +133,15 @@ function sendTo(uid, title, body, thread, opts) {
       if (res.statusCode === 200 && res.json && res.json.cover) cover = res.json.cover;
     } catch (_) { cover = null; }
   }
+  // Данными — только токену, за который ручается сборка с отрисовкой
+  // (`notif_v_token`, как `push_cover.android_draws_itself`): старая сборка на
+  // втором телефоне переписывает `fcm_token`, а метка остаётся.
   let coverV = 0;
-  try { coverV = Number(user.getInt("notif_v")) || 0; } catch (_) { coverV = 0; }
+  let coverToken = "";
+  try {
+    coverV = Number(user.getInt("notif_v")) || 0;
+    coverToken = String(user.getString("notif_v_token") || "");
+  } catch (_) { coverV = 0; }
 
   const apnsToken = String(user.getString("apns_token") || "");
   if (apnsToken) {
@@ -178,7 +185,7 @@ function sendTo(uid, title, body, thread, opts) {
         tag: thread,
         data: data,
       };
-      if (cover && coverV >= 1) {
+      if (cover && coverV >= 1 && coverToken !== "" && coverToken === fcmToken) {
         fcmBody.cover = cover;
         fcmBody.data_only = true;
       }

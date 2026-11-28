@@ -233,7 +233,7 @@ def build_payload(req: dict) -> dict:
     # (миниатюра, аватар партнёра), категория `tg_<вид>` даёт кнопки. Сборки
     # без расширения показывают пуш как раньше.
     cover = req.get("cover")
-    if isinstance(cover, dict):
+    if isinstance(cover, dict) and not _cover_off():
         with_cover = dict(payload, aps=dict(aps), cover=cover)
         with_cover["aps"]["mutable-content"] = 1
         kind = str(cover.get("kind") or thread or "").strip()
@@ -247,6 +247,19 @@ def build_payload(req: dict) -> dict:
 
 
 APNS_MAX_BYTES = 4096
+
+# Выключатель уведомлений «А»: есть файл — обложка не уходит никому, сборки
+# показывают прежний баннер (`touch /opt/apns/cover.off`).
+COVER_OFF_FILE = os.environ.get("APNS_COVER_OFF_FILE", "/opt/apns/cover.off")
+_cover_off_cache = (0.0, False)
+
+
+def _cover_off() -> bool:
+    global _cover_off_cache
+    now = time.monotonic()
+    if now - _cover_off_cache[0] > 10:
+        _cover_off_cache = (now, os.path.exists(COVER_OFF_FILE))
+    return _cover_off_cache[1]
 
 
 

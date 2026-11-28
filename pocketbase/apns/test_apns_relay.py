@@ -127,6 +127,16 @@ big = apns_relay.build_payload({"title": "Алина", "body": long_text, "threa
 size = len(json.dumps(big, ensure_ascii=False).encode())
 check("большая обложка отброшена, пуш в пределе", "cover" not in big and size <= 4096, str(size))
 check("без обложки и категория не нужна", "category" not in big["aps"])
+# Выключатель: файл рядом с релеем — обложка не уходит никому.
+import tempfile  # noqa: E402
+with tempfile.NamedTemporaryFile() as off:
+    old_off = apns_relay.COVER_OFF_FILE
+    apns_relay.COVER_OFF_FILE = off.name
+    apns_relay._cover_off_cache = (0.0, False)
+    switched = apns_relay.build_payload({"title": "А", "body": "Б", "thread": "miss", "cover": cover})
+    apns_relay.COVER_OFF_FILE = old_off
+    apns_relay._cover_off_cache = (0.0, False)
+check("выключатель снимает обложку", "cover" not in switched and "mutable-content" not in switched["aps"])
 
 print()
 if failures:

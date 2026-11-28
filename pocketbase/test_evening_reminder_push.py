@@ -176,12 +176,19 @@ class Обложка(unittest.TestCase):
 
     def test_тела_запросов_к_релеям(self):
         u = {"id": "u1", "apns_token": "a", "fcm_token": "f", "lang": "ru", "notif_v": 1,
-             "_paired": True}
+             "notif_v_token": "f", "_paired": True}
         apns, fcm = m.relay_bodies(u, {"mood"}, look=lambda _id: (["still_r.png"], {}))
         self.assertEqual(apns["cover"]["kind"], "evening")
         self.assertEqual(apns["cover"]["art"], {"app": True})
         self.assertTrue(fcm["data_only"])
         self.assertEqual(fcm["cover"]["title"], "Как прошёл день?")
+
+    def test_токен_переписала_старая_сборка(self):
+        # Метка осталась от новой сборки, а токен сейчас у старой: данными
+        # слать нельзя, она бы промолчала.
+        u = {"id": "u1", "fcm_token": "old", "lang": "ru", "notif_v": 1, "notif_v_token": "new"}
+        _apns, fcm = m.relay_bodies(u, {"mood"}, look=lambda _id: None)
+        self.assertNotIn("data_only", fcm)
 
     def test_старая_сборка_android_без_данных(self):
         u = {"id": "u1", "apns_token": "", "fcm_token": "f", "lang": "ru", "notif_v": 0}
