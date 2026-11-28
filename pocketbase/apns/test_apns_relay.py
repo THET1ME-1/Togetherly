@@ -8,6 +8,7 @@
 JWT и topic приняты. Если ключ не тот, ответ будет InvalidProviderToken.
 """
 
+import json
 import os
 import sys
 
@@ -118,6 +119,14 @@ check("обложка уходит в пуш как есть", withcover.get("co
 plain = apns_relay.build_payload({"title": "Алина", "body": "Привет", "thread": "chat"})
 check("без обложки ничего нового", "mutable-content" not in plain["aps"]
       and "category" not in plain["aps"] and "cover" not in plain)
+# Apple отбивает пуш больше 4096 байт целиком (PayloadTooLarge): длинное
+# сообщение с обложкой уходит без неё, но уходит.
+long_text = "Очень длинное сообщение партнёру " * 40
+big = apns_relay.build_payload({"title": "Алина", "body": long_text, "thread": "chat",
+                                "cover": {"v": 1, "kind": "chat", "body": long_text}})
+size = len(json.dumps(big, ensure_ascii=False).encode())
+check("большая обложка отброшена, пуш в пределе", "cover" not in big and size <= 4096, str(size))
+check("без обложки и категория не нужна", "category" not in big["aps"])
 
 print()
 if failures:

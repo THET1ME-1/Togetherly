@@ -38,6 +38,17 @@ class BuildMessage(unittest.TestCase):
         self.assertEqual(json.loads(msg["data"]["cover"]), cover)
         self.assertEqual(msg["data"]["kind"], "miss")
 
+    def test_большая_обложка_уходит_прежним_пушем(self):
+        # FCM отбивает данные больше 4096 байт: новая сборка получит обычный
+        # пуш системы, а не тишину.
+        text = "Очень длинное сообщение партнёру " * 40
+        msg = fcm_relay.build_message({"title": "Алина", "body": text, "tag": "chat",
+                                       "data": {"kind": "chat"},
+                                       "cover": {"v": 1, "kind": "chat", "body": text},
+                                       "data_only": True}, "tok")
+        self.assertIn("notification", msg)
+        self.assertNotIn("cover", msg["data"])
+
     def test_обложка_старой_сборке_не_мешает(self):
         msg = fcm_relay.build_message({"title": "Алина", "body": "Привет", "tag": "chat",
                                        "cover": {"v": 1}}, "tok")

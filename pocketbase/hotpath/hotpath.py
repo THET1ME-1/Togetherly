@@ -1082,10 +1082,12 @@ async def _notify_group(group_id: str, author_uid: str, title, body,
         текст = body(t["lang"]) if callable(body) else body
         обложка = None
         if cover:
+            # В потоке: каталог читается из SQLite, а соединение общее с
+            # потоками адресатов — цикл событий ждать его не должен.
             try:
-                обложка = push_cover.cover(
-                    thread, t["lang"], {**автор, **(cover(t["lang"]) or {})},
-                    _каталог_для_обложки)
+                обложка = await asyncio.to_thread(
+                    push_cover.cover, thread, t["lang"],
+                    {**автор, **(cover(t["lang"]) or {})}, _каталог_для_обложки)
             except Exception as e:  # обложка — украшение, пуш важнее
                 log.warning("cover %s: %s", thread, e)
         if t["apns"]:

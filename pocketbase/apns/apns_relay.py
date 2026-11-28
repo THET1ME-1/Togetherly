@@ -234,12 +234,19 @@ def build_payload(req: dict) -> dict:
     # без расширения показывают пуш как раньше.
     cover = req.get("cover")
     if isinstance(cover, dict):
-        aps["mutable-content"] = 1
+        with_cover = dict(payload, aps=dict(aps), cover=cover)
+        with_cover["aps"]["mutable-content"] = 1
         kind = str(cover.get("kind") or thread or "").strip()
         if kind:
-            aps["category"] = f"tg_{kind}"
-        payload["cover"] = cover
+            with_cover["aps"]["category"] = f"tg_{kind}"
+        # Больше 4096 байт Apple отбивает пуш целиком (PayloadTooLarge):
+        # длинное сообщение уходит без обложки, но уходит.
+        if len(json.dumps(with_cover, ensure_ascii=False).encode()) <= APNS_MAX_BYTES:
+            return with_cover
     return payload
+
+
+APNS_MAX_BYTES = 4096
 
 
 

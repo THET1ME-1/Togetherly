@@ -96,6 +96,9 @@ def access_token() -> str:
     return _cached["access"]
 
 
+FCM_MAX_DATA_BYTES = 4000  # предел FCM 4096, запас на служебные ключи
+
+
 def build_message(req: dict, token: str) -> dict:
     """Запрос релея → тело FCM.
 
@@ -121,13 +124,18 @@ def build_message(req: dict, token: str) -> dict:
     # отправитель `data_only` не ставит, и они получают прежнее.
     cover = req.get("cover")
     if isinstance(cover, dict) and req.get("data_only"):
-        data["cover"] = json.dumps(cover, ensure_ascii=False)
-        data.setdefault("title", req.get("title") or "Togetherly")
-        data.setdefault("body", req.get("body") or "")
+        rich = dict(data)
+        rich["cover"] = json.dumps(cover, ensure_ascii=False)
+        rich.setdefault("title", req.get("title") or "Togetherly")
+        rich.setdefault("body", req.get("body") or "")
         if req.get("tag"):
-            data.setdefault("tag", str(req["tag"]))
-        message["android"] = {"priority": "high"}
-        return message
+            rich.setdefault("tag", str(req["tag"]))
+        # Данные больше 4096 байт FCM отбивает: длинное сообщение уходит
+        # обычным пушем системы, а не пропадает.
+        if sum(len(k.encode()) + len(v.encode()) for k, v in rich.items()) <= FCM_MAX_DATA_BYTES:
+            message["data"] = rich
+            message["android"] = {"priority": "high"}
+            return message
 
     title = req.get("title") or "Togetherly"
     body = req.get("body") or ""
