@@ -229,6 +229,16 @@ def build_payload(req: dict) -> dict:
     data = req.get("data")
     if isinstance(data, dict):
         payload.update(data)
+    # Обложка «А» (28.11.2026): расширение сервиса уведомлений поправит пуш
+    # (миниатюра, аватар партнёра), категория `tg_<вид>` даёт кнопки. Сборки
+    # без расширения показывают пуш как раньше.
+    cover = req.get("cover")
+    if isinstance(cover, dict):
+        aps["mutable-content"] = 1
+        kind = str(cover.get("kind") or thread or "").strip()
+        if kind:
+            aps["category"] = f"tg_{kind}"
+        payload["cover"] = cover
     return payload
 
 

@@ -106,6 +106,19 @@ check("Google: неподтверждённая почта отвергнута"
 check("Google: издатель без https тоже свой",
       apns_relay.verify_google_identity(google_token(iss="accounts.google.com")).get("sub") == "1234567890")
 
+# Обложка «А» (28.11.2026): расширение сервиса уведомлений на iPhone
+# получает право поправить пуш (миниатюра, аватар), категория даёт кнопки.
+cover = {"v": 1, "kind": "miss", "title": "Скучает по тебе", "actions": [{"id": "hug", "label": "Обнять"}]}
+withcover = apns_relay.build_payload({"title": "Алина", "body": "Хочу обнять", "thread": "miss",
+                                      "cover": cover})
+check("с обложкой — mutable-content", withcover["aps"].get("mutable-content") == 1)
+check("с обложкой — категория по виду", withcover["aps"].get("category") == "tg_miss",
+      str(withcover["aps"].get("category")))
+check("обложка уходит в пуш как есть", withcover.get("cover") == cover)
+plain = apns_relay.build_payload({"title": "Алина", "body": "Привет", "thread": "chat"})
+check("без обложки ничего нового", "mutable-content" not in plain["aps"]
+      and "category" not in plain["aps"] and "cover" not in plain)
+
 print()
 if failures:
     print("ЕСТЬ ПРОВАЛЫ:", ", ".join(failures))

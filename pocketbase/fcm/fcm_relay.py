@@ -115,6 +115,20 @@ def build_message(req: dict, token: str) -> dict:
         message["android"] = {"priority": "high"}
         return message
 
+    # Обложка «А» (28.11.2026): новая сборка рисует уведомление сама
+    # (`FcmService` → `NotifCover`), поэтому только данные — с готовым
+    # `notification` система нарисовала бы его за неё. Старым сборкам
+    # отправитель `data_only` не ставит, и они получают прежнее.
+    cover = req.get("cover")
+    if isinstance(cover, dict) and req.get("data_only"):
+        data["cover"] = json.dumps(cover, ensure_ascii=False)
+        data.setdefault("title", req.get("title") or "Togetherly")
+        data.setdefault("body", req.get("body") or "")
+        if req.get("tag"):
+            data.setdefault("tag", str(req["tag"]))
+        message["android"] = {"priority": "high"}
+        return message
+
     title = req.get("title") or "Togetherly"
     body = req.get("body") or ""
     message["notification"] = {"title": title, "body": body}

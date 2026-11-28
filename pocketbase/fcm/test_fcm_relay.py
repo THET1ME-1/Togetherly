@@ -26,6 +26,24 @@ class BuildMessage(unittest.TestCase):
             m["android"]["notification"]["channel_id"], "partner_notifications")
         self.assertEqual(m["android"]["priority"], "high")
 
+    def test_обложка_только_данными(self):
+        # Новая сборка рисует уведомление сама (`FcmService` → `NotifCover`):
+        # с готовым `notification` система нарисовала бы его за неё.
+        cover = {"v": 1, "kind": "miss", "title": "Скучает по тебе"}
+        msg = fcm_relay.build_message({"title": "Алина", "body": "Хочу обнять", "tag": "miss",
+                                       "data": {"kind": "miss"}, "cover": cover,
+                                       "data_only": True}, "tok")
+        self.assertNotIn("notification", msg)
+        self.assertEqual(msg["android"], {"priority": "high"})
+        self.assertEqual(json.loads(msg["data"]["cover"]), cover)
+        self.assertEqual(msg["data"]["kind"], "miss")
+
+    def test_обложка_старой_сборке_не_мешает(self):
+        msg = fcm_relay.build_message({"title": "Алина", "body": "Привет", "tag": "chat",
+                                       "cover": {"v": 1}}, "tok")
+        self.assertIn("notification", msg)
+        self.assertNotIn("cover", msg["data"])
+
     def test_значения_data_приводятся_к_строкам(self):
         # Число в data FCM отбивает как INVALID_ARGUMENT, и пуш не уходит.
         m = fcm_relay.build_message(
