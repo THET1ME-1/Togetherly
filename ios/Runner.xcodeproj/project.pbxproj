@@ -166,6 +166,7 @@
 		FD000000000000000000A003 /* NotifCoverBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotifCoverBridge.swift; sourceTree = "<group>"; };
 		FD000000000000000000A004 /* NotifNetIOS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotifNetIOS.swift; sourceTree = "<group>"; };
 		FD000000000000000000A005 /* CoverMedia.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoverMedia.swift; sourceTree = "<group>"; };
+		FD000000000000000000B002 /* TogetherlyNotificationService.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TogetherlyNotificationService.entitlements; sourceTree = "<group>"; };
 		FD000000000000000000C001 /* TogetherlyNotificationService.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TogetherlyNotificationService.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -325,6 +326,7 @@
 				FD000000000000000000A001 /* Cover.swift */,
 				FD000000000000000000A005 /* CoverMedia.swift */,
 				FD000000000000000000B001 /* Info.plist */,
+				FD000000000000000000B002 /* TogetherlyNotificationService.entitlements */,
 			);
 			path = TogetherlyNotificationService;
 			sourceTree = "<group>";
@@ -1114,6 +1116,7 @@
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = Y2Z9V86248;
 				GENERATE_INFOPLIST_FILE = NO;
+				CODE_SIGN_ENTITLEMENTS = TogetherlyNotificationService/TogetherlyNotificationService.entitlements;
 				INFOPLIST_FILE = TogetherlyNotificationService/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1143,6 +1146,7 @@
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = Y2Z9V86248;
 				GENERATE_INFOPLIST_FILE = NO;
+				CODE_SIGN_ENTITLEMENTS = TogetherlyNotificationService/TogetherlyNotificationService.entitlements;
 				INFOPLIST_FILE = TogetherlyNotificationService/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1172,6 +1176,7 @@
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = Y2Z9V86248;
 				GENERATE_INFOPLIST_FILE = NO;
+				CODE_SIGN_ENTITLEMENTS = TogetherlyNotificationService/TogetherlyNotificationService.entitlements;
 				INFOPLIST_FILE = TogetherlyNotificationService/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (

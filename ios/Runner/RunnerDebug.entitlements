@@ -29,5 +29,9 @@
 	<!-- Возраст из App Store, как в Runner.entitlements. -->
 	<key>com.apple.developer.declared-age-range</key>
 	<true/>
+
+	<!-- Уведомления «А»: аватар партнёра слева (см. Runner.entitlements). -->
+	<key>com.apple.developer.usernotifications.communication</key>
+	<true/>
 </dict>
 </plist>

@@ -42,9 +42,17 @@ enum NotifCoverBridge {
       }
     }
     channel = ch
+    mirrorToken()
     NotificationCenter.default.addObserver(
       forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main
-    ) { _ in flushPending() }
+    ) { _ in
+      flushPending()
+      mirrorToken()
+    }
+    // Вход и выход меняют пропуск, пока приложение открыто.
+    NotificationCenter.default.addObserver(
+      forName: UIApplication.willResignActiveNotification, object: nil, queue: .main
+    ) { _ in mirrorToken() }
   }
 
   // MARK: - Категории
@@ -93,10 +101,24 @@ enum NotifCoverBridge {
     content.threadIdentifier = tag
     content.userInfo = ["cover": raw, "kind": cover.kind]
     CoverMedia.texts(cover, to: content)
-    CoverMedia.fetch(CoverMedia.urls(for: cover)) { got in
-      let final = CoverMedia.apply(cover, to: content, media: got)
-      let request = UNNotificationRequest(identifier: "tg_\(tag)", content: final, trigger: nil)
-      UNUserNotificationCenter.current().add(request) { error in done(error == nil) }
+    CoverMedia.urls(for: cover) { urls in
+      CoverMedia.fetch(urls) { got in
+        let final = CoverMedia.apply(cover, to: content, media: got)
+        let request = UNNotificationRequest(identifier: "tg_\(tag)", content: final, trigger: nil)
+        UNUserNotificationCenter.current().add(request) { error in done(error == nil) }
+      }
+    }
+  }
+
+  /// Пропуск входа — в общую группу: расширение уведомлений качает по нему
+  /// закрытое фото воспоминания. Вышел человек — пропуск убирается.
+  static func mirrorToken() {
+    let group = UserDefaults(suiteName: CoverMedia.groupId)
+    let token = NotifNetIOS.token
+    if let token {
+      if group?.string(forKey: CoverMedia.tokenKey) != token { group?.set(token, forKey: CoverMedia.tokenKey) }
+    } else {
+      group?.removeObject(forKey: CoverMedia.tokenKey)
     }
   }
 

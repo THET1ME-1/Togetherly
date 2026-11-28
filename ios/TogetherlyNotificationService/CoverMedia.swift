@@ -16,17 +16,58 @@ enum CoverMedia {
     return URLSession(configuration: c)
   }()
 
-  /// Ссылки, которые нужны обложке: миниатюра и аватар с рамкой.
-  static func urls(for cover: Cover) -> [String: String] {
+  /// Общая группа приложения и расширений: туда приложение кладёт пропуск
+  /// входа (`NotifCoverBridge.mirrorToken`).
+  static let groupId = "group.com.togetherly.love"
+  static let tokenKey = "tg_pb_token"
+
+  private static var authToken: String? {
+    let t = UserDefaults(suiteName: groupId)?.string(forKey: tokenKey) ?? ""
+    return t.isEmpty ? nil : t
+  }
+
+  /// Пропуск к закрытым файлам (`/api/files/token`) своим входом; nil —
+  /// человек не вошёл или сервер не ответил.
+  static func fileToken(done: @escaping (String?) -> Void) {
+    guard let auth = authToken, let url = URL(string: "https://togetherly.day/api/files/token") else {
+      done(nil)
+      return
+    }
+    var req = URLRequest(url: url, timeoutInterval: 8)
+    req.httpMethod = "POST"
+    req.setValue(auth, forHTTPHeaderField: "Authorization")
+    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    req.httpBody = Data("{}".utf8)
+    session.dataTask(with: req) { data, response, _ in
+      guard (response as? HTTPURLResponse)?.statusCode == 200, let data,
+            let o = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+            let token = o["token"] as? String, !token.isEmpty else {
+        done(nil)
+        return
+      }
+      done(token)
+    }.resume()
+  }
+
+  /// Ссылки, которые нужны обложке: миниатюра и аватар с рамкой. Закрытое
+  /// фото воспоминания — с пропуском; не дали — без миниатюры.
+  static func urls(for cover: Cover, done: @escaping ([String: String]) -> Void) {
     var urls: [String: String] = [:]
-    // Закрытое фото воспоминания без пропуска не скачать — миниатюры не будет.
-    let thumb = cover.thumbnail
-    if !thumb.url.isEmpty, !thumb.auth { urls["thumb"] = thumb.url }
     if let p = cover.person {
       if !p.avatar.isEmpty { urls["avatar"] = p.avatar }
       if !p.frame.isEmpty { urls["frame"] = p.frame }
     }
-    return urls
+    let thumb = cover.thumbnail
+    guard !thumb.url.isEmpty else { done(urls); return }
+    guard thumb.auth else {
+      urls["thumb"] = thumb.url
+      done(urls)
+      return
+    }
+    fileToken { token in
+      if let token { urls["thumb"] = thumb.url + (thumb.url.contains("?") ? "&" : "?") + "token=" + token }
+      done(urls)
+    }
   }
 
   /// Скачать всё разом; ответ — когда пришли все (неудачные — без данных).

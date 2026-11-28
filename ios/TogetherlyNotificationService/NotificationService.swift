@@ -31,16 +31,19 @@ final class NotificationService: UNNotificationServiceExtension {
       return
     }
     CoverMedia.texts(cover, to: content)
-    let running = CoverMedia.fetch(CoverMedia.urls(for: cover)) { [weak self] got in
+    CoverMedia.urls(for: cover) { [weak self] urls in
       guard let self else { return }
-      // Копия: по истечении времени из другого потока уйдёт `best`, и одно
-      // содержимое не должно правиться в двух местах разом.
-      guard let working = content.mutableCopy() as? UNMutableNotificationContent else { return }
-      self.deliver(CoverMedia.apply(cover, to: working, media: got))
+      let running = CoverMedia.fetch(urls) { [weak self] got in
+        guard let self else { return }
+        // Копия: по истечении времени из другого потока уйдёт `best`, и одно
+        // содержимое не должно правиться в двух местах разом.
+        guard let working = content.mutableCopy() as? UNMutableNotificationContent else { return }
+        self.deliver(CoverMedia.apply(cover, to: working, media: got))
+      }
+      self.lock.lock()
+      self.tasks = running
+      self.lock.unlock()
     }
-    lock.lock()
-    tasks = running
-    lock.unlock()
   }
 
   override func serviceExtensionTimeWillExpire() {

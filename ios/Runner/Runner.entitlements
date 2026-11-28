@@ -36,5 +36,13 @@
 	     Без неё в App ID подпись сборки падает. -->
 	<key>com.apple.developer.declared-age-range</key>
 	<true/>
+
+	<!-- Уведомления «А»: события партнёра — уведомлениями о сообщении, с его
+	     аватаром в рамке слева (TogetherlyNotificationService, CoverMedia.asMessage).
+	     Возможность включена у App ID com.togetherly.love 28.11.2026 в портале;
+	     прежние профили App Store стали недействительными, релиз создаёт новые
+	     сам (fetch-signing-files берёт только действующие). -->
+	<key>com.apple.developer.usernotifications.communication</key>
+	<true/>
 </dict>
 </plist>
