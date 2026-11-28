@@ -76,6 +76,8 @@ import WidgetKit
     setupAdCoverChannel(engineBridge.pluginRegistry)
     setupAgeSignalsChannel(engineBridge.pluginRegistry)
     setupTimeZoneChannel(engineBridge.pluginRegistry)
+    // Уведомления «А»: категории кнопок и досылка ответов из шторки.
+    NotifCoverBridge.setup(engineBridge.pluginRegistry)
   }
 
   // MARK: - Часовой пояс телефона
@@ -621,6 +623,9 @@ import WidgetKit
     didReceive response: UNNotificationResponse,
     withCompletionHandler completionHandler: @escaping () -> Void
   ) {
+    // Уведомление «А»: нажатие открывает свой экран, кнопки ответа,
+    // «обнять», «прочитано» и снежка телефон выполняет сам.
+    if NotifCoverBridge.handle(response, completion: completionHandler) { return }
     let info = response.notification.request.content.userInfo
     if let invite = reelsInvite(from: info) {
       if reelsDartListens, let channel = reelsInviteChannel {

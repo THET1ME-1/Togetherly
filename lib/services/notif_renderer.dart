@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Platform;
 
@@ -7,6 +8,7 @@ import 'package:flutter/services.dart';
 import '../models/avatar_frame.dart';
 import '../models/push_cover.dart';
 import 'catalog_service.dart';
+import 'locale_service.dart';
 
 /// Своё уведомление видом «А» (28.11.2026): обложку рисует Android
 /// (`notif/NotifCover.kt`, канал `love_app/notif`), как у пуша сервера.
@@ -21,6 +23,45 @@ class NotifRenderer {
   /// Версия отрисовки этой сборки: с ней сервер шлёт пуш данными
   /// (`users.notif_v`, см. `NotifPrefsSync`). 0 — сборка рисовать не умеет.
   static int get version => !kIsWeb && Platform.isAndroid ? 1 : 0;
+
+  /// Виды пушей с обложкой: у каждого своя категория кнопок `tg_<вид>`.
+  static const List<String> coverKinds = [
+    'miss', 'mood', 'chat', 'memory', 'date', 'snowball', 'gift', 'comment', 'draw',
+    'plusgift', 'pair_reset', 'security', 'date_remind', 'evening', 'chest',
+  ];
+
+  /// Категории кнопок для iPhone. Подпись кнопки iPhone берёт из категории,
+  /// а не из пуша, поэтому регистрируем их на языке приложения при запуске и
+  /// при смене языка; подписи — те же, что у сервера (`push_cover.dart`).
+  static List<Map<String, Object?>> iosCategories(String lang) => [
+        for (final kind in coverKinds)
+          {
+            'kind': kind,
+            'actions': buildPushCover(kind, lang, const {}, const _NoLook())?['actions'] ?? const [],
+          },
+      ];
+
+  static bool _listening = false;
+
+  /// Зарегистрировать категории iPhone и обновлять их при смене языка.
+  static Future<void> registerIosCategories() async {
+    if (kIsWeb || !Platform.isIOS) return;
+    Future<void> push() async {
+      try {
+        await _channel.invokeMethod('categories', iosCategories(LocaleService.instance.language.code));
+      } on MissingPluginException {
+        // Канал есть только у движка приложения.
+      } on PlatformException catch (e) {
+        debugPrint('NotifRenderer: категории не легли: ${e.code}');
+      }
+    }
+
+    if (!_listening) {
+      _listening = true;
+      LocaleService.instance.addListener(() => unawaited(push()));
+    }
+    await push();
+  }
 
   /// Показать [cover]. false — не вышло (нет канала, ошибка), тогда звать
   /// прежний показ.
@@ -50,6 +91,17 @@ class NotifRenderer {
       return false;
     }
   }
+}
+
+/// Без картинок: для категорий iPhone нужны только подписи кнопок.
+class _NoLook implements CoverLook {
+  const _NoLook();
+  @override
+  String? still(String catalogId) => null;
+  @override
+  String? moti(String moodId) => null;
+  @override
+  double frameHole(String key) => AvatarFrame.avatarR;
 }
 
 /// Картинки обложки из каталога приложения — те же записи, что у сервера.

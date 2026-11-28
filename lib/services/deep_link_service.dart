@@ -47,7 +47,10 @@ class DeepLinkService {
   // не доезжает — приложение просто открывалось, а настроение не ставилось.
   // Поэтому раздаём такие ссылки отсюда, из единственного места, куда они
   // приходят наверняка.
-  static const _widgetHosts = {'mood', 'miss', 'note', 'memories', 'widgets', 'map', 'doing'};
+  // `open` — нажатие на уведомление «А» (`loveapp://open/<экран>`): на
+  // iPhone `AppDelegate` открывает такую ссылку, и до главной она едет тем же
+  // путём.
+  static const _widgetHosts = {'mood', 'miss', 'note', 'memories', 'widgets', 'map', 'doing', 'open'};
 
   /// Ссылка с виджета рабочего стола, а не приглашение и не письмо.
   static bool isWidgetAction(Uri uri) =>

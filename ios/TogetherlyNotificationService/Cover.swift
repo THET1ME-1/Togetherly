@@ -50,6 +50,8 @@ struct CoverChat: Equatable {
   let frame: String
   let frameHole: Double
   let image: String
+  /// «Отправлю, когда появится связь» — ответ из шторки без сети.
+  let queued: String
 }
 
 struct Cover: Equatable {
@@ -119,7 +121,8 @@ struct Cover: Equatable {
         avatar: https("avatar"),
         frame: https("frame"),
         frameHole: min(31, max(18, hole.isNaN ? 31 : hole)),
-        image: https("image")
+        image: https("image"),
+        queued: c["queued"] as? String ?? ""
       )
     }
     return Cover(

@@ -141,6 +141,7 @@ import '../services/catalog_widget_sync.dart';
 import '../services/mood_service.dart';
 import '../services/timer_service.dart';
 import '../services/notif_prefs_sync.dart';
+import '../services/notif_renderer.dart';
 import '../services/pair_widget_payload.dart';
 import '../services/widget_service.dart';
 import '../models/mascot.dart';
@@ -474,6 +475,8 @@ class _HomeScreenState extends State<HomeScreen> {
     // ни сообщений чата, ни настроения, ни «Скучаю», хотя все тумблеры в
     // приложении показаны включёнными (обращение №133, 06.09.2026).
     unawaited(NotifPrefsSync.pushToServer());
+    // Уведомления «А» на iPhone: кнопки пушей на языке приложения.
+    unawaited(NotifRenderer.registerIosCategories());
 
     // Check if launched from homescreen widget > open Widgets tab
     _checkWidgetLaunch();

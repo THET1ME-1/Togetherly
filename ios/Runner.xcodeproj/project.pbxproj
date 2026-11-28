@@ -43,6 +43,9 @@
 		FD000000000000000000D001 /* Cover.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD000000000000000000A001 /* Cover.swift */; };
 		FD000000000000000000D002 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD000000000000000000A002 /* NotificationService.swift */; };
 		FD000000000000000000E001 /* TogetherlyNotificationService.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = FD000000000000000000C001 /* TogetherlyNotificationService.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		FD000000000000000000D003 /* Cover.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD000000000000000000A001 /* Cover.swift */; };
+		FD000000000000000000D004 /* NotifCoverBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD000000000000000000A003 /* NotifCoverBridge.swift */; };
+		FD000000000000000000D005 /* NotifNetIOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD000000000000000000A004 /* NotifNetIOS.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -158,6 +161,8 @@
 		FD000000000000000000A001 /* Cover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cover.swift; sourceTree = "<group>"; };
 		FD000000000000000000A002 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		FD000000000000000000B001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		FD000000000000000000A003 /* NotifCoverBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotifCoverBridge.swift; sourceTree = "<group>"; };
+		FD000000000000000000A004 /* NotifNetIOS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotifNetIOS.swift; sourceTree = "<group>"; };
 		FD000000000000000000C001 /* TogetherlyNotificationService.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TogetherlyNotificationService.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -272,6 +277,8 @@
 				1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */,
 				1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */,
 				74858FAE1ED2DC5600515810 /* AppDelegate.swift */,
+				FD000000000000000000A003 /* NotifCoverBridge.swift */,
+				FD000000000000000000A004 /* NotifNetIOS.swift */,
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
 			);
 			path = Runner;
@@ -597,6 +604,9 @@
 			files = (
 				74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
+				FD000000000000000000D003 /* Cover.swift in Sources */,
+				FD000000000000000000D004 /* NotifCoverBridge.swift in Sources */,
+				FD000000000000000000D005 /* NotifNetIOS.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
