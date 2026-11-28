@@ -346,6 +346,29 @@ English»). Теперь приложение кладёт код языка в 
         "it": "Lo invio appena torna la connessione", "pt": "Envio quando a conexão voltar",
         "zh": "联网后发送", "uk": "Надішлю, щойно з’явиться зв’язок",
     },
+    # Свои уведомления приложения по расписанию (капсула, праздник, Ту, приглашение).
+    "c_capsule": {
+        "ru": "Капсула времени", "en": "Time capsule", "de": "Zeitkapsel", "fr": "Capsule temporelle",
+        "es": "Cápsula del tiempo", "it": "Capsula del tempo", "pt": "Cápsula do tempo",
+        "zh": "时间胶囊", "uk": "Капсула часу",
+    },
+    "c_celebration": {
+        "ru": "Праздник", "en": "Celebration", "de": "Feiertag", "fr": "Fête", "es": "Celebración",
+        "it": "Festa", "pt": "Comemoração", "zh": "纪念日", "uk": "Свято",
+    },
+    "c_mascot": {
+        "ru": "Ту скучает", "en": "Tu misses you", "de": "Tu vermisst dich", "fr": "Tu s’ennuie de toi",
+        "es": "Tu te echa de menos", "it": "Tu sente la tua mancanza", "pt": "Tu sente sua falta",
+        "zh": "图图想你了", "uk": "Ту сумує",
+    },
+    "c_invite": {
+        "ru": "Приглашение", "en": "Invitation", "de": "Einladung", "fr": "Invitation",
+        "es": "Invitación", "it": "Invito", "pt": "Convite", "zh": "邀请", "uk": "Запрошення",
+    },
+    "a_open_letter": {
+        "ru": "Прочитать", "en": "Read", "de": "Lesen", "fr": "Lire", "es": "Leer", "it": "Leggi",
+        "pt": "Ler", "zh": "阅读", "uk": "Прочитати",
+    },
     "c_failed": {
         "ru": "Не отправилось, открой приложение", "en": "Didn’t go through, open the app",
         "de": "Nicht gesendet, öffne die App", "fr": "Échec de l’envoi, ouvre l’appli",

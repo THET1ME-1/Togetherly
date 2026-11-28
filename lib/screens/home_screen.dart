@@ -142,6 +142,7 @@ import '../services/mood_service.dart';
 import '../services/timer_service.dart';
 import '../services/notif_prefs_sync.dart';
 import '../services/notif_renderer.dart';
+import '../services/capsule_notification_service.dart';
 import '../services/pair_widget_payload.dart';
 import '../services/widget_service.dart';
 import '../models/mascot.dart';
@@ -733,7 +734,10 @@ class _HomeScreenState extends State<HomeScreen> {
     // loveapp://open/<экран> → нажатие на уведомление «А». Только открыть
     // экран: ссылки виджетов сами делают дело (`loveapp://miss` шлёт «Скучаю»).
     if (uri.host == 'open') {
-      _openFromNotification(uri.pathSegments.isEmpty ? 'home' : uri.pathSegments.first);
+      _openFromNotification(
+        uri.pathSegments.isEmpty ? 'home' : uri.pathSegments.first,
+        uri.queryParameters,
+      );
       return;
     }
     // loveapp://widgets → вкладка виджетов (index 1)
@@ -833,14 +837,25 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Экран, на который ведёт уведомление «А» (`push_cover.py`, ссылки
   /// `loveapp://open/<экран>`). Подарок, задание дня и незнакомое — главная:
   /// подарок встречает там, задание лежит карточкой там же.
-  void _openFromNotification(String screen) {
+  void _openFromNotification(String screen, [Map<String, String> query = const {}]) {
     if (!mounted) return;
     final paired = _pairData.isPaired;
     switch (screen) {
       case 'chat' when paired:
         _openChat();
       case 'memories' when paired:
-        _openMemoryLane();
+        // Уведомление капсулы несёт её номер: лента откроет именно её
+        // (тот же ключ, что у прежнего уведомления плагина).
+        final capsule = query['capsule'] ?? '';
+        if (capsule.isNotEmpty) {
+          unawaited(SharedPreferences.getInstance()
+              .then((p) => p.setString(CapsuleNotificationService.pendingKey, capsule))
+              .then((_) {
+            if (mounted) _openMemoryLane();
+          }));
+        } else {
+          _openMemoryLane();
+        }
       case 'mood' when paired:
         _runWidgetAction(Uri.parse('loveapp://mood'));
       case 'draw' when paired:

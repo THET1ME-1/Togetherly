@@ -969,6 +969,24 @@
             android:name=".notif.NotifActionReceiver"
             android:exported="false" />
 
+        <!-- Свои уведомления по расписанию видом «А» (notif/NotifAlarm.kt):
+             срабатывание и восстановление после перезагрузки, как у плагина
+             уведомлений (его ScheduledNotificationBootReceiver тоже не
+             экспортирован — системные рассылки доходят). -->
+        <receiver
+            android:name=".notif.NotifAlarmReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".notif.NotifAlarmBoot"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
         <!-- Фото из сообщения в переписке шторки: шторка читает файл через
              этот поставщик (notif/NotifChat.kt). Свой класс, чтобы не спорить
              в манифесте с поставщиками плагинов. -->

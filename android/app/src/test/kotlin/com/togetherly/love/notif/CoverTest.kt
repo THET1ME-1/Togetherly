@@ -127,6 +127,19 @@ class CoverTest {
     }
 
     @Test
+    fun ежедневное_переносится_на_то_же_время() {
+        val day = 24 * 3600 * 1000L
+        val first = 1_795_000_000_000L
+        // Срок прошёл неделю назад — ближайший будущий день, то же время суток.
+        val now = first + 7 * day + 1000
+        val next = NotifAlarm.nextDay(first, now)
+        assertTrue(next > now)
+        assertTrue(next - now <= day)
+        // Ещё не наступил — не трогаем.
+        assertEquals(first + day, NotifAlarm.nextDay(first + day, first))
+    }
+
+    @Test
     fun буква_без_аватара() {
         assertEquals("А", Tones.monogram(" алина"))
         assertEquals("?", Tones.monogram("  "))

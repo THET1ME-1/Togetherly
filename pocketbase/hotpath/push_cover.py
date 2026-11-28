@@ -55,6 +55,7 @@ def mood_ctx(rec: dict) -> dict:
     "a_hug_back", "a_hug", "a_write", "a_reply", "a_read", "a_open", "a_watch", "a_throw",
     "a_mood", "a_task", "a_chest", "a_mood_back", "a_open_gift", "a_canvas",
     "q_hug", "q_miss", "q_love", "c_you", "c_queued", "c_hugged", "c_failed",
+    "c_capsule", "c_celebration", "c_mascot", "c_invite", "a_open_letter",
 )
 
 
@@ -377,6 +378,62 @@ def _cover(kind, lang, ctx, look):
             "art_big": _картинка(большая),
             "actions": _кнопки(lang, ("chest", "a_chest", "chest")),
             "link": ОТКРЫТЬ + "chest",
+        }
+
+    # ── Свои уведомления приложения по расписанию (`NotifAlarm`): капсула,
+    # праздник, «Ту скучает», приглашение. Собирает их приложение
+    # (`push_cover.dart`), здесь — чтобы вид был один и сверялся примерами.
+
+    if kind == "capsule":
+        # Номер капсулы в ссылке: лента откроет именно её, а не начало ленты.
+        экран = "memories" + (f"?capsule={ctx['capsule_id']}" if ctx.get("capsule_id") else "")
+        return base | {
+            "kicker": пуш("c_capsule", lang),
+            "title": title,
+            "body": body,
+            "tone": "evening",
+            "art": {"app": True},
+            "art_big": {"symbol": "mail"},
+            "actions": _кнопки(lang, ("open", "a_open_letter", экран)),
+            "link": ОТКРЫТЬ + экран,
+        }
+
+    if kind == "celebration":
+        # Годовщина — наградой «вместе N дней» из каталога, если есть; иначе торт.
+        большая = _каталог(look, ctx["art_id"]) if ctx.get("art_id") else None
+        return base | {
+            "kicker": пуш("c_celebration", lang),
+            "title": title,
+            "body": body,
+            "tone": "date",
+            "art": {"app": True},
+            "art_big": {"url": большая} if большая else {"symbol": "cake"},
+            "actions": _кнопки(lang, ("open", "a_open", "home")),
+            "link": ОТКРЫТЬ + "home",
+        }
+
+    if kind == "mascot_miss":
+        return base | {
+            "kicker": пуш("c_mascot", lang),
+            "title": title,
+            "body": body,
+            "tone": "miss",
+            "art": {"app": True},
+            "art_big": _картинка(_каталог(look, "art_act_sad")),
+            "actions": _кнопки(lang, ("open", "a_open", "home")),
+            "link": ОТКРЫТЬ + "home",
+        }
+
+    if kind == "invite":
+        return base | {
+            "kicker": пуш("c_invite", lang),
+            "title": title,
+            "body": body,
+            "tone": "chat",
+            "art": {"app": True},
+            "art_big": _картинка(_каталог(look, "art_guide_wait")),
+            "actions": _кнопки(lang, ("open", "a_open", "home")),
+            "link": ОТКРЫТЬ + "home",
         }
 
     return None

@@ -4,6 +4,8 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/timezone.dart' as tz;
 
 import '../models/avatar_frame.dart';
 import '../models/push_cover.dart';
@@ -66,6 +68,77 @@ class NotifRenderer {
       LocaleService.instance.addListener(() => unawaited(push()));
     }
     await push();
+  }
+
+  /// Своё уведомление по расписанию. На Android — видом «А»: обложка
+  /// хранится до срабатывания и рисуется тем же `NotifCover`, что пуш
+  /// (`NotifAlarm`; плагин рисует запланированное сам, мимо обложки). Иначе
+  /// или если обложки у вида нет — прежним `zonedSchedule`.
+  ///
+  /// [kind] — вид обложки (`capsule`, `celebration`, `mascot_miss`,
+  /// `invite`), [ctx] — что ещё знает обложка (`art_id` у праздника).
+  static Future<void> schedule({
+    required FlutterLocalNotificationsPlugin plugin,
+    required int id,
+    required tz.TZDateTime when,
+    required String title,
+    required String body,
+    required NotificationDetails details,
+    required String channel,
+    required String kind,
+    Map<String, Object?> ctx = const {},
+    AndroidScheduleMode mode = AndroidScheduleMode.inexactAllowWhileIdle,
+    String? payload,
+  }) async {
+    if (version > 0) {
+      final cover = buildPushCover(
+          kind, LocaleService.instance.language.code, {...ctx, 'title': title, 'body': body}, const CatalogCoverLook());
+      if (cover != null) {
+        try {
+          // Прежняя постановка плагином (до этой сборки) сработала бы второй.
+          await plugin.cancel(id: id);
+          final ok = await _channel.invokeMethod<bool>('schedule', {
+            'id': id,
+            'when': when.millisecondsSinceEpoch,
+            'cover': jsonEncode(cover),
+            'title': title,
+            'body': body,
+            // Без метки: отмена плагином по номеру снимает и показанное.
+            'tag': '',
+            'channel': channel,
+            'exact': mode == AndroidScheduleMode.exactAllowWhileIdle || mode == AndroidScheduleMode.exact,
+            'daily': false,
+          });
+          if (ok == true) return;
+        } on MissingPluginException {
+          // Изолят без канала — прежним путём.
+        } on PlatformException catch (e) {
+          debugPrint('NotifRenderer.schedule: ${e.code}');
+        }
+      }
+    }
+    await plugin.zonedSchedule(
+      id: id,
+      title: title,
+      body: body,
+      scheduledDate: when,
+      notificationDetails: details,
+      androidScheduleMode: mode,
+      payload: payload,
+    );
+  }
+
+  /// Снять своё уведомление по расписанию: и плагина, и своё.
+  static Future<void> cancelScheduled(FlutterLocalNotificationsPlugin plugin, int id) async {
+    await plugin.cancel(id: id);
+    if (version == 0) return;
+    try {
+      await _channel.invokeMethod<bool>('cancelScheduled', {'id': id});
+    } on MissingPluginException {
+      // Изолят без канала.
+    } on PlatformException catch (e) {
+      debugPrint('NotifRenderer.cancelScheduled: ${e.code}');
+    }
   }
 
   /// Показать [cover]. false — не вышло (нет канала, ошибка), тогда звать

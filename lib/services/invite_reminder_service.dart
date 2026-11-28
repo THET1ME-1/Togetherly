@@ -8,6 +8,7 @@ import 'package:timezone/timezone.dart' as tz;
 import '../dict_strings.dart';
 import '../utils/notification_permission.dart';
 import 'locale_service.dart';
+import 'notif_renderer.dart';
 
 /// Напоминание тому, кто остался один.
 ///
@@ -82,12 +83,17 @@ class InviteReminderService {
       await requestNotificationPermissionSafely(androidPlugin);
 
       final s = LocaleService.current;
-      await _plugin.zonedSchedule(
+      // Android — видом «А» (`NotifAlarm`): иконка приложения, в развёрнутом
+      // Ту ждёт. Иначе — плагином, как раньше.
+      await NotifRenderer.schedule(
+        plugin: _plugin,
         id: _notificationId,
+        kind: 'invite',
+        channel: _channelId,
         title: s.inviteReminderTitle,
         body: s.inviteReminderBody,
-        scheduledDate: tz.TZDateTime.now(tz.local).add(const Duration(days: 1)),
-        notificationDetails: NotificationDetails(
+        when: tz.TZDateTime.now(tz.local).add(const Duration(days: 1)),
+        details: NotificationDetails(
           android: AndroidNotificationDetails(
             _channelId,
             _channelName,
@@ -102,7 +108,7 @@ class InviteReminderService {
             presentSound: false,
           ),
         ),
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        mode: AndroidScheduleMode.inexactAllowWhileIdle,
       );
     } catch (e) {
       debugPrint('InviteReminderService.schedule failed: $e');
@@ -113,7 +119,7 @@ class InviteReminderService {
   Future<void> cancel() async {
     if (!_initialized) await init();
     try {
-      await _plugin.cancel(id: _notificationId);
+      await NotifRenderer.cancelScheduled(_plugin, _notificationId);
     } catch (e) {
       debugPrint('InviteReminderService.cancel failed: $e');
     }

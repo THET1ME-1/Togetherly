@@ -4,6 +4,7 @@ import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 import '../dict_strings.dart';
+import 'notif_renderer.dart';
 
 class MascotInactivityNotificationService {
   MascotInactivityNotificationService._();
@@ -78,7 +79,7 @@ class MascotInactivityNotificationService {
       await init();
     }
     try {
-      await _plugin.cancel(id: _notificationId);
+      await NotifRenderer.cancelScheduled(_plugin, _notificationId);
     } catch (e) {
       debugPrint('MascotInactivityNotificationService.cancel failed: $e');
     }
@@ -94,13 +95,18 @@ class MascotInactivityNotificationService {
       // в фон нельзя (см. init).
       final scheduledAt = tz.TZDateTime.now(tz.local).add(delay);
 
-      await _plugin.zonedSchedule(
+      // Android — видом «А» (`NotifAlarm`): иконка приложения, в развёрнутом
+      // грустный Ту. Иначе — плагином, как раньше.
+      await NotifRenderer.schedule(
+        plugin: _plugin,
         id: _notificationId,
+        kind: 'mascot_miss',
+        channel: _channelId,
         title: ruEn('Ваш маскот скучает 🥺', 'Your mascot misses you 🥺'),
         body: ruEn('Ты так давно не заходил — войди и обрадуй маскотика 🐾',
             "It's been a while — come back and cheer up your mascot 🐾"),
-        scheduledDate: scheduledAt,
-        notificationDetails: NotificationDetails(
+        when: scheduledAt,
+        details: NotificationDetails(
           android: AndroidNotificationDetails(
             _channelId,
             _channelName,
@@ -115,7 +121,7 @@ class MascotInactivityNotificationService {
             presentSound: true,
           ),
         ),
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        mode: AndroidScheduleMode.exactAllowWhileIdle,
       );
     } catch (e) {
       debugPrint('MascotInactivityNotificationService.schedule failed: $e');

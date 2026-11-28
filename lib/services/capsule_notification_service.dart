@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../dict_strings.dart';
 import '../utils/notification_permission.dart';
 import 'locale_service.dart';
+import 'notif_renderer.dart';
 
 /// Локальное уведомление «капсула времени открылась» на дату [DateTime] открытия.
 /// Планируется через `zonedSchedule` (системный будильник срабатывает и при
@@ -125,12 +126,18 @@ class CapsuleNotificationService {
       final body = (capsuleTitle != null && capsuleTitle.trim().isNotEmpty)
           ? s.capsuleOpenedBodyNamed(capsuleTitle.trim())
           : s.capsuleOpenedBody;
-      await _plugin.zonedSchedule(
+      // Android — видом «А» (`NotifAlarm`): ссылка несёт номер капсулы, и
+      // лента откроет именно её. Иначе — плагином, с номером в payload.
+      await NotifRenderer.schedule(
+        plugin: _plugin,
         id: id,
+        kind: 'capsule',
+        ctx: {'capsule_id': memoryId},
+        channel: _channelId,
         title: s.capsuleOpenedTitle,
         body: body,
-        scheduledDate: tz.TZDateTime.from(openAt, tz.local),
-        notificationDetails: NotificationDetails(
+        when: tz.TZDateTime.from(openAt, tz.local),
+        details: NotificationDetails(
           android: AndroidNotificationDetails(
             _channelId,
             _channelName,
@@ -150,7 +157,7 @@ class CapsuleNotificationService {
         // Неточный режим: не требует спец-разрешения SCHEDULE_EXACT_ALARM
         // (Android 13+ иначе кидает исключение). Для капсулы, открывающейся через
         // недели/месяцы, окно в пару часов несущественно.
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        mode: AndroidScheduleMode.inexactAllowWhileIdle,
       );
     } catch (e) {
       debugPrint('CapsuleNotificationService.schedule failed: $e');

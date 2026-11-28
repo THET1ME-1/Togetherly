@@ -344,6 +344,69 @@ Map<String, Object?>? _buildCover(
         ]),
         'link': '${kCoverOpen}chest',
       };
+    // ── Свои уведомления по расписанию (`NotifAlarm` на Android) ──
+    case 'capsule':
+      // Номер капсулы в ссылке: лента откроет именно её, а не начало ленты.
+      final capsule = _s(ctx, 'capsule_id');
+      final screen = capsule.isEmpty ? 'memories' : 'memories?capsule=$capsule';
+      return {
+        ...base,
+        'kicker': _t('c_capsule', lang),
+        'title': title,
+        'body': body,
+        'tone': 'evening',
+        'art': {'app': true},
+        'art_big': {'symbol': 'mail'},
+        'actions': _buttons(lang, [
+          ['open', 'a_open_letter', screen],
+        ]),
+        'link': '$kCoverOpen$screen',
+      };
+    case 'celebration':
+      // Годовщина — наградой «вместе N дней» из каталога, если есть; иначе торт.
+      final artId = _s(ctx, 'art_id');
+      final big = artId.isEmpty ? null : look.still(artId);
+      return {
+        ...base,
+        'kicker': _t('c_celebration', lang),
+        'title': title,
+        'body': body,
+        'tone': 'date',
+        'art': {'app': true},
+        'art_big': big != null ? {'url': big} : {'symbol': 'cake'},
+        'actions': _buttons(lang, [
+          ['open', 'a_open', 'home'],
+        ]),
+        'link': '${kCoverOpen}home',
+      };
+    case 'mascot_miss':
+      return {
+        ...base,
+        'kicker': _t('c_mascot', lang),
+        'title': title,
+        'body': body,
+        'tone': 'miss',
+        'art': {'app': true},
+        'art_big': _picture(look.still('art_act_sad')),
+        'actions': _buttons(lang, [
+          ['open', 'a_open', 'home'],
+        ]),
+        'link': '${kCoverOpen}home',
+      };
+    case 'invite':
+      return {
+        ...base,
+        'kicker': _t('c_invite', lang),
+        'title': title,
+        'body': body,
+        'tone': 'chat',
+        'art': {'app': true},
+        'art_big': _picture(look.still('art_guide_wait')),
+        'actions': _buttons(lang, [
+          ['open', 'a_open', 'home'],
+        ]),
+        'link': '${kCoverOpen}home',
+      };
   }
   return null;
 }

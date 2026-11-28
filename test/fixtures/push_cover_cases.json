@@ -68,6 +68,24 @@
    {
     "hole": 27
    }
+  ],
+  "art_act_sad": [
+   [
+    "still_sad.png"
+   ],
+   {}
+  ],
+  "art_guide_wait": [
+   [
+    "still_wait.png"
+   ],
+   {}
+  ],
+  "art_ach_together_365": [
+   [
+    "still_year.png"
+   ],
+   {}
   ]
  },
  "cases": [
@@ -745,6 +763,163 @@
      }
     ],
     "link": "loveapp://open/chest"
+   }
+  },
+  {
+   "kind": "capsule",
+   "lang": "ru",
+   "ctx": {
+    "title": "Письмо из прошлого",
+    "body": "Капсула открылась",
+    "capsule_id": "mem123"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "capsule",
+    "failed": "Не отправилось, открой приложение",
+    "kicker": "Капсула времени",
+    "title": "Письмо из прошлого",
+    "body": "Капсула открылась",
+    "tone": "evening",
+    "art": {
+     "app": true
+    },
+    "art_big": {
+     "symbol": "mail"
+    },
+    "actions": [
+     {
+      "id": "open",
+      "label": "Прочитать",
+      "link": "loveapp://open/memories?capsule=mem123"
+     }
+    ],
+    "link": "loveapp://open/memories?capsule=mem123"
+   }
+  },
+  {
+   "kind": "celebration",
+   "lang": "en",
+   "ctx": {
+    "title": "One year together",
+    "body": "Today",
+    "art_id": "art_ach_together_365"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "celebration",
+    "failed": "Didn’t go through, open the app",
+    "kicker": "Celebration",
+    "title": "One year together",
+    "body": "Today",
+    "tone": "date",
+    "art": {
+     "app": true
+    },
+    "art_big": {
+     "url": "https://togetherly.day/api/files/catalog_items/art_ach_together_365/still_year.png"
+    },
+    "actions": [
+     {
+      "id": "open",
+      "label": "Open",
+      "link": "loveapp://open/home"
+     }
+    ],
+    "link": "loveapp://open/home"
+   }
+  },
+  {
+   "kind": "celebration",
+   "lang": "ru",
+   "ctx": {
+    "title": "Завтра день рождения",
+    "body": "Не забудь"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "celebration",
+    "failed": "Не отправилось, открой приложение",
+    "kicker": "Праздник",
+    "title": "Завтра день рождения",
+    "body": "Не забудь",
+    "tone": "date",
+    "art": {
+     "app": true
+    },
+    "art_big": {
+     "symbol": "cake"
+    },
+    "actions": [
+     {
+      "id": "open",
+      "label": "Открыть",
+      "link": "loveapp://open/home"
+     }
+    ],
+    "link": "loveapp://open/home"
+   }
+  },
+  {
+   "kind": "mascot_miss",
+   "lang": "de",
+   "ctx": {
+    "title": "Tu vermisst dich",
+    "body": "Schau rein"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "mascot_miss",
+    "failed": "Nicht gesendet, öffne die App",
+    "kicker": "Tu vermisst dich",
+    "title": "Tu vermisst dich",
+    "body": "Schau rein",
+    "tone": "miss",
+    "art": {
+     "app": true
+    },
+    "art_big": {
+     "url": "https://togetherly.day/api/files/catalog_items/art_act_sad/still_sad.png"
+    },
+    "actions": [
+     {
+      "id": "open",
+      "label": "Öffnen",
+      "link": "loveapp://open/home"
+     }
+    ],
+    "link": "loveapp://open/home"
+   }
+  },
+  {
+   "kind": "invite",
+   "lang": "pt",
+   "ctx": {
+    "title": "Convide seu par",
+    "body": "O código espera"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "invite",
+    "failed": "Não foi enviado, abra o app",
+    "kicker": "Convite",
+    "title": "Convide seu par",
+    "body": "O código espera",
+    "tone": "chat",
+    "art": {
+     "app": true
+    },
+    "art_big": {
+     "url": "https://togetherly.day/api/files/catalog_items/art_guide_wait/still_wait.png"
+    },
+    "actions": [
+     {
+      "id": "open",
+      "label": "Abrir",
+      "link": "loveapp://open/home"
+     }
+    ],
+    "link": "loveapp://open/home"
    }
   }
  ]

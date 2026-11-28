@@ -28,6 +28,9 @@ F = "https://togetherly.day/api/files"
     "gift_bouquet": [["sm_b.webp", "still_bouquet.png"], {}],
     "frame_hearts": [["still_hearts.png"], {}],
     "frame_cloud": [["still_cloud.png"], {"hole": 27}],
+    "art_act_sad": [["still_sad.png"], {}],
+    "art_guide_wait": [["still_wait.png"], {}],
+    "art_ach_together_365": [["still_year.png"], {}],
 }
 
 ПРИМЕРЫ = [
@@ -54,6 +57,11 @@ F = "https://togetherly.day/api/files"
     ("date_remind", "ru", {"title": "Годовщина", "body": "Завтра", "symbol": "cake"}),
     ("evening", "ru", {"title": "Как прошёл день?", "body": "Отметь настроение"}),
     ("chest", "uk", {"title": "Скриня знову повна", "body": "Зазирни"}),
+    ("capsule", "ru", {"title": "Письмо из прошлого", "body": "Капсула открылась", "capsule_id": "mem123"}),
+    ("celebration", "en", {"title": "One year together", "body": "Today", "art_id": "art_ach_together_365"}),
+    ("celebration", "ru", {"title": "Завтра день рождения", "body": "Не забудь"}),
+    ("mascot_miss", "de", {"title": "Tu vermisst dich", "body": "Schau rein"}),
+    ("invite", "pt", {"title": "Convide seu par", "body": "O código espera"}),
 ]
 
 

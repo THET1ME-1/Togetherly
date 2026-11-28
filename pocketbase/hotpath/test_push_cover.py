@@ -205,6 +205,34 @@ class ЧтоИзЗаписи(unittest.TestCase):
                          {"mood_id": "love", "label": "Влюблённость"})
 
 
+class СвоиПоРасписанию(unittest.TestCase):
+    """Уведомления самого приложения по расписанию (капсула, праздник, «Ту
+    скучает», приглашение): слева иконка, в развёрнутом картинка события."""
+
+    def test_капсула_значком_письма(self):
+        c = собрать("capsule", title="Письмо из прошлого", body="Капсула открылась")
+        self.assertEqual(c["kicker"], "Капсула времени")
+        self.assertEqual(c["art"], {"app": True})
+        self.assertEqual(c["art_big"], {"symbol": "mail"})
+        self.assertEqual(c["actions"][0]["link"], "loveapp://open/memories")
+
+    def test_праздник_наградой_или_тортом(self):
+        КАТАЛОГ["art_ach_together_365"] = (["still_y.png"], {})
+        c = собрать("celebration", title="Год вместе", body="Сегодня", art_id="art_ach_together_365")
+        self.assertEqual(c["art_big"]["url"], f"{F}/catalog_items/art_ach_together_365/still_y.png")
+        self.assertEqual(собрать("celebration", title="ДР")["art_big"], {"symbol": "cake"})
+
+    def test_ту_скучает_и_приглашение(self):
+        КАТАЛОГ["art_act_sad"] = (["still_sad.png"], {})
+        КАТАЛОГ["art_guide_wait"] = (["still_wait.png"], {})
+        self.assertTrue(собрать("mascot_miss", title="Ту скучает")["art_big"]["url"].endswith("still_sad.png"))
+        self.assertTrue(собрать("invite", title="Позови")["art_big"]["url"].endswith("still_wait.png"))
+        for вид in ("capsule", "celebration", "mascot_miss", "invite"):
+            c = собрать(вид, title="т", from_uid="u1")
+            self.assertTrue(c["link"].startswith("loveapp://open/"), вид)
+            self.assertNotIn("person", c, вид)
+
+
 class Отправитель(unittest.TestCase):
     """iPhone ставит слева аватар партнёра в рамке (уведомление о сообщении):
     у событий партнёра в обложке есть `person`, у уведомлений приложения — нет."""

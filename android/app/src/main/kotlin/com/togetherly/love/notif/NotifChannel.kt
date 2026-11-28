@@ -35,13 +35,40 @@ object NotifChannel {
                     val raw = call.argument<String>("cover").orEmpty()
                     val title = call.argument<String>("title").orEmpty()
                     val body = call.argument<String>("body").orEmpty()
-                    val tag = call.argument<String>("tag").orEmpty().ifEmpty { "app" }
+                    val tag = call.argument<String>("tag").orEmpty()
                     val id = call.argument<Int>("id") ?: 0
                     val channel = call.argument<String>("channel").orEmpty().ifEmpty { NotifCover.CHANNEL_PARTNER }
                     worker.execute {
                         val shown = showOrPlain(ctx, raw, title, body, tag, id, channel)
                         main.post { result.success(shown) }
                     }
+                }
+                // Своё уведомление по расписанию видом «А» (`NotifAlarm`).
+                "schedule" -> {
+                    val id = call.argument<Int>("id")
+                    val whenMs = call.argument<Number>("when")?.toLong()
+                    if (id == null || whenMs == null) {
+                        result.success(false)
+                    } else {
+                        NotifAlarm.schedule(
+                            ctx,
+                            NotifAlarm.Entry(
+                                id = id, whenMs = whenMs,
+                                cover = call.argument<String>("cover").orEmpty(),
+                                title = call.argument<String>("title").orEmpty(),
+                                body = call.argument<String>("body").orEmpty(),
+                                tag = call.argument<String>("tag").orEmpty(),
+                                channel = call.argument<String>("channel").orEmpty().ifEmpty { NotifCover.CHANNEL_PARTNER },
+                                exact = call.argument<Boolean>("exact") ?: false,
+                                daily = call.argument<Boolean>("daily") ?: false,
+                            ),
+                        )
+                        result.success(true)
+                    }
+                }
+                "cancelScheduled" -> {
+                    call.argument<Int>("id")?.let { NotifAlarm.cancel(ctx, it) }
+                    result.success(true)
                 }
                 // Версия отрисовки: Dart шлёт `notifV` серверу только с ней.
                 "version" -> result.success(1)

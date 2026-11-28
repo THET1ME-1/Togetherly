@@ -165,7 +165,9 @@ object NotifCover {
             return
         }
         try {
-            NotificationManagerCompat.from(ctx).notify(tag, id, builder.build())
+            // Пустая метка — без метки: так ставит плагин уведомлений, и его
+            // отмена по номеру снимает и наше (уведомления по расписанию).
+            NotificationManagerCompat.from(ctx).notify(tag.ifEmpty { null }, id, builder.build())
         } catch (e: SecurityException) {
             Log.w(TAG, "не показано: ${e.message}")
         }
@@ -191,6 +193,6 @@ object NotifCover {
 
     /** Убрать уведомление после выполненного действия из шторки. */
     fun cancel(ctx: Context, tag: String, id: Int) {
-        NotificationManagerCompat.from(ctx).cancel(tag, id)
+        NotificationManagerCompat.from(ctx).cancel(tag.ifEmpty { null }, id)
     }
 }

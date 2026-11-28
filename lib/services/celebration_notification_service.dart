@@ -9,6 +9,7 @@ import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 import 'locale_service.dart';
+import 'notif_renderer.dart';
 
 /// Сервис уведомлений о праздниках: годовщина и день рождения.
 ///
@@ -154,8 +155,8 @@ class CelebrationNotificationService {
     final s = LocaleService.current;
 
     // Годовщина
-    await _plugin.cancel(id: _idAnniversaryEve);
-    await _plugin.cancel(id: _idAnniversaryDay);
+    await NotifRenderer.cancelScheduled(_plugin, _idAnniversaryEve);
+    await NotifRenderer.cancelScheduled(_plugin, _idAnniversaryDay);
     if (anniversaryDate != null) {
       await _scheduleAnnual(
         id: _idAnniversaryEve,
@@ -180,8 +181,8 @@ class CelebrationNotificationService {
     }
 
     // День рождения
-    await _plugin.cancel(id: _idBirthdayEve);
-    await _plugin.cancel(id: _idBirthdayDay);
+    await NotifRenderer.cancelScheduled(_plugin, _idBirthdayEve);
+    await NotifRenderer.cancelScheduled(_plugin, _idBirthdayDay);
     if (birthDate != null) {
       await _scheduleAnnual(
         id: _idBirthdayEve,
@@ -248,12 +249,17 @@ class CelebrationNotificationService {
         );
       }
 
-      await _plugin.zonedSchedule(
+      // Android — видом «А» (`NotifAlarm`): иконка приложения, в развёрнутом
+      // торт. Иначе — плагином, как раньше.
+      await NotifRenderer.schedule(
+        plugin: _plugin,
         id: id,
+        kind: 'celebration',
+        channel: _channelId,
         title: title,
         body: body,
-        scheduledDate: scheduled,
-        notificationDetails: NotificationDetails(
+        when: scheduled,
+        details: NotificationDetails(
           android: AndroidNotificationDetails(
             _channelId,
             _channelName,
@@ -268,7 +274,7 @@ class CelebrationNotificationService {
             presentSound: true,
           ),
         ),
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        mode: AndroidScheduleMode.exactAllowWhileIdle,
       );
       debugPrint(
         'CelebrationNotif: scheduled id=$id at $scheduled ($title)',
@@ -280,10 +286,10 @@ class CelebrationNotificationService {
 
   Future<void> _cancelAll() async {
     await init();
-    await _plugin.cancel(id: _idAnniversaryEve);
-    await _plugin.cancel(id: _idAnniversaryDay);
-    await _plugin.cancel(id: _idBirthdayEve);
-    await _plugin.cancel(id: _idBirthdayDay);
+    await NotifRenderer.cancelScheduled(_plugin, _idAnniversaryEve);
+    await NotifRenderer.cancelScheduled(_plugin, _idAnniversaryDay);
+    await NotifRenderer.cancelScheduled(_plugin, _idBirthdayEve);
+    await NotifRenderer.cancelScheduled(_plugin, _idBirthdayDay);
   }
 
   // ── Helper: дней до следующего события ────────────────────────────────────
