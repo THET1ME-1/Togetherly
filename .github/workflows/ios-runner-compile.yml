@@ -11,6 +11,11 @@ on:
       # Расширение виджетов собирается вместе с приложением: без этой строки
       # правка виджета не проверялась ничем до самого релиза
       - 'ios/TogetherlyWidget/**'
+      # Уведомления «А»: расширение сервиса уведомлений и его проверка.
+      - 'ios/TogetherlyNotificationService/**'
+      - 'ios/Runner.xcodeproj/**'
+      - 'tool/notif_cover_check/**'
+      - 'test/fixtures/push_cover_cases.json'
       - 'ios/Podfile'
       # Своя копия плагина браузера: её Swift тоже собирается только здесь
       - 'third_party/flutter_inappwebview_ios/**'
@@ -82,3 +87,28 @@ jobs:
               exit 1
             fi
           done
+
+      # Уведомления «А»: расширение сервиса уведомлений обязано лечь в
+      # PlugIns обеих сборок с правильным типом, иначе iPhone покажет пуш
+      # без обложки и никто этого не заметит.
+      - name: Расширение уведомлений в приложении
+        run: |
+          set -euo pipefail
+          for APP in build/ios/iphonesimulator/Runner.app build/ios/iphoneos/Runner.app; do
+            EXT="$APP/PlugIns/TogetherlyNotificationService.appex"
+            if [ ! -d "$EXT" ]; then
+              echo "::error::в $APP нет TogetherlyNotificationService.appex"; ls "$APP/PlugIns" || true; exit 1
+            fi
+            POINT=$(/usr/libexec/PlistBuddy -c "Print :NSExtension:NSExtensionPointIdentifier" "$EXT/Info.plist")
+            ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$EXT/Info.plist")
+            echo "$EXT: $POINT, $ID"
+            [ "$POINT" = "com.apple.usernotifications.service" ] || { echo "::error::тип расширения $POINT"; exit 1; }
+            [ "$ID" = "com.togetherly.love.NotificationService" ] || { echo "::error::идентификатор $ID"; exit 1; }
+          done
+
+      # Разбор обложки на Swift — по тем же примерам сервера, что Kotlin и Dart.
+      - name: Разбор обложки по примерам сервера
+        run: |
+          set -euo pipefail
+          swiftc ios/TogetherlyNotificationService/Cover.swift tool/notif_cover_check/main.swift -o /tmp/cover_check
+          /tmp/cover_check test/fixtures/push_cover_cases.json

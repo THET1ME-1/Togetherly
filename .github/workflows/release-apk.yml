@@ -632,6 +632,12 @@ jobs:
             --type IOS_APP_STORE \
             --certificate-key @file:/tmp/cert_key.pem \
             --create
+          # Расширение сервиса уведомлений «А» (TogetherlyNotificationService):
+          # своих прав у него нет, идентификатор и профиль --create заведёт сам.
+          app-store-connect fetch-signing-files "$BUNDLE_ID.NotificationService" \
+            --type IOS_APP_STORE \
+            --certificate-key @file:/tmp/cert_key.pem \
+            --create
           keychain add-certificates
           xcode-project use-profiles
           rm -f /tmp/cert_key.pem
