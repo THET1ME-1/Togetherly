@@ -114,6 +114,7 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
     if let cover, !cover.kicker.isEmpty {
       // Подпись прописными с разрядкой 0,06 em, как в макете.
       kicker.attributedText = NSAttributedString(string: cover.kicker.uppercased(), attributes: [
+        .font: kicker.font as Any,
         .kern: 0.66, .foregroundColor: Self.dynamic(light: tone.label, dark: tone.labelNight),
       ])
       kicker.isHidden = false
@@ -129,6 +130,8 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
     body.attributedText = NSAttributedString(string: full, attributes: [
       .font: UIFontMetrics(forTextStyle: .body).scaledFont(for: .systemFont(ofSize: 15)),
       .paragraphStyle: paragraph,
+      // Цвет явно: у строки с атрибутами `textColor` подписи не действует.
+      .foregroundColor: Self.dynamic(light: 0x524344, dark: 0xD6C9CB),
     ])
     body.isHidden = full.isEmpty
 

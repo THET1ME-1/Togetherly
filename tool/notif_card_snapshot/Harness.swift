@@ -171,8 +171,18 @@ final class HarnessApp: UIResponder, UIApplicationDelegate {
         container.frame.size.height = height
         backdrop.frame.size.height = height + 24
         backdrop.layoutIfNeeded()
-        let shot = UIGraphicsImageRenderer(bounds: backdrop.bounds).image { _ in
-          backdrop.drawHierarchy(in: backdrop.bounds, afterScreenUpdates: true)
+        // Снимок слоями, а не с экрана: приложение стенда на экране может быть
+        // неактивным, и система не успевает прорисовать текст. Каждый слой
+        // рисует себя сам — текст, цвета темы и картинки.
+        func prepare(_ v: UIView) {
+          v.setNeedsDisplay()
+          v.layer.displayIfNeeded()
+          v.subviews.forEach(prepare)
+        }
+        prepare(backdrop)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        let shot = UIGraphicsImageRenderer(bounds: backdrop.bounds).image { ctx in
+          backdrop.layer.render(in: ctx.cgContext)
         }
         save(shot, "\(name)_\(style == .dark ? "dark" : "light")")
         vc.willMove(toParent: nil)
