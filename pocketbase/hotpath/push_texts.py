@@ -187,6 +187,126 @@ English»). Теперь приложение кладёт код языка в 
         "fr": "Dans {n} heures", "es": "Dentro de {n} horas", "it": "Tra {n} ore",
         "pt": "Daqui a {n} horas", "zh": "还有 {n} 小时", "uk": "Через {n} годин",
     },
+
+    # ── Обложка «А» (push_cover.py, 28.11.2026): подпись над заголовком ──
+    "c_miss": {
+        "ru": "Скучаю", "en": "Missing you", "de": "Vermisse dich", "fr": "Tu me manques",
+        "es": "Te extraño", "it": "Mi manchi", "pt": "Saudade", "zh": "想你", "uk": "Сумую",
+    },
+    "c_mood": {
+        "ru": "Настроение", "en": "Mood", "de": "Stimmung", "fr": "Humeur", "es": "Ánimo",
+        "it": "Umore", "pt": "Humor", "zh": "心情", "uk": "Настрій",
+    },
+    "c_mood_today": {
+        "ru": "Настроение на сегодня", "en": "Mood for today", "de": "Stimmung für heute",
+        "fr": "Humeur du jour", "es": "Ánimo de hoy", "it": "Umore di oggi",
+        "pt": "Humor de hoje", "zh": "今天的心情", "uk": "Настрій на сьогодні",
+    },
+    "c_memory": {
+        "ru": "Воспоминание", "en": "Memory", "de": "Erinnerung", "fr": "Souvenir",
+        "es": "Recuerdo", "it": "Ricordo", "pt": "Lembrança", "zh": "回忆", "uk": "Спогад",
+    },
+    "c_memory_new": {
+        "ru": "Новое воспоминание", "en": "New memory", "de": "Neue Erinnerung",
+        "fr": "Nouveau souvenir", "es": "Nuevo recuerdo", "it": "Nuovo ricordo",
+        "pt": "Nova lembrança", "zh": "新回忆", "uk": "Новий спогад",
+    },
+    "c_date_new": {
+        "ru": "Новая дата", "en": "New date", "de": "Neues Datum", "fr": "Nouvelle date",
+        "es": "Nueva fecha", "it": "Nuova data", "pt": "Nova data", "zh": "新日子",
+        "uk": "Нова дата",
+    },
+    "c_date": {
+        "ru": "Наша дата", "en": "Our date", "de": "Unser Datum", "fr": "Notre date",
+        "es": "Nuestra fecha", "it": "La nostra data", "pt": "Nossa data", "zh": "我们的日子",
+        "uk": "Наша дата",
+    },
+    "c_snow": {
+        "ru": "Снежок", "en": "Snowball", "de": "Schneeball", "fr": "Boule de neige",
+        "es": "Bola de nieve", "it": "Palla di neve", "pt": "Bola de neve", "zh": "雪球",
+        "uk": "Сніжка",
+    },
+    "c_evening": {
+        "ru": "Вечернее напоминание", "en": "Evening reminder", "de": "Abenderinnerung",
+        "fr": "Rappel du soir", "es": "Recordatorio de la noche", "it": "Promemoria serale",
+        "pt": "Lembrete da noite", "zh": "晚间提醒", "uk": "Вечірнє нагадування",
+    },
+    "c_chest": {
+        "ru": "Сундук", "en": "Chest", "de": "Truhe", "fr": "Coffre", "es": "Cofre",
+        "it": "Forziere", "pt": "Baú", "zh": "宝箱", "uk": "Скриня",
+    },
+    # Кнопки.
+    "a_hug_back": {
+        "ru": "Обнять в ответ", "en": "Hug back", "de": "Zurück umarmen",
+        "fr": "Câlin en retour", "es": "Devolver el abrazo", "it": "Ricambia l’abbraccio",
+        "pt": "Abraçar de volta", "zh": "回抱", "uk": "Обійняти у відповідь",
+    },
+    "a_hug": {
+        "ru": "Обнять", "en": "Hug", "de": "Umarmen", "fr": "Câlin", "es": "Abrazar",
+        "it": "Abbraccia", "pt": "Abraçar", "zh": "抱抱", "uk": "Обійняти",
+    },
+    "a_write": {
+        "ru": "Написать", "en": "Write", "de": "Schreiben", "fr": "Écrire", "es": "Escribir",
+        "it": "Scrivi", "pt": "Escrever", "zh": "写消息", "uk": "Написати",
+    },
+    "a_reply": {
+        "ru": "Ответить", "en": "Reply", "de": "Antworten", "fr": "Répondre",
+        "es": "Responder", "it": "Rispondi", "pt": "Responder", "zh": "回复",
+        "uk": "Відповісти",
+    },
+    "a_read": {
+        "ru": "Прочитано", "en": "Mark as read", "de": "Gelesen", "fr": "Lu", "es": "Leído",
+        "it": "Letto", "pt": "Lido", "zh": "已读", "uk": "Прочитано",
+    },
+    "a_open": {
+        "ru": "Открыть", "en": "Open", "de": "Öffnen", "fr": "Ouvrir", "es": "Abrir",
+        "it": "Apri", "pt": "Abrir", "zh": "打开", "uk": "Відкрити",
+    },
+    "a_watch": {
+        "ru": "Смотреть", "en": "View", "de": "Ansehen", "fr": "Voir", "es": "Ver",
+        "it": "Guarda", "pt": "Ver", "zh": "查看", "uk": "Дивитися",
+    },
+    "a_throw": {
+        "ru": "Кинуть в ответ", "en": "Throw back", "de": "Zurückwerfen", "fr": "Renvoyer",
+        "es": "Lanzar de vuelta", "it": "Rilancia", "pt": "Jogar de volta", "zh": "扔回去",
+        "uk": "Кинути у відповідь",
+    },
+    "a_mood": {
+        "ru": "Отметить настроение", "en": "Log mood", "de": "Stimmung eintragen",
+        "fr": "Noter l’humeur", "es": "Marcar ánimo", "it": "Segna l’umore",
+        "pt": "Marcar humor", "zh": "记录心情", "uk": "Позначити настрій",
+    },
+    "a_task": {
+        "ru": "Задание дня", "en": "Today’s task", "de": "Aufgabe des Tages",
+        "fr": "Mission du jour", "es": "Tarea del día", "it": "Sfida del giorno",
+        "pt": "Tarefa do dia", "zh": "今日任务", "uk": "Завдання дня",
+    },
+    "a_chest": {
+        "ru": "Открыть сундук", "en": "Open chest", "de": "Truhe öffnen",
+        "fr": "Ouvrir le coffre", "es": "Abrir el cofre", "it": "Apri il forziere",
+        "pt": "Abrir o baú", "zh": "打开宝箱", "uk": "Відкрити скриню",
+    },
+    "a_mood_back": {
+        "ru": "Ответить настроением", "en": "Reply with a mood", "de": "Mit Stimmung antworten",
+        "fr": "Répondre par une humeur", "es": "Responder con un ánimo",
+        "it": "Rispondi con un umore", "pt": "Responder com humor", "zh": "用心情回应",
+        "uk": "Відповісти настроєм",
+    },
+    # Быстрые ответы под полем ответа в чате (только Android).
+    "q_hug": {
+        "ru": "Обнимаю", "en": "Hugging you", "de": "Umarme dich", "fr": "Je te serre fort",
+        "es": "Te abrazo", "it": "Ti abbraccio", "pt": "Te abraço", "zh": "抱抱你",
+        "uk": "Обіймаю",
+    },
+    "q_miss": {
+        "ru": "Скучаю тоже", "en": "Miss you too", "de": "Vermisse dich auch",
+        "fr": "Tu me manques aussi", "es": "Yo también te extraño", "it": "Mi manchi anche tu",
+        "pt": "Também tô com saudade", "zh": "我也想你", "uk": "Теж сумую",
+    },
+    "q_love": {
+        "ru": "Люблю тебя", "en": "Love you", "de": "Hab dich lieb", "fr": "Je t’aime",
+        "es": "Te quiero", "it": "Ti amo", "pt": "Te amo", "zh": "爱你", "uk": "Кохаю тебе",
+    },
 }
 
 
