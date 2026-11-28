@@ -37,6 +37,26 @@ enum NotifCoverBridge {
              tag: (args["tag"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? cover.kind) { ok in
           DispatchQueue.main.async { result(ok) }
         }
+      case "schedule":
+        // Своё уведомление по расписанию (капсула, праздник, Ту, приглашение).
+        guard let args = call.arguments as? [String: Any],
+              let id = (args["id"] as? NSNumber)?.intValue,
+              let when = (args["when"] as? NSNumber)?.int64Value,
+              let raw = args["cover"] as? String, let cover = Cover.parse(raw) else {
+          result(false)
+          return
+        }
+        schedule(cover, raw: raw, id: id, whenMs: when,
+                 title: args["title"] as? String ?? "", body: args["body"] as? String ?? "") { ok in
+          DispatchQueue.main.async { result(ok) }
+        }
+      case "cancelScheduled":
+        if let id = ((call.arguments as? [String: Any])?["id"] as? NSNumber)?.intValue {
+          let center = UNUserNotificationCenter.current()
+          center.removePendingNotificationRequests(withIdentifiers: ["\(id)"])
+          center.removeDeliveredNotifications(withIdentifiers: ["\(id)"])
+        }
+        result(true)
       default:
         result(FlutterMethodNotImplemented)
       }
@@ -94,13 +114,7 @@ enum NotifCoverBridge {
   /// того же вида заменяет прежнее, как на Android.
   private static func show(_ cover: Cover, raw: String, title: String, body: String, tag: String,
                            done: @escaping (Bool) -> Void) {
-    let content = UNMutableNotificationContent()
-    content.title = title
-    content.body = body
-    content.sound = .default
-    content.threadIdentifier = tag
-    content.userInfo = ["cover": raw, "kind": cover.kind]
-    CoverMedia.texts(cover, to: content)
+    let content = local(cover, raw: raw, title: title, body: body, thread: tag)
     CoverMedia.urls(for: cover) { urls in
       CoverMedia.fetch(urls) { got in
         let final = CoverMedia.apply(cover, to: content, media: got)
@@ -108,6 +122,37 @@ enum NotifCoverBridge {
         UNUserNotificationCenter.current().add(request) { error in done(error == nil) }
       }
     }
+  }
+
+  /// По расписанию: картинка качается сейчас и хранится системой до
+  /// срабатывания. Номер — как у плагина уведомлений (`"\(id)"`): его
+  /// отмена по номеру снимает и наше.
+  private static func schedule(_ cover: Cover, raw: String, id: Int, whenMs: Int64, title: String, body: String,
+                               done: @escaping (Bool) -> Void) {
+    let content = local(cover, raw: raw, title: title, body: body, thread: cover.kind)
+    let seconds = max(1, Double(whenMs - NotifNetIOS.nowMs()) / 1000)
+    CoverMedia.urls(for: cover) { urls in
+      CoverMedia.fetch(urls) { got in
+        let final = CoverMedia.apply(cover, to: content, media: got)
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: seconds, repeats: false)
+        let request = UNNotificationRequest(identifier: "\(id)", content: final, trigger: trigger)
+        UNUserNotificationCenter.current().add(request) { error in done(error == nil) }
+      }
+    }
+  }
+
+  /// Своё уведомление: тексты обложки, категория кнопок и метка «наше» —
+  /// по ней `presentsItself` показывает его поверх открытого приложения.
+  private static func local(_ cover: Cover, raw: String, title: String, body: String, thread: String)
+    -> UNMutableNotificationContent {
+    let content = UNMutableNotificationContent()
+    content.title = title
+    content.body = body
+    content.sound = .default
+    content.threadIdentifier = thread
+    content.userInfo = ["cover": raw, "kind": cover.kind, "tg_local": true]
+    CoverMedia.texts(cover, to: content)
+    return content
   }
 
   /// Пропуск входа — в общую группу: расширение уведомлений качает по нему
@@ -126,8 +171,8 @@ enum NotifCoverBridge {
   /// его ставит `PbPushService`, только когда это уместно (не в открытом чате).
   static func presentsItself(_ notification: UNNotification) -> Bool {
     let request = notification.request
-    guard request.identifier.hasPrefix("tg_"), !(request.trigger is UNPushNotificationTrigger) else { return false }
-    return request.content.userInfo["cover"] != nil
+    guard !(request.trigger is UNPushNotificationTrigger) else { return false }
+    return request.content.userInfo["cover"] != nil && (request.content.userInfo["tg_local"] as? Bool) == true
   }
 
   // MARK: - Нажатия

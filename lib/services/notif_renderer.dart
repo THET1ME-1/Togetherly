@@ -35,6 +35,8 @@ class NotifRenderer {
   static const List<String> coverKinds = [
     'miss', 'mood', 'chat', 'memory', 'date', 'snowball', 'gift', 'comment', 'draw',
     'plusgift', 'pair_reset', 'security', 'date_remind', 'evening', 'chest',
+    // Свои уведомления по расписанию.
+    'capsule', 'celebration', 'mascot_miss', 'invite',
   ];
 
   /// Категории кнопок для iPhone. Подпись кнопки iPhone берёт из категории,
@@ -70,9 +72,11 @@ class NotifRenderer {
     await push();
   }
 
-  /// Своё уведомление по расписанию. На Android — видом «А»: обложка
-  /// хранится до срабатывания и рисуется тем же `NotifCover`, что пуш
-  /// (`NotifAlarm`; плагин рисует запланированное сам, мимо обложки). Иначе
+  /// Своё уведомление по расписанию видом «А». Android: обложка хранится до
+  /// срабатывания и рисуется тем же `NotifCover`, что пуш (`NotifAlarm`;
+  /// плагин рисует запланированное сам, мимо обложки). iPhone: системное
+  /// расписание с картинкой, скачанной сейчас (`NotifCoverBridge.schedule`).
+  /// Номер тот же, что у плагина, — его отмена снимает и наше. Без канала
   /// или если обложки у вида нет — прежним `zonedSchedule`.
   ///
   /// [kind] — вид обложки (`capsule`, `celebration`, `mascot_miss`,
@@ -90,7 +94,7 @@ class NotifRenderer {
     AndroidScheduleMode mode = AndroidScheduleMode.inexactAllowWhileIdle,
     String? payload,
   }) async {
-    if (version > 0) {
+    if (canShow) {
       final cover = buildPushCover(
           kind, LocaleService.instance.language.code, {...ctx, 'title': title, 'body': body}, const CatalogCoverLook());
       if (cover != null) {
@@ -131,7 +135,7 @@ class NotifRenderer {
   /// Снять своё уведомление по расписанию: и плагина, и своё.
   static Future<void> cancelScheduled(FlutterLocalNotificationsPlugin plugin, int id) async {
     await plugin.cancel(id: id);
-    if (version == 0) return;
+    if (!canShow) return;
     try {
       await _channel.invokeMethod<bool>('cancelScheduled', {'id': id});
     } on MissingPluginException {
