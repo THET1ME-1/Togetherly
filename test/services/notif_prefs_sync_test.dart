@@ -83,4 +83,62 @@ void main() {
               'notif_comments уже были только в одной из них');
     });
   });
+
+  group('вечернее напоминание (TOG-113)', () {
+    // Выключатели на сервере перевёрнуты, как у сундука. Время уходит всегда:
+    // по нему сервер видит сборку, где напоминание можно выключить, и только
+    // ей его шлёт. `remindCustom` — человек сам трогал настройку, тогда
+    // напоминаем и без привычки.
+    test('не трогал — оба включены, 21:00, по привычке', () {
+      expect(eveningReminderBody(mood: null, task: null, at: null), {
+        'remindMoodOff': false,
+        'remindTaskOff': false,
+        'remindAt': '21:00',
+        'remindCustom': false,
+      });
+    });
+
+    test('выключил одно и выбрал время', () {
+      expect(eveningReminderBody(mood: false, task: true, at: '20:30'), {
+        'remindMoodOff': true,
+        'remindTaskOff': false,
+        'remindAt': '20:30',
+        'remindCustom': true,
+      });
+    });
+
+    test('время по умолчанию — 21:00', () {
+      expect(kEveningReminderDefaultAt, '21:00');
+      expect(remindAtMinutes(null), 21 * 60);
+    });
+
+    test('время туда и обратно, кривое — как по умолчанию', () {
+      expect(remindAtMinutes('20:30'), 20 * 60 + 30);
+      expect(remindAtMinutes('7:05'), 7 * 60 + 5);
+      expect(remindAtOf(7 * 60 + 5), '07:05');
+      expect(remindAtOf(remindAtMinutes('23:59')), '23:59');
+      for (final bad in ['', '24:00', '12:60', 'вечер', '21']) {
+        expect(remindAtMinutes(bad), 21 * 60, reason: bad);
+      }
+    });
+
+    test('поля проходят белый список профиля', () {
+      final pb = File('lib/services/pb_data_service.dart').readAsStringSync();
+      for (final f in [
+        "put('remindMoodOff', 'remind_mood_off')",
+        "put('remindTaskOff', 'remind_task_off')",
+        "put('remindAt', 'remind_at')",
+        "put('remindCustom', 'remind_custom')",
+      ]) {
+        expect(pb.contains(f), isTrue, reason: f);
+      }
+    });
+
+    test('сервер читает те же колонки', () {
+      final script = File('pocketbase/evening_reminder_push.py').readAsStringSync();
+      for (final c in ['remind_mood_off', 'remind_task_off', 'remind_at', 'remind_custom']) {
+        expect(script.contains(c), isTrue, reason: c);
+      }
+    });
+  });
 }

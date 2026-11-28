@@ -41,6 +41,7 @@ import 'package:pocketbase/pocketbase.dart' show ClientException;
 import '../services/pb_auth_service.dart';
 import '../services/support_link_service.dart';
 import '../widgets/settings/change_password_sheet.dart';
+import '../widgets/settings/evening_reminder_block.dart';
 import '../services/pocketbase_service.dart';
 import '../services/notif_prefs_sync.dart';
 import '../services/pb_data_service.dart';
@@ -4266,6 +4267,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                       _toggleDaysTogetherNotif(!_notifDaysTogether, setModal),
                 ),
               ]),
+              // Вечернее напоминание о настроении и задании дня (TOG-113):
+              // своё состояние и сохранение, профилю хранить нечего.
+              const EveningReminderBlock(),
             ],
           ),
           bottom: SizedBox(

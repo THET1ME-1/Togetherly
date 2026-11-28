@@ -35,6 +35,7 @@ import 'feedback.dart';
 import 'doing.dart';
 import 'xmas.dart';
 import 'dates.dart';
+import 'evening_reminder.dart';
 import 'chat_pins.dart';
 
 const Map<String, String> kUkStrings = {
@@ -45,6 +46,7 @@ const Map<String, String> kUkStrings = {
   ...doingUk,
   ...xmasUk,
   ...datesUk,
+  ...eveningReminderUk,
   ...chatPinsUk,
   ...smallAUk,
   ...smallBUk,
