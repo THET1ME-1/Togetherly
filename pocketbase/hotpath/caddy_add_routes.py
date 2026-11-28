@@ -21,6 +21,7 @@ COLLECTIONS = [
     ("wish_categories", "Категории желаний — в hotpath (Postgres). 19.10.2026."),
     ("app_config", "Настройки приложения — копия в hotpath. 19.10.2026."),
     ("gifts", "Подарки: чтение из SQLite в hotpath, запись у PocketBase. 19.10.2026."),
+    ("pair_dates", "Наши даты — только в hotpath (Postgres). 28.11.2026."),
 ]
 # Сюда идёт только чтение (GET): записи с файлами, хуками и рассылкой
 # остаются за PocketBase, hotpath читает те же строки из SQLite.

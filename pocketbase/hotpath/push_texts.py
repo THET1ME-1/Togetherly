@@ -112,6 +112,81 @@ English»). Теперь приложение кладёт код языка в 
         "fr": "Ouvre l’app et renvoie-la", "es": "Abre la app y devuélvela", "it": "Apri l’app e rilanciala",
         "pt": "Abra o app e jogue de volta", "zh": "打开应用扔回去", "uk": "Відкрий і кинь у відповідь",
     },
+    # Наши даты (TOG-61, 28.11.2026). Новая дата от партнёра: заголовок — имя.
+    "date_added": {
+        "ru": "Новая дата: {title}", "en": "New date: {title}", "de": "Neues Datum: {title}",
+        "fr": "Nouvelle date : {title}", "es": "Nueva fecha: {title}", "it": "Nuova data: {title}",
+        "pt": "Nova data: {title}", "zh": "新的日子：{title}", "uk": "Нова дата: {title}",
+    },
+    # Напоминание: заголовок — название даты, без него — это.
+    "date_untitled": {
+        "ru": "Наша дата", "en": "Our date", "de": "Unser Datum", "fr": "Notre date",
+        "es": "Nuestra fecha", "it": "La nostra data", "pt": "Nossa data", "zh": "我们的日子",
+        "uk": "Наша дата",
+    },
+    "date_today": {
+        "ru": "Сегодня", "en": "Today", "de": "Heute", "fr": "Aujourd’hui", "es": "Hoy",
+        "it": "Oggi", "pt": "Hoje", "zh": "就是今天", "uk": "Сьогодні",
+    },
+    "date_tomorrow": {
+        "ru": "Завтра", "en": "Tomorrow", "de": "Morgen", "fr": "Demain", "es": "Mañana",
+        "it": "Domani", "pt": "Amanhã", "zh": "明天", "uk": "Завтра",
+    },
+    "date_now": {
+        "ru": "Начинается сейчас", "en": "Starting now", "de": "Beginnt jetzt",
+        "fr": "Ça commence maintenant", "es": "Empieza ahora", "it": "Inizia ora",
+        "pt": "Começa agora", "zh": "现在开始", "uk": "Починається зараз",
+    },
+    "date_today_at": {
+        "ru": "Сегодня в {time}", "en": "Today at {time}", "de": "Heute um {time}",
+        "fr": "Aujourd’hui à {time}", "es": "Hoy a las {time}", "it": "Oggi alle {time}",
+        "pt": "Hoje às {time}", "zh": "今天 {time}", "uk": "Сьогодні о {time}",
+    },
+    "date_tomorrow_at": {
+        "ru": "Завтра в {time}", "en": "Tomorrow at {time}", "de": "Morgen um {time}",
+        "fr": "Demain à {time}", "es": "Mañana a las {time}", "it": "Domani alle {time}",
+        "pt": "Amanhã às {time}", "zh": "明天 {time}", "uk": "Завтра о {time}",
+    },
+    # «Через 3 дня, в 19:00»: {days} — готовая строка «Через 3 дня».
+    "date_in_days_at": {
+        "ru": "{days}, в {time}", "en": "{days}, at {time}", "de": "{days}, um {time}",
+        "fr": "{days}, à {time}", "es": "{days}, a las {time}", "it": "{days}, alle {time}",
+        "pt": "{days}, às {time}", "zh": "{days}，{time}", "uk": "{days}, о {time}",
+    },
+    # Формы числа: one, few (только ru и uk), many.
+    "date_in_days_one": {
+        "ru": "Через {n} день", "en": "In {n} day", "de": "In {n} Tag", "fr": "Dans {n} jour",
+        "es": "Dentro de {n} día", "it": "Tra {n} giorno", "pt": "Daqui a {n} dia",
+        "zh": "还有 {n} 天", "uk": "Через {n} день",
+    },
+    "date_in_days_few": {"ru": "Через {n} дня", "uk": "Через {n} дні"},
+    "date_in_days_many": {
+        "ru": "Через {n} дней", "en": "In {n} days", "de": "In {n} Tagen", "fr": "Dans {n} jours",
+        "es": "Dentro de {n} días", "it": "Tra {n} giorni", "pt": "Daqui a {n} dias",
+        "zh": "还有 {n} 天", "uk": "Через {n} днів",
+    },
+    "date_in_minutes_one": {
+        "ru": "Через {n} минуту", "en": "In {n} minute", "de": "In {n} Minute",
+        "fr": "Dans {n} minute", "es": "Dentro de {n} minuto", "it": "Tra {n} minuto",
+        "pt": "Daqui a {n} minuto", "zh": "还有 {n} 分钟", "uk": "Через {n} хвилину",
+    },
+    "date_in_minutes_few": {"ru": "Через {n} минуты", "uk": "Через {n} хвилини"},
+    "date_in_minutes_many": {
+        "ru": "Через {n} минут", "en": "In {n} minutes", "de": "In {n} Minuten",
+        "fr": "Dans {n} minutes", "es": "Dentro de {n} minutos", "it": "Tra {n} minuti",
+        "pt": "Daqui a {n} minutos", "zh": "还有 {n} 分钟", "uk": "Через {n} хвилин",
+    },
+    "date_in_hours_one": {
+        "ru": "Через {n} час", "en": "In {n} hour", "de": "In {n} Stunde", "fr": "Dans {n} heure",
+        "es": "Dentro de {n} hora", "it": "Tra {n} ora", "pt": "Daqui a {n} hora",
+        "zh": "还有 {n} 小时", "uk": "Через {n} годину",
+    },
+    "date_in_hours_few": {"ru": "Через {n} часа", "uk": "Через {n} години"},
+    "date_in_hours_many": {
+        "ru": "Через {n} часов", "en": "In {n} hours", "de": "In {n} Stunden",
+        "fr": "Dans {n} heures", "es": "Dentro de {n} horas", "it": "Tra {n} ore",
+        "pt": "Daqui a {n} horas", "zh": "还有 {n} 小时", "uk": "Через {n} годин",
+    },
 }
 
 

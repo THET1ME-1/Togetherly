@@ -59,6 +59,7 @@ import orjson
 import uvicorn
 from fastapi import FastAPI, Request
 import movies
+import date_rules
 from push_texts import пуш
 from fastapi.responses import (ORJSONResponse, JSONResponse, Response,
                                FileResponse)
@@ -492,6 +493,25 @@ COLLECTIONS = {
         "create_owner_field": "author_uid",
         "guard": None, "delete_guard": None,
         "after_create": None, "after_delete": None,
+        "default_sort": "id ASC",
+    },
+    # Наши даты (TOG-61, 28.11.2026): памятные даты пары, только в Postgres.
+    # Заводит автор от своего имени, правит и удаляет любой из пары. После
+    # записи — пуш второму и пересчёт будильников (`_даты_*` ниже).
+    "pair_dates": {
+        "collection_id": os.environ.get("CID_PAIR_DATES", "pbc_pair_dates"),
+        "columns": {
+            "group_id": "text", "author_uid": "text", "title": "text",
+            "symbol": "text", "note": "text", "day": "text",
+            "start_time": "text", "tz": "text", "rrule": "text",
+            "exdates": "json", "reminders": "json",
+            "created": "created", "updated": "auto",
+        },
+        "sortable": {"day", "created", "updated", "id"},
+        "filterable": {"id", "group_id", "author_uid", "day", "updated", "created"},
+        "create_owner_field": "author_uid",
+        "guard": None, "delete_guard": None,
+        "after_create": "date", "after_delete": "date",
         "default_sort": "id ASC",
     },
     # Настройки приложения (19.10.2026): только чтение и без входа, как
@@ -929,7 +949,7 @@ async def _members_pg(group_id: str) -> list | None:
 # у закрывшего его. Ставка на такую отметку и давала «уведомления приходят
 # только при открытом приложении» (две пары, 17.08.2026). Пропущенное сердце
 # хуже лишнего баннера, поэтому здесь фильтр не применяется вовсе.
-БЕЗ_ФИЛЬТРА_ОНЛАЙНА = {"miss"}
+БЕЗ_ФИЛЬТРА_ОНЛАЙНА = {"miss", "date_remind"}
 
 
 async def _push_targets(group_id: str, author_uid: str,
@@ -959,7 +979,7 @@ def _forget_token(uid: str, field: str) -> None:
 
 
 async def _notify_group(group_id: str, author_uid: str, title, body,
-                        thread: str) -> int:
+                        thread: str, only_uid: str = "") -> int:
     """Пуш всем в группе, кроме автора — как notifyGroup в apns_push.js.
 
     [title] и [body] — строка или функция от кода языка получателя
@@ -969,12 +989,17 @@ async def _notify_group(group_id: str, author_uid: str, title, body,
     Возвращает, сколько пушей реально ушло. Это нужно гейту частоты: отметку
     «уже отправляли» нельзя ставить, когда адресатов не осталось (например, все
     сейчас в приложении), иначе проглоченная попытка крадёт следующую минуту.
+
+    [only_uid] — только этому человеку: напоминание о дате у каждого своё,
+    по его поясу.
     """
     try:
         targets = await _push_targets(group_id, author_uid, thread)
     except Exception as e:
         log.warning("push targets %s: %s", group_id, e)
         return 0
+    if only_uid:
+        targets = [t for t in targets if t["uid"] == only_uid]
     отправлено = 0
     for t in targets:
         # Человек выключил этот вид уведомлений в приложении — молчим.
@@ -1602,6 +1627,8 @@ async def _after_create(col: str, rec: dict) -> None:
         await _wake_group(rec.get("group_id") or "", rec.get("user_uid") or "")
     elif kind == "location":
         await _wake_channel(rec.get("channel") or "", rec.get("user_uid") or "")
+    elif kind == "date":
+        await _дата_добавлена(rec)
     elif kind == "mood":
         # Сперва виджет: тихий пуш ниже будит телефон партнёра, и тот должен
         # прочитать уже новое настроение.
@@ -1645,6 +1672,11 @@ async def _after_update(col: str, rec: dict) -> None:
         await _wake_channel(rec.get("channel") or "", rec.get("user_uid") or "")
         return
 
+    # Дату поправили (день, повтор, напоминания) — будильники ставятся заново.
+    if kind == "date":
+        await _даты_пересчитать(rec)
+        return
+
     if kind != "mood":
         return
     # Виджет догоняет отметку до антидребезга уведомлений: баннер можно
@@ -1679,6 +1711,203 @@ def _after_delete(col: str, rec: dict) -> None:
         _count(rec.get("group_id") or "", -1)
     elif kind == "memory":
         _count(rec.get("group_id") or "", -1, field="memories_count")
+    elif kind == "date":
+        asyncio.get_running_loop().create_task(_даты_снять(rec.get("id") or ""))
+
+
+# ── наши даты: пуш о новой дате и будильники напоминаний (TOG-61) ────────────
+#
+# Напоминание шлёт сервер, а не будильник телефона: на Android 14+ точный
+# будильник без особого права опаздывает на часы, а дату, которую завёл
+# партнёр, телефон без открытого приложения не узнает. Будильник — строка
+# `date_alarms` на человека и напоминание: ближайшее срабатывание. Пояс
+# человека берётся из его записи виджета (`tzn`, без него смещение `tz`).
+
+# Не больше напоминаний на дату: столько же даёт форма в приложении.
+ДАТЫ_НАПОМИНАНИЙ_МАКС = 5
+# Сервер лежал дольше — давнее напоминание уже не шлём, ставим следующее.
+ДАТЫ_ОПОЗДАНИЕ_МАКС_С = 6 * 3600
+
+
+def _даты_минуты(сырое) -> list[int]:
+    """Напоминания даты: целые минуты без повторов, не больше пяти."""
+    if isinstance(сырое, str):
+        try:
+            сырое = json.loads(сырое)
+        except ValueError:
+            сырое = []
+    out: list[int] = []
+    for v in сырое if isinstance(сырое, list) else []:
+        try:
+            m = int(v)
+        except (TypeError, ValueError):
+            continue
+        if m not in out and -1439 <= m <= 60 * 24 * 60:
+            out.append(m)
+    return out[:ДАТЫ_НАПОМИНАНИЙ_МАКС]
+
+
+async def _даты_виджеты(group_id: str, uids: list[str]) -> dict:
+    """Данные записей виджета участников (там пояс): uid → dict."""
+    if not uids:
+        return {}
+    async with pg.acquire() as c:
+        rows = await c.fetch(
+            "SELECT user_uid, data FROM widget_data WHERE group_id = $1 AND user_uid = ANY($2)",
+            group_id, uids)
+    out = {}
+    for r in rows:
+        данные = r["data"]
+        if isinstance(данные, str):
+            try:
+                данные = json.loads(данные)
+            except ValueError:
+                данные = {}
+        out[r["user_uid"]] = данные if isinstance(данные, dict) else {}
+    return out
+
+
+async def _даты_пересчитать(rec: dict) -> None:
+    """Будильники одной даты: снять прежние, поставить ближайшие каждому из пары."""
+    from datetime import datetime, timezone
+    дата_id = rec.get("id") or ""
+    group_id = rec.get("group_id") or ""
+    if not дата_id:
+        return
+    участники = (await _members_pg(group_id) or []) if group_id else []
+    минуты = _даты_минуты(rec.get("reminders"))
+    виджеты = await _даты_виджеты(group_id, участники) if минуты else {}
+    сейчас = datetime.now(timezone.utc)
+    строки = []
+    for uid in участники:
+        пояс_ч = date_rules.пояс_человека(виджеты.get(uid), rec.get("tz"))
+        for m in минуты:
+            нашлось = date_rules.следующее(rec, m, пояс_ч, сейчас)
+            if нашлось:
+                строки.append((дата_id, group_id, uid, m, нашлось[1].isoformat(), нашлось[0]))
+    async with pg.acquire() as c:
+        async with c.transaction():
+            await c.execute(
+                "DELETE FROM date_alarms WHERE kind = 'pair_date' AND ref_id = $1", дата_id)
+            if строки:
+                await c.executemany(
+                    "INSERT INTO date_alarms (kind, ref_id, group_id, uid, minutes, occ, fire_at) "
+                    "VALUES ('pair_date', $1, $2, $3, $4, $5, $6) "
+                    "ON CONFLICT (kind, ref_id, uid, minutes) "
+                    "DO UPDATE SET occ = EXCLUDED.occ, fire_at = EXCLUDED.fire_at",
+                    строки)
+
+
+async def _даты_снять(дата_id: str) -> None:
+    """Дату удалили — её будильники больше не нужны."""
+    if not дата_id:
+        return
+    try:
+        async with pg.acquire() as c:
+            await c.execute(
+                "DELETE FROM date_alarms WHERE kind = 'pair_date' AND ref_id = $1", дата_id)
+    except Exception as e:  # noqa: BLE001 — сработает и найдёт пустоту, не страшно
+        log.warning("даты: будильники %s не сняты: %s", дата_id, e)
+
+
+def _имя_человека(uid: str) -> str:
+    try:
+        row = lite.execute("SELECT display_name FROM users WHERE id = ?", (uid,)).fetchone()
+    except sqlite3.Error:
+        return ""
+    return (row[0] or "").strip() if row else ""
+
+
+async def _дата_добавлена(rec: dict) -> None:
+    """Новая дата: второму из пары пуш «Новая дата: …», обоим будильники."""
+    автор = rec.get("author_uid") or ""
+    имя = await asyncio.to_thread(_имя_человека, автор)
+    название = (rec.get("title") or "").strip()
+    await _notify_group(
+        rec.get("group_id") or "", автор,
+        lambda язык: имя or пуш("partner", язык),
+        lambda язык: пуш("date_added", язык, title=название or пуш("date_untitled", язык)),
+        "date")
+    await _даты_пересчитать(rec)
+
+
+async def _дата_напомнить(будильник) -> None:
+    """Сработавший будильник: пуш человеку и следующий будильник."""
+    from datetime import date, datetime, timezone
+    async with pg.acquire() as c:
+        строка = await c.fetchrow("SELECT * FROM pair_dates WHERE id = $1", будильник["ref_id"])
+    if строка is None:
+        return  # дату удалили
+    rec = _record_json("pair_dates", строка)
+    uid = будильник["uid"]
+    if uid not in (await _members_pg(rec["group_id"]) or []):
+        return  # человек ушёл из пары
+    минуты = будильник["minutes"]
+    if минуты not in _даты_минуты(rec.get("reminders")):
+        return  # напоминание убрали, а будильник не успел уйти
+    виджеты = await _даты_виджеты(rec["group_id"], [uid])
+    пояс_ч = date_rules.пояс_человека(виджеты.get(uid), rec.get("tz"))
+    сейчас = datetime.now(timezone.utc)
+    if (сейчас - будильник["fire_at"]).total_seconds() <= ДАТЫ_ОПОЗДАНИЕ_МАКС_С:
+        повтор = date.fromisoformat(будильник["occ"])
+        заголовок = lambda язык: date_rules.текст_напоминания(rec, повтор, пояс_ч, язык, сейчас)[0]
+        текст = lambda язык: date_rules.текст_напоминания(rec, повтор, пояс_ч, язык, сейчас)[1]
+        await _notify_group(rec["group_id"], "", заголовок, текст, "date_remind", only_uid=uid)
+    нашлось = date_rules.следующее(rec, минуты, пояс_ч, сейчас)
+    if not нашлось:
+        return
+    async with pg.acquire() as c:
+        await c.execute(
+            "INSERT INTO date_alarms (kind, ref_id, group_id, uid, minutes, occ, fire_at) "
+            "VALUES ('pair_date', $1, $2, $3, $4, $5, $6) "
+            "ON CONFLICT (kind, ref_id, uid, minutes) DO NOTHING",
+            rec["id"], rec["group_id"], uid, минуты, нашлось[1].isoformat(), нашлось[0])
+
+
+async def _даты_напоминания_worker() -> None:
+    """Раз в двадцать секунд забирает созревшие будильники и шлёт напоминания.
+
+    Строку забирает удаление `FOR UPDATE SKIP LOCKED`: даже если задачу
+    запустят два процесса, один будильник уйдёт ровно один раз.
+    """
+    while True:
+        await asyncio.sleep(20)
+        try:
+            async with pg.acquire() as c:
+                созрели = await c.fetch(
+                    "DELETE FROM date_alarms WHERE id IN ("
+                    "SELECT id FROM date_alarms WHERE fire_at <= now() "
+                    "ORDER BY fire_at LIMIT 200 FOR UPDATE SKIP LOCKED) RETURNING *")
+            for будильник in созрели:
+                if будильник["kind"] != "pair_date":
+                    continue
+                try:
+                    await _дата_напомнить(будильник)
+                except Exception as e:  # noqa: BLE001 — один сбой не роняет остальные
+                    log.warning("даты: напоминание %s сорвалось: %s", будильник["ref_id"], e)
+            if созрели:
+                log.info("даты: напоминаний %d", len(созрели))
+        except Exception as e:  # noqa: BLE001 — воркер не должен умирать
+            log.warning("даты: сбой рассылки: %s", e)
+
+
+async def _даты_пересчёт_worker() -> None:
+    """Все будильники заново: сразу после запуска и раз в три часа.
+
+    Меняется то, о чём дата не знает: человек улетел в другой пояс, пара
+    распалась или в неё вошёл новый человек.
+    """
+    while True:
+        try:
+            async with pg.acquire() as c:
+                все = await c.fetch("SELECT * FROM pair_dates")
+            for строка in все:
+                await _даты_пересчитать(_record_json("pair_dates", строка))
+            if все:
+                log.info("даты: пересчитаны будильники %d дат", len(все))
+        except Exception as e:  # noqa: BLE001 — воркер не должен умирать
+            log.warning("даты: сбой пересчёта: %s", e)
+        await asyncio.sleep(3 * 3600)
 
 
 # ── счётчик групп: батч-воркер поверх SQLite PB ──────────────────────────────
@@ -5429,6 +5658,8 @@ async def _startup():
         "к утру": _deliver_worker,
         "настройки": _app_config_worker,
         "плюс": _plus_flag_worker,
+        "напоминания дат": _даты_напоминания_worker,
+        "пересчёт дат": _даты_пересчёт_worker,
     }
     for задача in _задачи_процесса(фоновая_роль=роль, пары=GROUPS_SRC):
         asyncio.get_running_loop().create_task(работники[задача]())
@@ -5447,7 +5678,8 @@ def _задачи_процесса(фоновая_роль: bool, пары: str)
     if фоновая_роль or пары == "pg":
         задачи.append("счётчики")
     if фоновая_роль:
-        задачи += ["присутствие", "зеркало пар", "к утру", "настройки", "плюс"]
+        задачи += ["присутствие", "зеркало пар", "к утру", "настройки", "плюс",
+                   "напоминания дат", "пересчёт дат"]
     return задачи
 
 
