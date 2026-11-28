@@ -4,6 +4,7 @@ import '../../l10n/dates_text.dart';
 import '../../models/pair_date.dart';
 import '../../models/symbol_catalog.dart';
 import '../../services/locale_service.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/fonts.dart';
 
 /// Карточка «Ближайшая дата» над календарём настроений (вариант «В» макета
@@ -31,7 +32,10 @@ class NextDateCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = scheme;
     final days = daysBetween(now, occurrence.day);
+    // Крупное число — акцентом темы, подписи — читаемым по самой заливке: у
+    // розовой светлой onPrimaryContainer розовый, и мелкий текст им тонул.
     final fg = cs.onPrimaryContainer;
+    final ink = AppThemes.onColor(cs.primaryContainer);
     return Material(
       key: const ValueKey('next-date-card'),
       color: cs.primaryContainer,
@@ -47,7 +51,7 @@ class NextDateCard extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                    child: Text(dt('dt.next'), style: AppFonts.onest(size: 13, weight: 700, color: fg)),
+                    child: Text(dt('dt.next'), style: AppFonts.onest(size: 13, weight: 700, color: ink)),
                   ),
                   Container(
                     width: 44,
@@ -90,11 +94,11 @@ class NextDateCard extends StatelessWidget {
                 dateTitle(occurrence.date, occurrence.day),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: AppFonts.onest(size: 19, weight: 700, color: cs.onSurface),
+                style: AppFonts.onest(size: 19, weight: 700, color: ink),
               ),
               if (line.isNotEmpty) ...[
                 const SizedBox(height: 3),
-                Text(line, style: AppFonts.onest(size: 13.5, color: fg)),
+                Text(line, style: AppFonts.onest(size: 13.5, color: ink.withValues(alpha: 0.72))),
               ],
             ],
           ),

@@ -16,6 +16,12 @@ import '../../../services/widget_service.dart';
 import '../../../theme/app_theme.dart';
 import '../../../theme/profile_theme.dart';
 import '../../../widgets/app_sheet.dart';
+import '../../../l10n/dates_text.dart';
+import '../../../models/pair_date.dart';
+import '../../../models/symbol_catalog.dart';
+import '../../../services/pair_dates_service.dart';
+import '../../../theme/fonts.dart';
+import '../../dates/date_form_screen.dart';
 import '../../plus_screen.dart';
 import 'mood_picker_dialog.dart';
 
@@ -107,6 +113,7 @@ class _DayLogSheetState extends State<_DayLogSheet> {
     _cycle.addListener(_onChanged);
     widget.moodService.addListener(_onChanged);
     widget.pairData.addListener(_onChanged);
+    PairDatesService.instance.addListener(_onChanged);
   }
 
   @override
@@ -114,7 +121,41 @@ class _DayLogSheetState extends State<_DayLogSheet> {
     _cycle.removeListener(_onChanged);
     widget.moodService.removeListener(_onChanged);
     widget.pairData.removeListener(_onChanged);
+    PairDatesService.instance.removeListener(_onChanged);
     super.dispose();
+  }
+
+  bool get _isFuture {
+    final now = DateTime.now();
+    return widget.day.isAfter(DateTime(now.year, now.month, now.day));
+  }
+
+  /// Наши даты в этот день (TOG-61): свои и готовые.
+  List<DateOccurrence> get _dates {
+    if (!widget.pairData.isPaired) return const [];
+    final all = PairDatesService.instance.allFor(widget.pairData, myUid: widget.userData?.uid ?? '');
+    return [for (final d in all) ...d.occurrencesBetween(widget.day, widget.day)];
+  }
+
+  /// Открыть дату или новую дату на этот день — отдельным экраном поверх
+  /// календаря, лист закрывается.
+  void _openDate([DateOccurrence? o]) {
+    if (o != null && o.date.isAuto) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(dt('dt.autoHint'))));
+      return;
+    }
+    final nav = Navigator.of(context);
+    nav.pop();
+    nav.push(MaterialPageRoute<bool>(
+      builder: (_) => DateFormScreen(
+        theme: widget.theme,
+        groupId: widget.pairData.pairId,
+        existing: o?.date,
+        initialDay: widget.day,
+        occurrenceDay: o?.day,
+      ),
+      settings: const RouteSettings(name: '/date_form'),
+    ));
   }
 
   void _onChanged() {
@@ -231,6 +272,27 @@ class _DayLogSheetState extends State<_DayLogSheet> {
   Widget build(BuildContext context) {
     final showCycle = CycleService.availableFor(widget.userData);
     final lanes = _lanes();
+    final future = _isFuture;
+    final paired = widget.pairData.isPaired;
+    final dates = _dates;
+    final event = paired
+        ? _EventCard(
+            scheme: _cs,
+            dates: dates,
+            line: (o) => [
+              if (o.date.repeats && !o.date.isAuto) repeatLine(o.date.rrule, o.date.day!),
+              occurrenceLine(
+                o,
+                myUid: widget.userData?.uid ?? '',
+                partnerName: widget.pairData.partnerDisplayName,
+                partnerGender: widget.widgetService.firstPartnerData?.gender ?? '',
+                withDate: false,
+              ),
+            ].where((t) => t.isNotEmpty).join(' · '),
+            onAdd: () => _openDate(),
+            onOpen: _openDate,
+          )
+        : null;
     // Прокрутка нужна дорожкам: день с десятком смен настроения выше экрана.
     return SheetScaffold(
       child: SingleChildScrollView(
@@ -256,7 +318,9 @@ class _DayLogSheetState extends State<_DayLogSheet> {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    '${_s.dayLogWeekday(widget.day)} · ${_s.dayLogWhat}',
+                    future
+                        ? '${_s.dayLogWeekday(widget.day)} · ${untilText(daysBetween(DateTime.now(), widget.day))}'
+                        : '${_s.dayLogWeekday(widget.day)} · ${_s.dayLogWhat}',
                     style: TextStyle(
                       fontFamily: 'Onest',
                       fontSize: 13.5,
@@ -272,12 +336,15 @@ class _DayLogSheetState extends State<_DayLogSheet> {
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
                 child: lanes,
               ),
+            // Будущий день открывают ради даты — она первой.
+            if (future && event != null) event,
             _LogCard(
               icon: Icons.sentiment_satisfied_rounded,
               title: _s.moodTabLabel,
-              value: _moodValue,
+              value: future ? dt('dt.moodLater') : _moodValue,
               background: _cs.primaryContainer,
               foreground: _cs.onPrimaryContainer,
+              enabled: !future,
               onTap: _openMood,
             ),
             _LogCard(
@@ -296,8 +363,10 @@ class _DayLogSheetState extends State<_DayLogSheet> {
                 value: _cycleValue,
                 background: _cs.errorContainer,
                 foreground: _cs.onErrorContainer,
+                enabled: !future,
                 onTap: _openCycle,
               ),
+            if (!future && event != null) event,
           ],
         ),
       ),
@@ -593,6 +662,142 @@ class _LogCard extends StatelessWidget {
             onTap: enabled ? onTap : null,
             child: content,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  «Событие»: наши даты этого дня (TOG-61)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Пункт листа дня с датами: пусто — «Отметить памятную дату» и «+»; есть
+/// даты — их строки внутри карточки, касание открывает дату.
+class _EventCard extends StatelessWidget {
+  const _EventCard({
+    required this.scheme,
+    required this.dates,
+    required this.line,
+    required this.onAdd,
+    required this.onOpen,
+  });
+
+  final ColorScheme scheme;
+  final List<DateOccurrence> dates;
+  final String Function(DateOccurrence) line;
+  final VoidCallback onAdd;
+  final ValueChanged<DateOccurrence> onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = scheme;
+    final fg = cs.onTertiaryContainer;
+    final header = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(color: fg.withValues(alpha: 0.14), shape: BoxShape.circle),
+            child: Icon(Icons.event_rounded, size: 26, color: fg),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(dt('dt.event'), style: AppFonts.onest(size: 18, weight: 700, letterSpacing: -0.2, color: fg)),
+                const SizedBox(height: 3),
+                Text(
+                  dates.isEmpty ? dt('dt.eventEmpty') : dtCount('dt.eventCount', dates.length),
+                  style: AppFonts.onest(size: 13.5, color: fg.withValues(alpha: 0.78)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Tooltip(
+            message: dt('dt.add'),
+            child: Material(
+              color: fg,
+              shape: const CircleBorder(),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                key: const ValueKey('day-log-add-date'),
+                onTap: onAdd,
+                child: SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: Icon(Icons.add_rounded, size: 22, color: cs.tertiaryContainer),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: Material(
+        key: const ValueKey('day-log-event'),
+        color: cs.tertiaryContainer,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Column(
+          children: [
+            // Пустой пункт целиком — «добавить», как остальные строки листа.
+            dates.isEmpty ? InkWell(onTap: onAdd, child: header) : header,
+            for (final o in dates)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                child: Material(
+                  color: cs.surface.withValues(alpha: 0.55),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    key: ValueKey('day-log-date-${o.date.id}'),
+                    onTap: () => onOpen(o),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(color: fg, borderRadius: BorderRadius.circular(14)),
+                            child: Center(child: SymbolIcon(o.date.symbol, size: 22, color: cs.tertiaryContainer)),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  dateTitle(o.date, o.day),
+                                  style: AppFonts.onest(size: 16, weight: 700, color: cs.onSurface),
+                                ),
+                                if (line(o).isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Text(line(o), style: AppFonts.onest(size: 13, color: cs.onSurfaceVariant)),
+                                ],
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            o.date.isAuto ? Icons.info_outline_rounded : Icons.edit_rounded,
+                            size: 20,
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );

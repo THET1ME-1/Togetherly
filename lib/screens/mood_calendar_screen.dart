@@ -30,6 +30,7 @@ import '../theme/profile_theme.dart';
 import '../widgets/app_sheet.dart';
 import '../widgets/mood/day_mood_lanes.dart';
 import '../theme/cycle_colors.dart';
+import '../utils/calendar_day.dart';
 import '../utils/calendar_swipe.dart';
 import '../utils/cycle_math.dart';
 import '../widgets/cycle/cycle_tips_strip.dart';
@@ -38,6 +39,13 @@ import '../widgets/mood/mood_ring_stats.dart';
 import '../widgets/mood/month_year_wheel.dart';
 import '../widgets/mood/mood_trend_chart.dart';
 import '../widgets/mood_image.dart';
+import '../l10n/dates_text.dart';
+import '../models/date_recurrence.dart' show dayKey;
+import '../models/pair_date.dart';
+import '../services/pair_dates_service.dart';
+import '../widgets/dates/next_date_card.dart';
+import 'dates/date_form_screen.dart';
+import 'dates/pair_dates_screen.dart';
 import 'home/widgets/day_log_sheet.dart';
 
 /// Режим календаря настроений.
@@ -131,6 +139,106 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
     _listenMemories();
     _listenChat();
     unawaited(_loadCustomMoods());
+    // Наши даты (TOG-61): карточка ближайшей сверху и флажки в клетках.
+    _datesService.bind(_pair.isPaired ? _pair.pairId : '');
+    _datesService.addListener(_onChanged);
+  }
+
+  PairDatesService get _datesService => PairDatesService.instance;
+
+  /// Даты пары со всеми готовыми; без пары — пусто.
+  List<PairDate> get _allDates => _datesService.allFor(_pair, myUid: widget.userData?.uid ?? '');
+
+  /// Флажки клеток открытого периода: `ГГГГ-ММ-ДД` → значок первой даты дня.
+  Map<String, String> _flagsFor(List<PairDate> dates) {
+    final byDay = occurrencesByDay(dates, calendarDay(_periodStart, -7), calendarDay(_periodEnd, 7));
+    return {for (final e in byDay.entries) e.key: e.value.first.date.symbol};
+  }
+
+  /// Флажки дат для клеток, считаются один раз за кадр в [build].
+  Map<String, String> _flags = const {};
+
+  Future<void> _openDate(DateOccurrence o) async {
+    if (o.date.isAuto) {
+      await Navigator.of(context).push(MaterialPageRoute<void>(
+        builder: (_) => PairDatesScreen(
+          theme: widget.theme,
+          pair: _pair,
+          userData: widget.userData,
+          widgetService: _ws,
+        ),
+        settings: const RouteSettings(name: '/pair_dates'),
+      ));
+      return;
+    }
+    await Navigator.of(context).push(MaterialPageRoute<bool>(
+      builder: (_) => DateFormScreen(
+        theme: widget.theme,
+        groupId: _pair.pairId,
+        existing: o.date,
+        occurrenceDay: o.day,
+      ),
+      settings: const RouteSettings(name: '/date_form'),
+    ));
+  }
+
+  Future<void> _newDate([DateTime? day]) async {
+    await Navigator.of(context).push(MaterialPageRoute<bool>(
+      builder: (_) => DateFormScreen(theme: widget.theme, groupId: _pair.pairId, initialDay: day),
+      settings: const RouteSettings(name: '/date_form'),
+    ));
+  }
+
+  void _openAllDates() {
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => PairDatesScreen(
+        theme: widget.theme,
+        pair: _pair,
+        userData: widget.userData,
+        widgetService: _ws,
+      ),
+      settings: const RouteSettings(name: '/pair_dates'),
+    ));
+  }
+
+  /// Карточка ближайшей даты и ряд следующих (вариант «В» макета).
+  Widget _datesHeader(ColorScheme scheme, List<PairDate> dates) {
+    final now = DateTime.now();
+    final upcoming = upcomingOccurrences(dates, now);
+    if (upcoming.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+        child: EmptyDatesCard(scheme: scheme, onAdd: _newDate),
+      );
+    }
+    final first = upcoming.first;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+          child: NextDateCard(
+            occurrence: first,
+            scheme: scheme,
+            now: now,
+            line: occurrenceLine(
+              first,
+              myUid: widget.userData?.uid ?? '',
+              partnerName: _pair.partnerDisplayName,
+              partnerGender: _ws.firstPartnerData?.gender ?? '',
+            ),
+            onTap: () => _openDate(first),
+          ),
+        ),
+        const SizedBox(height: 12),
+        UpcomingDatesRow(
+          occurrences: upcoming.skip(1).take(3).toList(),
+          scheme: scheme,
+          onOpen: _openDate,
+          onAll: _openAllDates,
+        ),
+      ],
+    );
   }
 
   /// Свои настроения пары: без них кольцо статистики не знает их названий и
@@ -177,6 +285,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
   void dispose() {
     _mood.removeListener(_onChanged);
     _cycle.removeListener(_onChanged);
+    _datesService.removeListener(_onChanged);
     _memoriesSub?.cancel();
     _chatSub?.cancel();
     super.dispose();
@@ -274,6 +383,8 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
   @override
   Widget build(BuildContext context) {
     final scheme = ProfileTheme.schemeFor(widget.theme);
+    final dates = _allDates;
+    _flags = _flagsFor(dates);
     return Scaffold(
       backgroundColor: widget.theme.surfaceMuted,
       body: CustomScrollView(
@@ -312,6 +423,10 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
               ),
             ],
           ),
+
+          // ── Наши даты: ближайшая крупно и следующие чипами (TOG-61) ──
+          if (_pair.isPaired)
+            SliverToBoxAdapter(child: _datesHeader(scheme, dates)),
 
           // ── Переключатель режима + навигация периода ──
           SliverToBoxAdapter(
@@ -814,33 +929,52 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
   // ═══════════════════════════════════════════
 
   Widget _buildLegend() {
+    final scheme = ProfileTheme.schemeFor(widget.theme);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        GestureDetector(
-          onTap: () => setState(() => _legendExpanded = !_legendExpanded),
-          child: Row(
-            children: [
+        Row(
+          children: [
+            GestureDetector(
+              onTap: () => setState(() => _legendExpanded = !_legendExpanded),
+              child: Row(
+                children: [
+                  Text(
+                    LocaleService.current.moods,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: widget.theme.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  AnimatedRotation(
+                    turns: _legendExpanded ? 0.5 : 0.0,
+                    duration: const Duration(milliseconds: 200),
+                    child: Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      size: 20,
+                      color: widget.theme.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Что значит флажок в углу клетки — рядом с легендой настроений.
+            if (_pair.isPaired) ...[
+              const SizedBox(width: 16),
+              DateFlag(symbol: 'favorite', scheme: scheme, ring: widget.theme.surfaceMuted),
+              const SizedBox(width: 6),
               Text(
-                LocaleService.current.moods,
+                dt('dt.legend'),
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                   color: widget.theme.textSecondary,
                 ),
               ),
-              const SizedBox(width: 4),
-              AnimatedRotation(
-                turns: _legendExpanded ? 0.5 : 0.0,
-                duration: const Duration(milliseconds: 200),
-                child: Icon(
-                  Icons.keyboard_arrow_down_rounded,
-                  size: 20,
-                  color: widget.theme.textMuted,
-                ),
-              ),
             ],
-          ),
+          ],
         ),
         AnimatedCrossFade(
           firstChild: const SizedBox.shrink(),
@@ -1350,13 +1484,18 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
       bg = Color.alphaBlend(periodColor.withValues(alpha: 0.16), bg);
     }
 
+    // Наша дата в этот день — флажок в углу (TOG-61).
+    final flag = _flags[dayKey(day)];
+
     return GestureDetector(
       onTap: () {
         if (isPartner) {
           if (hasMood) _showDayLanes(day, moods);
           return;
         }
-        if (isFuture) return;
+        // Будущий день тоже открывает лист: в нём заводят даты наперёд, а
+        // настроение там недоступно до самого дня.
+        if (isFuture && !_pair.isPaired) return;
         _showDayLog(day);
       },
       onLongPress: hasMood
@@ -1381,6 +1520,8 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
           padding: const EdgeInsets.all(3),
           child: Stack(
             alignment: Alignment.center,
+            // Флажок даты выступает за угол клетки.
+            clipBehavior: Clip.none,
             children: [
           Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -1433,6 +1574,12 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                       if (hasSex) _cycleDot(scheme.primary),
                     ],
                   ),
+                ),
+              if (flag != null)
+                Positioned(
+                  top: -6,
+                  right: -6,
+                  child: DateFlag(symbol: flag, scheme: scheme, ring: scheme.surfaceContainerHigh),
                 ),
             ],
           ),

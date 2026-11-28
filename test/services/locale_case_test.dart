@@ -84,6 +84,24 @@ const _lowercaseOnPurpose = <String>{
   'wlSince', 'wlMissFromMeReply', 'wlMissFromMeName', 'wlDateDayMonth',
   'wlYearNth', 'wlYearTogether', 'wlYearsAlready', 'wlUntilMeet', 'wlInARow',
   'wlTogetherWord', 'wlDaysUntilYears',
+  // Наши даты (TOG-61): слово после числа («6 дней», «Раз в 2 недели»),
+  // уточнения серым рядом с главным («Каждую неделю  в воскресенье», «пн–пт»,
+  // «последний четверг»), хвосты подписи через точку («· из профиля»,
+  // «· добавила Лиза», «· исполнится 27», «через 6 дней»), склейки «до
+  // 15 декабря», «в ср и вс», «за 2 дня в 9:00».
+  'dt.daysWord.1', 'dt.daysWord.2', 'dt.daysWord.5',
+  'dt.inDays.1', 'dt.inDays.2', 'dt.inDays.5',
+  'dt.addedBy.f', 'dt.addedBy.m', 'dt.addedBy.x',
+  'dt.fromProfile', 'dt.fromTimer', 'dt.turns', 'dt.phLocal',
+  'dt.onWd.1', 'dt.onWd.2', 'dt.onWd.3', 'dt.onWd.4', 'dt.onWd.5', 'dt.onWd.6', 'dt.onWd.7',
+  'dt.lastWd.1', 'dt.lastWd.2', 'dt.lastWd.3', 'dt.lastWd.4', 'dt.lastWd.5', 'dt.lastWd.6', 'dt.lastWd.7',
+  'dt.monthDay', 'dt.rWeekdaysDetail', 'dt.onDays', 'dt.until', 'dt.and', 'dt.remAt', 'dt.remWillCome',
+  'dt.unitDay.1', 'dt.unitDay.2', 'dt.unitDay.5',
+  'dt.unitWeek.1', 'dt.unitWeek.2', 'dt.unitWeek.5',
+  'dt.unitMonth.1', 'dt.unitMonth.2', 'dt.unitMonth.5',
+  'dt.unitYear.1', 'dt.unitYear.2', 'dt.unitYear.5',
+  'dt.uMinutes.1', 'dt.uMinutes.2', 'dt.uMinutes.5',
+  'dt.uHours.1', 'dt.uHours.2', 'dt.uHours.5',
 };
 
 /// Строчная, законная только в отдельных языках.
@@ -148,6 +166,8 @@ void main() {
       'drawHintEdit',
       'drawHintDraw',
       'cropAvatarTitle',
+      // Склейка дней «ср и вс» — пробелы вокруг союза.
+      'dt.and',
     };
     final offenders = <String>[];
     for (final entry in kStrings.entries) {

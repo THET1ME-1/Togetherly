@@ -80,6 +80,7 @@ import '../services/pb_auth_service.dart';
 import '../services/presence_service.dart';
 import '../services/tu_wear_service.dart';
 import '../services/zone_share.dart';
+import '../services/pair_dates_service.dart';
 import '../services/centrifugo_service.dart';
 import '../services/locale_service.dart';
 import '../services/rate_limiter_service.dart';
@@ -444,6 +445,9 @@ class _HomeScreenState extends State<HomeScreen> {
     unawaited(ZoneShare.sync(_pairData.pairId));
     // Свой наряд Ту — партнёру: у него Ту в моём наряде.
     TuWearService.instance.bindGroup(_pairData.pairId);
+    // Наши даты (TOG-61): одна подписка на приложение, с ней же календарь
+    // телефона узнаёт о правках партнёра.
+    PairDatesService.instance.bind(_pairData.isPaired ? _pairData.pairId : '');
 
     // Платформа последнего входа. Нужна поддержке: на iOS Togetherly+ не
     // существует, и человек с покупкой видит открытые фичи, ни разу не
@@ -842,6 +846,7 @@ class _HomeScreenState extends State<HomeScreen> {
     PresenceService().start(groupId: _pairData.pairId);
     unawaited(ZoneShare.sync(_pairData.pairId));
     TuWearService.instance.bindGroup(_pairData.pairId);
+    PairDatesService.instance.bind(_pairData.isPaired ? _pairData.pairId : '');
     // Снежки темы «Новый год»: куда бросать и от кого попадание.
     if (_pairData.isPaired) SnowballService.instance.bind(_pairData.pairId, _pairData.partnerDisplayName);
     unawaited(_handlePairChanged());
