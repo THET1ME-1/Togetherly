@@ -15,20 +15,24 @@
     python3 evening_reminder_push.py --uid <id> --any-time   # проверить на себе
 
 Кому и о чём:
-  * сборка знает напоминание: в `users.remind_at` есть время (новые сборки
-    шлют его всегда, по умолчанию 21:00). У выпущенных раньше выключателя нет,
-    а задача требует «может выключить», поэтому им не шлём ничего;
-  * был в приложении за 14 дней (`user_presence`), есть токен, не выключил
-    уведомления целиком;
-  * настроение — если сегодня по его часам не отмечено, выключатель
-    `users.remind_mood_off` не стоит и есть привычка: отмечал хотя бы в 4 дня
-    из последних 14. Замер 27.11.2026: из 36 тысяч, отмечавших хоть раз за две
-    недели, к 21:00 не отметились 27 тысяч, с порогом 4 дня — 9 тысяч;
-  * задание дня — если он в живой паре, задание за его сегодня не выполнено,
-    `users.remind_task_off` не стоит и пара делала задание за последние 3 дня;
-  * сам трогал эти настройки (`users.remind_custom`) — напоминаем без привычки;
+  * сборка знает напоминание: `users.remind_v` ≥ 1 (новые сборки шлют метку
+    всегда). У выпущенных раньше выключателя нет, а задача требует «может
+    выключить», поэтому им не шлём ничего;
+  * был в приложении за 14 дней (`user_presence`), есть токен;
+  * у каждого пункта (`users.remind_mood`, `users.remind_task`) три режима:
+    `on` и `off` выбрал человек — так и делаем; пусто (блок настроек ещё не
+    открывал) — по привычке и если не выключил уведомления целиком.
+    Привычка к настроению — отмечал хотя бы в 4 дня из последних 14 (замер
+    27.11.2026: из 36 тысяч, отмечавших хоть раз за две недели, к 21:00 не
+    отметились 27 тысяч, с порогом 4 дня — 9 тысяч), к заданию — пара делала
+    его за последние 3 дня. Первый показ блока сам записывает положение
+    выключателей явным `on`/`off`, поэтому экран не расходится с сервером;
+  * настроение — если сегодня по его часам не отмечено; задание — если он в
+    живой паре и задание за его сегодня не выполнено;
   * сегодня по своим часам это напоминание ещё не получал
     (`pb_data/.evening_reminder.db`).
+
+Время — `users.remind_at` (пусто — 21:00), его пишет только выбор человека.
 
 Задания в приложении меняются по UTC (`DailyTaskProgress.dayKey`), а день
 человека — по его часам. «Сегодняшним» считается задание с датой не раньше
@@ -36,8 +40,10 @@
 21:00 (в UTC уже завтра) задание было бы «не сделано» всегда, а в Окленде
 засчиталось бы вчерашнее.
 
-Пояс: имя из записи виджета (`widget_data.data.tzn`), без него смещение
-(`data.zone`), без него — из последней отметки настроения, без неё Москва.
+Пояс: `users.remind_tz` (приложение шлёт его с настройками — у человека без
+пары записи виджета может не быть), без него имя из записи виджета
+(`widget_data.data.tzn`), смещение (`data.zone`), смещение из последней
+отметки настроения, без всего — Москва.
 """
 
 import argparse
@@ -136,15 +142,22 @@ def _offset(raw):
     return timezone(timedelta(minutes=minutes if m.group(1) == "+" else -minutes))
 
 
-def zone_of(tzn, zone, mood_tz):
-    """Пояс человека: имя, смещение из виджета, смещение из настроения, Москва."""
-    name = (tzn or "").strip()
-    if name:
+def zone_of(*candidates):
+    """Пояс человека — первый годный из кандидатов (имя IANA или `±ЧЧ:ММ`):
+    пояс из настроек напоминания, имя и смещение из виджета, смещение из
+    последнего настроения. Ничего годного — Москва."""
+    for raw in candidates:
+        text = (raw or "").strip()
+        if not text:
+            continue
+        off = _offset(text)
+        if off:
+            return off
         try:
-            return ZoneInfo(name)
+            return ZoneInfo(text)
         except (ZoneInfoNotFoundError, ValueError):
-            pass
-    return _offset(zone) or _offset(mood_tz) or ZoneInfo(MOSCOW)
+            continue
+    return ZoneInfo(MOSCOW)
 
 
 def parse_pb_time(text):
@@ -192,31 +205,42 @@ def _minus_days(day, n):
     return (datetime.strptime(day, "%Y-%m-%d") - timedelta(days=n)).strftime("%Y-%m-%d")
 
 
+def _mode(user, field):
+    """Режим пункта: `on` и `off` выбрал человек, пусто — по привычке."""
+    v = str(user.get(field) or "").strip().lower()
+    return v if v in ("on", "off") else ""
+
+
 def what_to_remind(user, *, mood_last, mood_days, tasks, paired, day_start, task_day):
     """О чём напомнить: {'mood', 'task'} или пусто. Без сети и базы — тест."""
-    # Время шлют только сборки, где напоминание можно выключить.
-    if not (user.get("remind_at") or "").strip():
+    # Метку `remind_v` шлют только сборки, где напоминание можно выключить.
+    try:
+        if int(user.get("remind_v") or 0) < 1:
+            return set()
+    except (TypeError, ValueError):
         return set()
     if not (user.get("fcm_token") or user.get("apns_token")):
         return set()
     # Метка стоит — значит нули в колонках выбрал человек: выключил всё разом.
-    if user.get("notif_synced_at") and not any(user.get(f) for f in NOTIF_FIELDS):
-        return set()
-    custom = bool(user.get("remind_custom"))
+    # По привычке такого не будим, явно включённое напоминание — его слово.
+    all_off = bool(user.get("notif_synced_at")) and not any(user.get(f) for f in NOTIF_FIELDS)
     need = set()
 
-    if not user.get("remind_mood_off"):
-        marked_today = mood_last is not None and mood_last >= day_start
-        if not marked_today and (custom or mood_days >= HABIT_MOOD_DAYS):
-            need.add("mood")
+    mood = _mode(user, "remind_mood")
+    marked_today = mood_last is not None and mood_last >= day_start
+    mood_habit = mood_days >= HABIT_MOOD_DAYS and not all_off
+    if not marked_today and (mood == "on" or (mood == "" and mood_habit)):
+        need.add("mood")
 
-    if paired and not user.get("remind_task_off"):
+    task = _mode(user, "remind_task")
+    if paired:
         tasks = tasks if isinstance(tasks, dict) else {}
         day = str(tasks.get("date") or "")
         done = tasks.get("done") if isinstance(tasks.get("done"), list) else []
         done_today = bool(done) and day >= task_day
-        habit = bool(done) and day >= _minus_days(task_day, HABIT_TASK_DAYS)
-        if not done_today and (custom or habit):
+        task_habit = (bool(done) and day >= _minus_days(task_day, HABIT_TASK_DAYS)
+                      and not all_off)
+        if not done_today and (task == "on" or (task == "" and task_habit)):
             need.add("task")
     return need
 
@@ -288,18 +312,19 @@ def zones(utc_now):
     return out
 
 
-def reminder_times(con):
-    """Время напоминания тех, чья сборка его знает: uid → `ЧЧ:ММ`."""
+def reminder_users(con):
+    """Те, чья сборка знает напоминание: uid → (время `ЧЧ:ММ` или пусто, пояс).
+    Без полей в базе (до их заведения) — никого."""
     have = {r[1] for r in con.execute("PRAGMA table_info(users)")}
-    if "remind_at" not in have:
+    if not {"remind_v", "remind_at", "remind_tz"} <= have:
         return {}
-    return {uid: at for uid, at in con.execute(
-        "SELECT id, remind_at FROM users WHERE remind_at IS NOT NULL AND remind_at <> ''")}
+    return {uid: (at or "", tz or "") for uid, at, tz in con.execute(
+        "SELECT id, remind_at, remind_tz FROM users WHERE remind_v >= 1")}
 
 
 def load_users(con, uids):
     cols = ["id", "fcm_token", "apns_token", "apns_sandbox", "notif_synced_at", "lang",
-            "remind_mood_off", "remind_task_off", "remind_at", "remind_custom", *NOTIF_FIELDS]
+            "remind_v", "remind_mood", "remind_task", "remind_at", *NOTIF_FIELDS]
     have = {r[1] for r in con.execute("PRAGMA table_info(users)")}
     picked = [c for c in cols if c in have]
     users = {}
@@ -426,7 +451,7 @@ def main():
     con.execute("PRAGMA busy_timeout = 15000")
     utc_now = datetime.now(timezone.utc)
 
-    times = reminder_times(con)
+    times = reminder_users(con)
     pool = set(times) & active_uids(utc_now)
     if args.uid:
         pool = {args.uid} & set(times)
@@ -434,8 +459,9 @@ def main():
 
     due = {}
     for uid in pool:
-        tz = zone_of(*(tz_rows.get(uid) or ["", "", ""]))
-        slot = reminder_slot(utc_now, tz, times.get(uid, ""), force=args.any_time)
+        at, own_tz = times[uid]
+        tz = zone_of(own_tz, *(tz_rows.get(uid) or []))
+        slot = reminder_slot(utc_now, tz, at, force=args.any_time)
         if slot:
             due[uid] = slot
 

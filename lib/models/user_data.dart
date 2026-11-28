@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/pb_coins_service.dart';
 import '../services/plus_access.dart';
 import '../services/home_widget_service.dart';
+import '../services/notif_prefs_sync.dart' show adoptEveningReminder;
 import '../services/pb_data_service.dart';
 import '../services/pocketbase_service.dart';
 import '../services/push_background_service.dart';
@@ -1102,6 +1103,9 @@ class UserData extends ChangeNotifier {
         }
 
         _mascotSleep = MascotSleep.parse(data['mascotSleep']);
+        // Выбор в вечернем напоминании тоже живёт на аккаунте: пустые prefs
+        // нового телефона берут его отсюда, а не умолчание.
+        unawaited(adoptEveningReminder(data));
         // Свои темы приезжают с аккаунтом: переустановил приложение —
         // собранные цвета на месте. Пустой ответ прежних сборок ничего не
         // затирает, иначе тема, заведённая офлайн, пропала бы на входе.

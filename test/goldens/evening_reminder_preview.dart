@@ -46,7 +46,7 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     Future<void> shot(String name, int palette, Brightness b, Map<String, Object> prefs,
-        {double width = 360, double scale = 1}) async {
+        {double width = 360, double scale = 1, bool paired = true}) async {
       SharedPreferences.setMockInitialValues(prefs);
       await tester.binding.setSurfaceSize(Size(width, 560));
       final cs = ProfileTheme.schemeFor(buildAppTheme(kPalettes[palette], b));
@@ -77,7 +77,11 @@ void main() {
                     ),
                   ]),
                   EveningReminderBlock(
-                    onSave: ({required mood, required task, required atMinutes, required custom}) async {},
+                    moodHabit: true,
+                    taskHabit: false,
+                    paired: paired,
+                    loadServer: () async => const {},
+                    onSave: ({mood, task, at}) async {},
                   ),
                 ],
               ),
@@ -99,9 +103,18 @@ void main() {
       });
     }
 
-    await shot('1_light', 0, Brightness.light, {});
-    await shot('2_dark', 0, Brightness.dark, {'flutter.remind_task': false, 'flutter.remind_at': '22:30'});
-    await shot('3_off', 7, Brightness.light, {'flutter.remind_mood': false, 'flutter.remind_task': false});
+    // Первый показ: привычка к настроению есть, к заданиям нет.
+    await shot('1_first_show', 0, Brightness.light, {});
+    await shot('2_dark', 0, Brightness.dark, {
+      'flutter.remind_mood_mode': 'on',
+      'flutter.remind_task_mode': 'off',
+      'flutter.remind_at': '22:30',
+    });
+    await shot('3_off', 7, Brightness.light, {
+      'flutter.remind_mood_mode': 'off',
+      'flutter.remind_task_mode': 'off',
+    });
     await shot('4_narrow', 12, Brightness.dark, {}, width: 320, scale: 1.3);
+    await shot('5_solo', 3, Brightness.light, {}, paired: false);
   });
 }

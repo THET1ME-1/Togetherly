@@ -40,6 +40,10 @@ class DailyTaskService extends ChangeNotifier {
 
   Set<String> get doneToday => _progress.doneOn(DateTime.now());
 
+  /// Прогресс пары как есть — по нему вечернее напоминание решает, есть ли
+  /// у пары привычка к заданиям (`taskHabitOf`).
+  DailyTaskProgress get progress => _progress;
+
   bool isDone(DailyTask task) => doneToday.contains(task.id);
 
   /// Сколько закрыто из набора — для подписи на карточке.

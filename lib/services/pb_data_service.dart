@@ -3412,6 +3412,11 @@ class PbDataService {
       'mascotSleep': d['mascot_sleep'],
       // Свои темы Togetherly+ (до пяти цветов), см. models/custom_theme.dart
       'customThemes': d['custom_themes'],
+      // Выбор в вечернем напоминании: на новом телефоне он приезжает в
+      // пустые prefs (`adoptEveningReminder`), а не затирается умолчанием.
+      'remindMood': d['remind_mood'],
+      'remindTask': d['remind_task'],
+      'remindAt': d['remind_at'],
       'missYouWishes': d['miss_you_wishes'],
       // Когда заведён аккаунт: от неё зависят сезонные темы («Хэллоуин»
       // остаётся у тех, кто пришёл до конца сезона).
@@ -3496,11 +3501,13 @@ class PbDataService {
     put('notifComments', 'notif_comments');
     // Утренний сундук: колонка перевёрнута, ноль — присылать (NotifPrefsSync).
     put('notifChestOff', 'notif_chest_off');
-    // Вечернее напоминание (TOG-113): выключатели перевёрнуты, как у сундука.
-    put('remindMoodOff', 'remind_mood_off');
-    put('remindTaskOff', 'remind_task_off');
+    // Вечернее напоминание (TOG-113): метка сборки, пояс телефона, режимы
+    // пунктов (`on`/`off`, пусто — по привычке) и время.
+    put('remindV', 'remind_v');
+    put('remindTz', 'remind_tz');
+    put('remindMood', 'remind_mood');
+    put('remindTask', 'remind_task');
     put('remindAt', 'remind_at');
-    put('remindCustom', 'remind_custom');
     // Метка «телефон присылал настройки». Без неё сервер не знает, ноль в
     // колонке — выбор человека или ещё не заполненное поле, и молчал тем, кто
     // не открывал вкладку «Профиль» (обращение №133, 06.09.2026).

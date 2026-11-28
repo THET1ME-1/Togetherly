@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:love_app/services/notif_prefs_sync.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Сторож выключателей уведомлений.
 ///
@@ -16,6 +17,8 @@ import 'package:love_app/services/notif_prefs_sync.dart';
 /// Жалоба «Сообщения в чате не приходят, хотя уведомления включены. Нужно
 /// постоянно сидеть в сети, чтобы увидеть» (обращение №133, 06.09.2026).
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('тело запроса', () {
     test('пустые настройки — всё включено, как показывает приложение', () {
       expect(notifPrefsBody(const {}), {
@@ -85,34 +88,59 @@ void main() {
   });
 
   group('вечернее напоминание (TOG-113)', () {
-    // Выключатели на сервере перевёрнуты, как у сундука. Время уходит всегда:
-    // по нему сервер видит сборку, где напоминание можно выключить, и только
-    // ей его шлёт. `remindCustom` — человек сам трогал настройку, тогда
-    // напоминаем и без привычки.
-    test('не трогал — оба включены, 21:00, по привычке', () {
-      expect(eveningReminderBody(mood: null, task: null, at: null, custom: null), {
-        'remindMoodOff': false,
-        'remindTaskOff': false,
-        'remindAt': '21:00',
-        'remindCustom': false,
+    // Метка сборки и пояс уходят всегда: по метке сервер узнаёт сборку, где
+    // напоминание можно выключить. Пункты и время — только выбранные: пустой
+    // телефон (второе устройство, переустановка) не затирает выбор человека.
+    test('пустые prefs — только метка сборки и пояс', () {
+      expect(eveningReminderBody(mood: null, task: null, at: null, tz: 'Europe/Kyiv'), {
+        'remindV': kEveningReminderVersion,
+        'remindTz': 'Europe/Kyiv',
       });
+      expect(eveningReminderBody(mood: null, task: null, at: null, tz: null),
+          {'remindV': kEveningReminderVersion});
     });
 
-    test('выключил одно и выбрал время', () {
-      expect(eveningReminderBody(mood: false, task: true, at: '20:30', custom: true), {
-        'remindMoodOff': true,
-        'remindTaskOff': false,
+    test('выбранное уходит как есть', () {
+      expect(eveningReminderBody(mood: 'off', task: 'on', at: '20:30', tz: 'Asia/Almaty'), {
+        'remindV': kEveningReminderVersion,
+        'remindTz': 'Asia/Almaty',
+        'remindMood': 'off',
+        'remindTask': 'on',
         'remindAt': '20:30',
-        'remindCustom': true,
       });
     });
 
-    // Выключение не должно включать другое: метка «сам настраивал» снимает
-    // порог привычки, и человек, выключивший настроение, начал бы получать
-    // «Задание дня ждёт», которого раньше не было.
-    test('время в prefs ещё не значит «сам настраивал»', () {
-      expect(eveningReminderBody(mood: false, task: true, at: '21:00', custom: null)['remindCustom'],
-          isFalse);
+    test('мусор в prefs не уходит', () {
+      expect(eveningReminderBody(mood: 'maybe', task: '', at: 'вечер', tz: ''),
+          {'remindV': kEveningReminderVersion});
+    });
+
+    test('пустые prefs заполняются с сервера, свои не трогаются', () async {
+      SharedPreferences.setMockInitialValues({'flutter.$kRemindTaskPref': 'on'});
+      await adoptEveningReminder({
+        'remindMood': 'off',
+        'remindTask': 'off',
+        'remindAt': '23:00',
+      });
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString(kRemindMoodPref), 'off');
+      expect(prefs.getString(kRemindTaskPref), 'on', reason: 'своё на телефоне сильнее');
+      expect(prefs.getString(kRemindAtPref), '23:00');
+    });
+
+    test('пустой ответ сервера ничего не пишет', () async {
+      SharedPreferences.setMockInitialValues({});
+      await adoptEveningReminder({'remindMood': '', 'remindTask': null, 'remindAt': ''});
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getKeys(), isEmpty);
+    });
+
+    test('профиль отдаёт поля напоминания', () {
+      final pb = File('lib/services/pb_data_service.dart').readAsStringSync();
+      for (final f in ["'remindMood': d['remind_mood']", "'remindTask': d['remind_task']",
+          "'remindAt': d['remind_at']"]) {
+        expect(pb.contains(f), isTrue, reason: f);
+      }
     });
 
     test('время по умолчанию — 21:00', () {
@@ -133,10 +161,11 @@ void main() {
     test('поля проходят белый список профиля', () {
       final pb = File('lib/services/pb_data_service.dart').readAsStringSync();
       for (final f in [
-        "put('remindMoodOff', 'remind_mood_off')",
-        "put('remindTaskOff', 'remind_task_off')",
+        "put('remindV', 'remind_v')",
+        "put('remindTz', 'remind_tz')",
+        "put('remindMood', 'remind_mood')",
+        "put('remindTask', 'remind_task')",
         "put('remindAt', 'remind_at')",
-        "put('remindCustom', 'remind_custom')",
       ]) {
         expect(pb.contains(f), isTrue, reason: f);
       }
@@ -144,7 +173,7 @@ void main() {
 
     test('сервер читает те же колонки', () {
       final script = File('pocketbase/evening_reminder_push.py').readAsStringSync();
-      for (final c in ['remind_mood_off', 'remind_task_off', 'remind_at', 'remind_custom']) {
+      for (final c in ['remind_v', 'remind_tz', 'remind_mood', 'remind_task', 'remind_at']) {
         expect(script.contains(c), isTrue, reason: c);
       }
     });

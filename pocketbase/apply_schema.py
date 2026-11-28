@@ -96,11 +96,12 @@ USERS_CUSTOM = [
     # Утренний пуш «Сундук снова полный». Перевёрнут намеренно: у старых
     # сборок тут ноль, и ноль значит «присылать».
     boolean("notif_chest_off"),
-    # Вечернее напоминание (TOG-113, evening_reminder_push.py): выключатели
-    # перевёрнуты, как у сундука; `remind_at` шлёт только сборка, где
-    # напоминание можно выключить; `remind_custom` — человек сам настраивал.
-    boolean("remind_mood_off"), boolean("remind_task_off"), text("remind_at"),
-    boolean("remind_custom"),
+    # Вечернее напоминание (TOG-113, evening_reminder_push.py): метка сборки,
+    # режимы пунктов (`on`/`off`, пусто — по привычке), время и пояс.
+    # `remind_mood_off`, `remind_task_off`, `remind_custom` — от первой версии,
+    # их никто не читает, на проде ждут удаления в тихий час.
+    number("remind_v"), text("remind_mood"), text("remind_task"),
+    text("remind_at"), text("remind_tz"),
     jsonf("solo_timers"),
     date("updated_at"), date("last_daily_bonus_at"),
     date("last_memory_reward_at"), text("ad_rewards_date"),

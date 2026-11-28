@@ -1,37 +1,77 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../dict_strings.dart' show trKey;
 import '../../services/notif_prefs_sync.dart';
+import '../../services/pb_data_service.dart';
+import '../../services/pocketbase_service.dart';
 import '../settings_scaffold.dart';
 
+/// Записать выбор: null — пункт не трогать. Уходит на сервер вместе со всем,
+/// что выбрано к этому моменту ([NotifPrefsSync.saveEveningReminder]).
 typedef EveningReminderSave = Future<void> Function({
-  required bool mood,
-  required bool task,
-  required int atMinutes,
-  required bool custom,
+  String? mood,
+  String? task,
+  String? at,
 });
+
+/// Свой профиль с сервера (`remindMood`, `remindTask`, `remindAt`); null —
+/// сервер не ответил.
+typedef EveningReminderServer = Future<Map<String, dynamic>?> Function();
 
 /// Блок «Вечернее напоминание» в листе уведомлений (TOG-113): о чём
 /// напоминать и во сколько. Пуш шлёт сервер (`evening_reminder_push.py`) и
 /// только если что-то из выбранного за день не сделано.
+///
+/// Экран обязан показывать то, что сервер сделает. Тому, кто блок не
+/// открывал, сервер напоминает по привычке; первый показ записывает положение
+/// выключателей явным `on`/`off`. Сперва спрашиваем сервер — выбор мог быть
+/// сделан на другом телефоне, — и только если там пусто, решает привычка.
 class EveningReminderBlock extends StatefulWidget {
-  const EveningReminderBlock({super.key, this.onSave});
+  const EveningReminderBlock({
+    super.key,
+    required this.moodHabit,
+    required this.taskHabit,
+    required this.paired,
+    this.onSave,
+    this.loadServer,
+  });
 
-  /// Куда сохранять. В приложении — prefs и профиль на сервере, в тесте свой.
+  /// Привычка к настроению и к заданиям (`moodHabitOf`, `taskHabitOf`):
+  /// начальное положение выключателей при первом показе.
+  final bool moodHabit;
+  final bool taskHabit;
+
+  /// Без пары задания нет — строки задания тоже.
+  final bool paired;
+
   final EveningReminderSave? onSave;
+  final EveningReminderServer? loadServer;
 
   @override
   State<EveningReminderBlock> createState() => _EveningReminderBlockState();
 }
 
 class _EveningReminderBlockState extends State<EveningReminderBlock> {
-  bool _mood = true;
-  bool _task = true;
-  int _at = remindAtMinutes(null);
+  /// `on`/`off` — выбор человека; null — ещё не решено.
+  String? _mood;
+  String? _task;
 
-  /// Человек выбрал время или включил пункт (см. [kRemindCustomPref]).
-  bool _custom = false;
+  /// `ЧЧ:ММ`, выбранное человеком; null — 21:00 по умолчанию.
+  String? _at;
+
+  /// Пока prefs и сервер не прочитаны, выключатели не нажимаются: поздний
+  /// ответ перетёр бы нажатие, а сохранение ушло бы с умолчаниями.
+  bool _loaded = false;
+
+  /// Сохранения по очереди: при быстрых нажатиях запросы иначе приходят на
+  /// сервер в любом порядке, и там остаётся не последнее.
+  Future<void> _chain = Future.value();
+
+  bool get _moodOn => (_mood ?? (widget.moodHabit ? 'on' : 'off')) == 'on';
+  bool get _taskOn => (_task ?? (widget.taskHabit ? 'on' : 'off')) == 'on';
 
   @override
   void initState() {
@@ -39,60 +79,95 @@ class _EveningReminderBlockState extends State<EveningReminderBlock> {
     _load();
   }
 
-  Future<void> _load() async {
+  Future<void> _readPrefs() async {
     final prefs = await SharedPreferences.getInstance();
+    _mood = remindModeOf(prefs.getString(kRemindMoodPref));
+    _task = remindModeOf(prefs.getString(kRemindTaskPref));
+    _at = remindAtValid(prefs.getString(kRemindAtPref));
+  }
+
+  bool get _undecided => _mood == null || (widget.paired && _task == null);
+
+  Future<void> _load() async {
+    await _readPrefs();
+    var serverAnswered = false;
+    if (_undecided) {
+      Map<String, dynamic>? server;
+      try {
+        server = await (widget.loadServer ?? _ownProfile)()
+            .timeout(const Duration(seconds: 6));
+      } catch (_) {
+        server = null;
+      }
+      if (server != null) {
+        serverAnswered = true;
+        await adoptEveningReminder(server);
+        await _readPrefs();
+      }
+    }
     if (!mounted) return;
+    var decided = false;
     setState(() {
-      _mood = prefs.getBool(kRemindMoodPref) ?? true;
-      _task = prefs.getBool(kRemindTaskPref) ?? true;
-      _at = remindAtMinutes(prefs.getString(kRemindAtPref));
-      _custom = prefs.getBool(kRemindCustomPref) ?? false;
+      // Решение первого показа — только когда сервер ответил: без ответа
+      // можно затереть выбор, сделанный на другом телефоне. Тогда показываем
+      // привычку и ждём нажатия или следующего открытия.
+      if (serverAnswered && _mood == null) {
+        _mood = widget.moodHabit ? 'on' : 'off';
+        decided = true;
+      }
+      if (serverAnswered && widget.paired && _task == null) {
+        _task = widget.taskHabit ? 'on' : 'off';
+        decided = true;
+      }
+      _loaded = true;
     });
+    if (decided) _queueSave();
   }
 
-  Future<void> _save() {
-    final save = widget.onSave ?? NotifPrefsSync.saveEveningReminder;
-    return save(mood: _mood, task: _task, atMinutes: _at, custom: _custom);
+  static Future<Map<String, dynamic>?> _ownProfile() async {
+    final uid = PocketBaseService().userId ?? '';
+    if (uid.isEmpty) return null;
+    return PbDataService().loadUserProfileMap(uid);
   }
 
-  // Включение — знак «хочу напоминание», выключение метку не ставит: иначе
-  // выключивший настроение начал бы получать задание без привычки к нему.
+  void _queueSave() {
+    // Каждое сохранение читает состояние в момент отправки: последнее в
+    // очереди уносит итог, сколько бы нажатий ни было.
+    _chain = _chain.then((_) {
+      final save = widget.onSave ?? NotifPrefsSync.saveEveningReminder;
+      return save(mood: _mood, task: _task, at: _at);
+    }).catchError((Object _) {});
+  }
+
   void _setMood(bool v) {
-    setState(() {
-      _mood = v;
-      _custom = _custom || v;
-    });
-    _save();
+    setState(() => _mood = v ? 'on' : 'off');
+    _queueSave();
   }
 
   void _setTask(bool v) {
-    setState(() {
-      _task = v;
-      _custom = _custom || v;
-    });
-    _save();
+    setState(() => _task = v ? 'on' : 'off');
+    _queueSave();
   }
 
   Future<void> _pickTime() async {
+    final minutes = remindAtMinutes(_at);
     final picked = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay(hour: _at ~/ 60, minute: _at % 60),
+      initialTime: TimeOfDay(hour: minutes ~/ 60, minute: minutes % 60),
       helpText: trKey('er.title'),
     );
     if (picked == null || !mounted) return;
-    setState(() {
-      _at = picked.hour * 60 + picked.minute;
-      _custom = true;
-    });
-    await _save();
+    setState(() => _at = remindAtOf(picked.hour * 60 + picked.minute));
+    _queueSave();
   }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final anyOn = _mood || _task;
+    final anyOn = _moodOn || (widget.paired && _taskOn);
+    final minutes = remindAtMinutes(_at);
     final time = MaterialLocalizations.of(context).formatTimeOfDay(
-      TimeOfDay(hour: _at ~/ 60, minute: _at % 60),
+      TimeOfDay(hour: minutes ~/ 60, minute: minutes % 60),
       alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
     );
 
@@ -106,18 +181,19 @@ class _EveningReminderBlockState extends State<EveningReminderBlock> {
             icon: Icons.emoji_emotions_rounded,
             title: trKey('er.mood'),
             subtitle: trKey('er.moodSub'),
-            trailing: Switch(value: _mood, onChanged: _setMood),
-            onTap: () => _setMood(!_mood),
+            trailing: Switch(value: _moodOn, onChanged: _loaded ? _setMood : null),
+            onTap: _loaded ? () => _setMood(!_moodOn) : null,
           ),
-          SettingsRow(
-            key: const ValueKey('er-task'),
-            icon: Icons.task_alt_rounded,
-            title: trKey('er.task'),
-            subtitle: trKey('er.taskSub'),
-            trailing: Switch(value: _task, onChanged: _setTask),
-            onTap: () => _setTask(!_task),
-          ),
-          // Оба выключены — время ни к чему, строка гаснет и не нажимается.
+          if (widget.paired)
+            SettingsRow(
+              key: const ValueKey('er-task'),
+              icon: Icons.task_alt_rounded,
+              title: trKey('er.task'),
+              subtitle: trKey('er.taskSub'),
+              trailing: Switch(value: _taskOn, onChanged: _loaded ? _setTask : null),
+              onTap: _loaded ? () => _setTask(!_taskOn) : null,
+            ),
+          // Выключено всё — время ни к чему, строка гаснет и не нажимается.
           Opacity(
             opacity: anyOn ? 1 : 0.45,
             child: SettingsRow(
@@ -140,7 +216,7 @@ class _EveningReminderBlockState extends State<EveningReminderBlock> {
                   const SettingsChevron(),
                 ],
               ),
-              onTap: anyOn ? _pickTime : null,
+              onTap: _loaded && anyOn ? _pickTime : null,
             ),
           ),
         ]),

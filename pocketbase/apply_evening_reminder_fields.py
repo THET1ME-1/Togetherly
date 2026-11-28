@@ -2,17 +2,22 @@
 """Заводит в `users` поля вечернего напоминания (TOG-113,
 `pocketbase/evening_reminder_push.py`):
 
-  * `remind_mood_off`, `remind_task_off` — выключатели «настроение» и «задание
-    дня». Перевёрнуты, как `notif_chest_off`: у всех новое булево поле — ноль,
-    и ноль обязан значить «напоминать»;
-  * `remind_at` — время `ЧЧ:ММ` по часам человека. Шлют его только сборки,
-    где напоминание можно выключить; пусто — сборка старая, не напоминаем;
-  * `remind_custom` — человек сам трогал настройку: напоминаем без привычки.
+  * `remind_v` — метка «сборка знает напоминание». Шлют её только сборки, где
+    напоминание можно выключить; без неё сервер не напоминает вовсе;
+  * `remind_mood`, `remind_task` — режим пункта: `on`, `off` или пусто («по
+    привычке» — человек блок настроек не открывал);
+  * `remind_at` — время `ЧЧ:ММ` по часам человека, пусто — 21:00;
+  * `remind_tz` — пояс телефона (`Europe/Kyiv`): у человека без пары записи
+    виджета с поясом может не быть.
 
-Пишет их приложение (`NotifPrefsSync`, лист «Вечернее напоминание»).
+Пишет их приложение (`NotifPrefsSync`, блок «Вечернее напоминание»).
 Коллекция `users` системная и в `collections_schema.json` не выгружается,
 поэтому правим только сервер (объявлено и в `USERS_CUSTOM` apply_schema.py).
 Идемпотентно.
+
+Поля первой версии (`remind_mood_off`, `remind_task_off`, `remind_custom`,
+заведены 28.11.2026 в 13:35) никто не читает. Удаление колонки переписывает
+таблицу `users` целиком, поэтому оно — отдельным делом в тихий час.
 
 Запуск: PB_EMAIL=.. PB_PW=.. python3 pocketbase/apply_evening_reminder_fields.py
 """
@@ -27,10 +32,11 @@ PB_EMAIL = os.environ.get("PB_EMAIL", "")
 PB_PW = os.environ.get("PB_PW", "")
 
 WANTED = [
-    {"name": "remind_mood_off", "type": "bool"},
-    {"name": "remind_task_off", "type": "bool"},
+    {"name": "remind_v", "type": "number", "onlyInt": True},
+    {"name": "remind_mood", "type": "text", "max": 3},
+    {"name": "remind_task", "type": "text", "max": 3},
     {"name": "remind_at", "type": "text", "max": 5},
-    {"name": "remind_custom", "type": "bool"},
+    {"name": "remind_tz", "type": "text", "max": 64},
 ]
 
 

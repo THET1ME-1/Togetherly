@@ -44,6 +44,9 @@ import '../widgets/settings/change_password_sheet.dart';
 import '../widgets/settings/evening_reminder_block.dart';
 import '../services/pocketbase_service.dart';
 import '../services/notif_prefs_sync.dart';
+import '../models/evening_reminder.dart';
+import '../services/daily_task_service.dart';
+import '../services/mood_service.dart';
 import '../services/pb_data_service.dart';
 import '../services/miss_you_repository.dart';
 import '../models/ad_grants.dart';
@@ -129,6 +132,10 @@ class ProfileScreen extends StatefulWidget {
   /// профиль-«Открытка» и вход в профиль партнёра показываются только при нём —
   /// иначе не «протечём» фичу тем, у кого она выключена.
   final bool giftsEnabled;
+
+  /// Свои отметки настроения: по ним вечернее напоминание выбирает начальное
+  /// положение выключателя при первом показе (`moodHabitOf`).
+  final MoodService? moodService;
   const ProfileScreen({
     super.key,
     required this.userData,
@@ -138,6 +145,7 @@ class ProfileScreen extends StatefulWidget {
     this.onSwitchToHome,
     this.onSwitchTab,
     this.giftsEnabled = false,
+    this.moodService,
   });
 
   @override
@@ -4268,8 +4276,17 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ),
               ]),
               // Вечернее напоминание о настроении и задании дня (TOG-113):
-              // своё состояние и сохранение, профилю хранить нечего.
-              const EveningReminderBlock(),
+              // своё состояние и сохранение, профиль даёт только привычку.
+              EveningReminderBlock(
+                moodHabit: moodHabitOf(
+                  widget.moodService?.myEntries.map((e) => e.timestamp) ??
+                      const <DateTime>[],
+                  DateTime.now(),
+                ),
+                taskHabit: taskHabitOf(
+                    DailyTaskService.instance.progress, DateTime.now()),
+                paired: widget.pairData.isPaired,
+              ),
             ],
           ),
           bottom: SizedBox(
