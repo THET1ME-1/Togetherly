@@ -20,9 +20,14 @@ class NotifRenderer {
 
   static const MethodChannel _channel = MethodChannel('love_app/notif');
 
-  /// Версия отрисовки этой сборки: с ней сервер шлёт пуш данными
-  /// (`users.notif_v`, см. `NotifPrefsSync`). 0 — сборка рисовать не умеет.
+  /// Версия отрисовки этой сборки: с ней сервер шлёт Android пуш данными
+  /// (`users.notif_v`, см. `fcmTokenBody`). 0 — сборка рисовать не умеет.
+  /// iPhone пуш рисует расширение, метка ему не нужна.
   static int get version => !kIsWeb && Platform.isAndroid ? 1 : 0;
+
+  /// Своё уведомление можно показать видом «А»: Android рисует
+  /// `NotifCover`, iPhone — `NotifCoverBridge` тем же кодом, что расширение.
+  static bool get canShow => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
   /// Виды пушей с обложкой: у каждого своя категория кнопок `tg_<вид>`.
   static const List<String> coverKinds = [
@@ -73,7 +78,7 @@ class NotifRenderer {
     required int id,
     String channel = 'partner_notifications',
   }) async {
-    if (version == 0) return false;
+    if (!canShow) return false;
     try {
       final shown = await _channel.invokeMethod<bool>('show', {
         'cover': jsonEncode(cover),

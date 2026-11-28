@@ -372,7 +372,7 @@ class PbPushService {
     // отвечает «Error 2003, Source is not authorized», и без перехвата это
     // было 436 отчётов в сутки (Bugsink, 23.10.2026).
     final slot = pushSlot(thread: thread, ownId: id, android: Platform.isAndroid);
-    if (cover != null && thread != null && NotifRenderer.version > 0) {
+    if (cover != null && thread != null && NotifRenderer.canShow) {
       final built = buildPushCover(
         thread,
         LocaleService.instance.language.code,

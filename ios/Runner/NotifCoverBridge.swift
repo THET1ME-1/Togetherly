@@ -26,6 +26,17 @@ enum NotifCoverBridge {
       case "categories":
         register(call.arguments as? [[String: Any]] ?? [])
         result(true)
+      case "show":
+        // Своё уведомление из сокета (`PbPushService`) — тем же видом, что пуш.
+        guard let args = call.arguments as? [String: Any],
+              let raw = args["cover"] as? String, let cover = Cover.parse(raw) else {
+          result(false)
+          return
+        }
+        show(cover, raw: raw, title: args["title"] as? String ?? "", body: args["body"] as? String ?? "",
+             tag: (args["tag"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? cover.kind) { ok in
+          DispatchQueue.main.async { result(ok) }
+        }
       default:
         result(FlutterMethodNotImplemented)
       }
@@ -66,6 +77,35 @@ enum NotifCoverBridge {
       let others = existing.filter { !$0.identifier.hasPrefix("tg_") }
       center.setNotificationCategories(Set(others).union(ours))
     }
+  }
+
+  // MARK: - Своё уведомление
+
+  /// Показать обложку своим уведомлением: тексты, миниатюра и аватар
+  /// партнёра — `CoverMedia`, как в расширении. Номер `tg_<метка>`: новое
+  /// того же вида заменяет прежнее, как на Android.
+  private static func show(_ cover: Cover, raw: String, title: String, body: String, tag: String,
+                           done: @escaping (Bool) -> Void) {
+    let content = UNMutableNotificationContent()
+    content.title = title
+    content.body = body
+    content.sound = .default
+    content.threadIdentifier = tag
+    content.userInfo = ["cover": raw, "kind": cover.kind]
+    CoverMedia.texts(cover, to: content)
+    CoverMedia.fetch(CoverMedia.urls(for: cover)) { got in
+      let final = CoverMedia.apply(cover, to: content, media: got)
+      let request = UNNotificationRequest(identifier: "tg_\(tag)", content: final, trigger: nil)
+      UNUserNotificationCenter.current().add(request) { error in done(error == nil) }
+    }
+  }
+
+  /// Своё уведомление с обложкой показываем и поверх открытого приложения:
+  /// его ставит `PbPushService`, только когда это уместно (не в открытом чате).
+  static func presentsItself(_ notification: UNNotification) -> Bool {
+    let request = notification.request
+    guard request.identifier.hasPrefix("tg_"), !(request.trigger is UNPushNotificationTrigger) else { return false }
+    return request.content.userInfo["cover"] != nil
   }
 
   // MARK: - Нажатия

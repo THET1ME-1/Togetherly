@@ -46,6 +46,8 @@
 		FD000000000000000000D003 /* Cover.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD000000000000000000A001 /* Cover.swift */; };
 		FD000000000000000000D004 /* NotifCoverBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD000000000000000000A003 /* NotifCoverBridge.swift */; };
 		FD000000000000000000D005 /* NotifNetIOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD000000000000000000A004 /* NotifNetIOS.swift */; };
+		FD000000000000000000D006 /* CoverMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD000000000000000000A005 /* CoverMedia.swift */; };
+		FD000000000000000000D007 /* CoverMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD000000000000000000A005 /* CoverMedia.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -163,6 +165,7 @@
 		FD000000000000000000B001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		FD000000000000000000A003 /* NotifCoverBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotifCoverBridge.swift; sourceTree = "<group>"; };
 		FD000000000000000000A004 /* NotifNetIOS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotifNetIOS.swift; sourceTree = "<group>"; };
+		FD000000000000000000A005 /* CoverMedia.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoverMedia.swift; sourceTree = "<group>"; };
 		FD000000000000000000C001 /* TogetherlyNotificationService.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TogetherlyNotificationService.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -320,6 +323,7 @@
 			children = (
 				FD000000000000000000A002 /* NotificationService.swift */,
 				FD000000000000000000A001 /* Cover.swift */,
+				FD000000000000000000A005 /* CoverMedia.swift */,
 				FD000000000000000000B001 /* Info.plist */,
 			);
 			path = TogetherlyNotificationService;
@@ -607,6 +611,7 @@
 				FD000000000000000000D003 /* Cover.swift in Sources */,
 				FD000000000000000000D004 /* NotifCoverBridge.swift in Sources */,
 				FD000000000000000000D005 /* NotifNetIOS.swift in Sources */,
+				FD000000000000000000D007 /* CoverMedia.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -643,6 +648,7 @@
 			files = (
 				FD000000000000000000D002 /* NotificationService.swift in Sources */,
 				FD000000000000000000D001 /* Cover.swift in Sources */,
+				FD000000000000000000D006 /* CoverMedia.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

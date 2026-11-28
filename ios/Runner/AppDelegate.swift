@@ -369,6 +369,12 @@ import WidgetKit
     willPresent notification: UNNotification,
     withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
   ) {
+    // Своё уведомление «А» (из сокета, `NotifCoverBridge.show`) — баннером:
+    // плагины чужое уведомление не покажут.
+    if NotifCoverBridge.presentsItself(notification) {
+      completionHandler([.banner, .list, .sound])
+      return
+    }
     pushArrived(notification.request.content.userInfo)
     if let invite = reelsInvite(from: notification.request.content.userInfo) {
       if reelsDartListens, let channel = reelsInviteChannel {
