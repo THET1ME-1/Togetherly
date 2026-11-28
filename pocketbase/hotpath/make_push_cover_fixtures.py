@@ -61,6 +61,36 @@ def look(item_id):
     return (found[0], found[1]) if found else None
 
 
+# Подписи, которые обложка берёт помимо КЛЮЧИ_ТЕКСТОВ (общие с прежними пушами).
+ОБЩИЕ = ("partner", "message", "miss_title", "mood_title", "date_untitled", "snow_title", "snow_body")
+
+
+def dart_texts():
+    """`lib/l10n/push_cover_texts.dart`: подписи обложки для Dart, из того же
+    `push_texts.ТЕКСТЫ`, что и у сервера."""
+    import push_texts
+    ключи = list(push_cover.КЛЮЧИ_ТЕКСТОВ) + [k for k in ОБЩИЕ if k not in push_cover.КЛЮЧИ_ТЕКСТОВ]
+    строки = [
+        "// Создано pocketbase/hotpath/make_push_cover_fixtures.py — руками не править.",
+        "//",
+        "// Подписи обложки уведомлений «А» на девяти языках, те же, что у сервера",
+        "// (`push_texts.py`): своё уведомление приложения выглядит как пуш.",
+        "",
+        "const List<String> kPushCoverLanguages = [" +
+        ", ".join(f"'{код}'" for код in push_texts.ЯЗЫКИ) + "];",
+        "",
+        "const Map<String, Map<String, String>> kPushCoverTexts = {",
+    ]
+    for ключ in ключи:
+        строки.append(f"  '{ключ}': {{")
+        for код in push_texts.ЯЗЫКИ:
+            текст = push_texts.ТЕКСТЫ[ключ][код].replace("\\", "\\\\").replace("'", "\\'").replace("$", "\\$")
+            строки.append(f"    '{код}': '{текст}',")
+        строки.append("  },")
+    строки.append("};")
+    return "\n".join(строки) + "\n"
+
+
 def main():
     cases = [{"kind": k, "lang": lang, "ctx": ctx, "cover": push_cover.cover(k, lang, ctx, look)}
              for k, lang, ctx in ПРИМЕРЫ]
@@ -70,6 +100,10 @@ def main():
         json.dump({"catalog": КАТАЛОГ, "cases": cases}, f, ensure_ascii=False, indent=1)
         f.write("\n")
     print(f"{len(cases)} примеров → {os.path.relpath(out, root)}")
+    dart = os.path.join(root, "lib", "l10n", "push_cover_texts.dart")
+    with open(dart, "w", encoding="utf-8") as f:
+        f.write(dart_texts())
+    print(f"подписи → {os.path.relpath(dart, root)}")
 
 
 if __name__ == "__main__":

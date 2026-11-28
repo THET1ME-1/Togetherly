@@ -43,4 +43,22 @@ const Set<String> kWidgetHostsNeedingPair = {
   'memory_lane',
 };
 
-bool widgetActionNeedsPair(Uri uri) => kWidgetHostsNeedingPair.contains(uri.host);
+/// Экраны уведомлений «А» (`loveapp://open/<экран>`), которым нужна пара.
+/// Главная, Плюс, подарок и задание дня открываются и без неё.
+const Set<String> kNotificationScreensNeedingPair = {
+  'chat',
+  'miss',
+  'mood',
+  'memories',
+  'dates',
+  'draw',
+  'chest',
+};
+
+bool widgetActionNeedsPair(Uri uri) {
+  if (uri.host == 'open') {
+    final screen = uri.pathSegments.isEmpty ? '' : uri.pathSegments.first;
+    return kNotificationScreensNeedingPair.contains(screen);
+  }
+  return kWidgetHostsNeedingPair.contains(uri.host);
+}

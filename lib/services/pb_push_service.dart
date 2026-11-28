@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
@@ -10,8 +11,11 @@ import '../models/chat_msg.dart';
 import '../models/avatar_frame.dart';
 import '../models/gift.dart';
 import '../models/gift_effect.dart';
+import '../models/push_cover.dart';
 import '../models/push_slot.dart';
+import 'avatar_frames.dart';
 import 'frame_gift_service.dart';
+import 'notif_renderer.dart';
 import '../dict_strings.dart';
 import 'chat_service.dart';
 import '../models/cloud_mascot.dart' show CloudEvent;
@@ -51,6 +55,11 @@ class PbPushService {
 
   bool _inited = false;
   final List<UnsubscribeFunc> _subs = [];
+
+  // Для обложки «А» своего уведомления: пара, партнёр и его аватар — то же,
+  // что сервер кладёт в пуш (`push_cover.py`).
+  String _groupId = '';
+  String _partnerAvatar = '';
   // дедуп: последний показанный счётчик «скучаю» и настроение партнёра
   int? _lastMissCount;
   String? _lastMood;
@@ -120,12 +129,14 @@ class PbPushService {
     required String myUid,
     required String partnerUid,
     String? partnerName,
+    String partnerAvatarUrl = '',
   }) =>
       _synchronized(() => _startLocked(
             groupId: groupId,
             myUid: myUid,
             partnerUid: partnerUid,
             partnerName: partnerName,
+            partnerAvatarUrl: partnerAvatarUrl,
           ));
 
   Future<void> _startLocked({
@@ -133,10 +144,13 @@ class PbPushService {
     required String myUid,
     required String partnerUid,
     String? partnerName,
+    String partnerAvatarUrl = '',
   }) async {
     if (groupId.isEmpty) return;
     await init();
     await _stopLocked();
+    _groupId = groupId;
+    _partnerAvatar = partnerAvatarUrl;
 
     // Имя партнёра могли не передать (пара только собралась, профиль ещё не
     // доехал). Подпись «Партнёр» берём из словаря: уведомление читает не тот,
@@ -163,7 +177,17 @@ class PbPushService {
             ? ChatService.voiceQuote(
                 ChatMsg.fromPb(r), LocaleService.current.voiceMessage)
             : (text.isEmpty ? '✉️' : text);
-        _notify(r.id.hashCode, name, body, thread: 'chat');
+        _notify(r.id.hashCode, name, body, thread: 'chat', cover: {
+          'from_name': name,
+          'body': body,
+          'message_id': r.id,
+          'from_uid': partnerUid,
+          'ts': r.data['ts'],
+          'avatar': _partnerAvatar,
+          'frame': AvatarFrames.instance.frameOf(partnerUid) ?? '',
+          // Кружок видеосообщения — его кадр картинкой в переписке.
+          'photo': r.data['note_thumb'] ?? '',
+        });
       } catch (err) {
         debugPrint('PbPush chat callback error: $err');
       }
@@ -190,7 +214,12 @@ class PbPushService {
             label.isEmpty
                 ? trKey('pushMoodMarked')
                 : '${trKey('pushMoodOfDay')}: $label',
-            thread: 'mood');
+            thread: 'mood',
+            cover: {
+              'from_name': partner,
+              'mood_id': r.data['mood_id'] ?? '',
+              'label': label,
+            });
       } catch (err) {
         debugPrint('PbPush mood callback error: $err');
       }
@@ -212,8 +241,9 @@ class PbPushService {
         // custom доставляется всегда; остальное — по настройке notif_miss_you
         if (vibe != 'custom' && !_pref('notif_miss_you')) return; // check BEFORE state mutation
         _lastMissCount = cnt;
-        _notify(('miss$partnerUid$cnt').hashCode, partner, _vibeBody(vibe, custom),
-            thread: 'miss');
+        final missBody = _vibeBody(vibe, custom);
+        _notify(('miss$partnerUid$cnt').hashCode, partner, missBody,
+            thread: 'miss', cover: {'from_name': partner, 'body': missBody});
       } catch (err) {
         debugPrint('PbPush miss_you callback error: $err');
       }
@@ -244,7 +274,7 @@ class PbPushService {
         if (r.data['deleted'] == true || !_pref('notif_new_memory')) return;
         final name = (r.data['author_name'] ?? partner).toString();
         _notify(('mem${r.id}').hashCode, name, trKey('pushNewMemory'),
-            thread: 'memory');
+            thread: 'memory', cover: memoryCoverContext(_jsonMap(r.data['data']), name));
       } catch (err) {
         debugPrint('PbPush memory callback error: $err');
       }
@@ -265,18 +295,20 @@ class PbPushService {
         final frameKey = FrameGiftService.frameKeyOf(giftKey);
         if (frameKey != null) {
           final name = AvatarFrame.byKey(frameKey)?.name ?? frameKey;
-          _notify(('gift${r.id}').hashCode, partner,
-              trKey('framePushBody').replaceAll('{frame}', name),
-              thread: 'gift');
+          final text = trKey('framePushBody').replaceAll('{frame}', name);
+          _notify(('gift${r.id}').hashCode, partner, text,
+              thread: 'gift',
+              cover: {'from_name': partner, 'gift_key': giftKey, 'title': text});
           return;
         }
         final gift = GiftCatalog.byKey(giftKey);
         if (gift == null) return; // подарок из будущей версии приложения
+        final text = LocaleService.current.giftPushBody(gift.title);
         // Ракета проходит сквозь подаренную тихую ночь: она для срочного.
-        _notify(('gift${r.id}').hashCode, partner,
-            LocaleService.current.giftPushBody(gift.title),
+        _notify(('gift${r.id}').hashCode, partner, text,
             pierceQuiet: gift.piercesQuietHours,
-            thread: 'gift');
+            thread: 'gift',
+            cover: {'from_name': partner, 'gift_key': giftKey, 'title': text});
       } catch (err) {
         debugPrint('PbPush gift callback error: $err');
       }
@@ -312,10 +344,26 @@ class PbPushService {
     await _notify(id, title, body);
   }
 
+  /// json-поле записи из канала: карта или её строка.
+  static Map<String, dynamic>? _jsonMap(Object? raw) {
+    if (raw is Map) return Map<String, dynamic>.from(raw);
+    if (raw is String && raw.isNotEmpty) {
+      try {
+        final v = jsonDecode(raw);
+        if (v is Map) return Map<String, dynamic>.from(v);
+      } catch (_) {}
+    }
+    return null;
+  }
+
   /// [thread] — вид события, с которым сервер шлёт такой же пуш FCM; на
   /// Android своё уведомление встаёт на его место в шторке ([pushSlot]).
+  ///
+  /// [cover] — что известно о событии для обложки «А» (как у `push_cover.py`).
+  /// На Android уведомление рисует `NotifCover` тем же видом, что пуш; не
+  /// вышло — прежним видом.
   Future<void> _notify(int id, String title, String body,
-      {bool pierceQuiet = false, String? thread}) async {
+      {bool pierceQuiet = false, String? thread, Map<String, Object?>? cover}) async {
     if (_muted && !pierceQuiet) {
       debugPrint('PbPush: тихая ночь — уведомление не показываем');
       return;
@@ -324,6 +372,24 @@ class PbPushService {
     // отвечает «Error 2003, Source is not authorized», и без перехвата это
     // было 436 отчётов в сутки (Bugsink, 23.10.2026).
     final slot = pushSlot(thread: thread, ownId: id, android: Platform.isAndroid);
+    if (cover != null && thread != null && NotifRenderer.version > 0) {
+      final built = buildPushCover(
+        thread,
+        LocaleService.instance.language.code,
+        {'group_id': _groupId, ...cover},
+        const CatalogCoverLook(),
+      );
+      if (built != null &&
+          await NotifRenderer.show(
+            cover: built,
+            title: title,
+            body: body,
+            tag: slot.tag ?? thread,
+            id: slot.id,
+          )) {
+        return;
+      }
+    }
     try {
       await _ln.show(
         id: slot.id,

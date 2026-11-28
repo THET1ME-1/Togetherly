@@ -118,6 +118,9 @@ import '../widgets/common/app_dialog.dart';
 import 'mini_mood_calendar.dart';
 import 'mood_calendar_screen.dart';
 import 'plus_screen.dart';
+import 'chest_screen.dart';
+import 'dates/pair_dates_screen.dart';
+import 'miss_you_screen.dart';
 import 'profile_screen.dart';
 import '../theme/profile_theme.dart';
 import '../services/cycle_service.dart';
@@ -724,6 +727,12 @@ class _HomeScreenState extends State<HomeScreen> {
       _pairAction.hold(uri, DateTime.now());
       return;
     }
+    // loveapp://open/<экран> → нажатие на уведомление «А». Только открыть
+    // экран: ссылки виджетов сами делают дело (`loveapp://miss` шлёт «Скучаю»).
+    if (uri.host == 'open') {
+      _openFromNotification(uri.pathSegments.isEmpty ? 'home' : uri.pathSegments.first);
+      return;
+    }
     // loveapp://widgets → вкладка виджетов (index 1)
     // loveapp://widgets/pair → ещё и сразу раскрыть настройки парного виджета
     if (uri.host == 'widgets' || uri.toString().contains('widgets')) {
@@ -817,6 +826,78 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Нажали на виджет, которому нужна пара, а она ещё не загрузилась.
   final WidgetPairAction _pairAction = WidgetPairAction();
+
+  /// Экран, на который ведёт уведомление «А» (`push_cover.py`, ссылки
+  /// `loveapp://open/<экран>`). Подарок, задание дня и незнакомое — главная:
+  /// подарок встречает там, задание лежит карточкой там же.
+  void _openFromNotification(String screen) {
+    if (!mounted) return;
+    final paired = _pairData.isPaired;
+    switch (screen) {
+      case 'chat' when paired:
+        _openChat();
+      case 'memories' when paired:
+        _openMemoryLane();
+      case 'mood' when paired:
+        _runWidgetAction(Uri.parse('loveapp://mood'));
+      case 'draw' when paired:
+        unawaited(_openCanvasFromWidget(''));
+      case 'miss' when paired:
+        Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            settings: const RouteSettings(name: '/miss_you'),
+            builder: (_) => MissYouScreen(
+              theme: _t,
+              groupId: _pairData.pairId,
+              myUid: PocketBaseService().userId ?? '',
+              myName: widget.userData.displayName,
+              myAvatarUrl: widget.userData.avatarUrl,
+              partnerUid: _pairData.partnerUid,
+              partnerName: _pairData.partnerDisplayName,
+              partnerAvatarUrl: _pairData.partnerAvatarUrl,
+            ),
+          ),
+        );
+      case 'dates' when paired:
+        Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            settings: const RouteSettings(name: '/pair_dates'),
+            builder: (_) => PairDatesScreen(
+              theme: _t,
+              pair: _pairData,
+              userData: widget.userData,
+              widgetService: _widgetService,
+            ),
+          ),
+        );
+      case 'chest' when paired:
+        Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            settings: const RouteSettings(name: '/chest'),
+            builder: (_) => ChestScreen(
+              theme: _t,
+              groupId: _pairData.pairId,
+              partnerName: _pairData.partnerDisplayName,
+              onCoins: widget.userData.applyServerCoins,
+              userData: widget.userData,
+            ),
+          ),
+        );
+      case 'plus':
+        Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            settings: const RouteSettings(name: '/plus'),
+            builder: (_) => PlusScreen(scheme: ProfileTheme.themeFor(_t).colorScheme),
+          ),
+        );
+      default:
+        setState(() => _selectedNavIndex = 0);
+    }
+  }
 
   void _openLiveMapFromWidget() {
     Navigator.push(
@@ -1473,6 +1554,8 @@ class _HomeScreenState extends State<HomeScreen> {
         myUid: myUid,
         partnerUid: partnerUid,
         partnerName: _pairData.partnerDisplayName,
+        // Обложка «А»: аватар партнёра в переписке шторки.
+        partnerAvatarUrl: _pairData.partnerAvatarUrl,
       );
       // (2) Android: вдобавок foreground-сервис — чтобы доставка пережила
       // сворачивание/выгрузку приложения. Уведомления дедуплицируются по

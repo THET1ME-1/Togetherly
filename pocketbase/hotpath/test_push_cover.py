@@ -215,6 +215,20 @@ class Прочее(unittest.TestCase):
             for язык in pt.ЯЗЫКИ:
                 self.assertTrue(pt.ТЕКСТЫ[ключ].get(язык), f"{ключ}:{язык}")
 
+    def test_подписи_для_dart_и_примеры_свежие(self):
+        # Dart и Kotlin сверяются с этими файлами: правишь тексты или обложку —
+        # перезапусти make_push_cover_fixtures.py.
+        import make_push_cover_fixtures as mk
+        root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        with open(os.path.join(root, "lib", "l10n", "push_cover_texts.dart"), encoding="utf-8") as f:
+            self.assertEqual(f.read(), mk.dart_texts())
+        import json
+        with open(os.path.join(root, "test", "fixtures", "push_cover_cases.json"), encoding="utf-8") as f:
+            saved = json.load(f)
+        for case in saved["cases"]:
+            self.assertEqual(case["cover"], pc.cover(case["kind"], case["lang"], case["ctx"], mk.look),
+                             case["kind"])
+
     def test_незнакомый_вид_без_обложки(self):
         self.assertIsNone(собрать("wallet"))
 

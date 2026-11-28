@@ -46,6 +46,17 @@ void main() {
       expect(widgetActionNeedsPair(Uri.parse('loveapp://home')), isFalse);
       expect(widgetActionNeedsPair(Uri.parse('loveapp://widgets')), isFalse);
     });
+
+    test('нажатие на уведомление «А» ждёт пару, кроме главной и Плюса', () {
+      // На закрытом приложении ссылка из шторки приходит раньше пары, как у
+      // виджета: без ожидания «Сообщение» открыло бы главную, а не чат.
+      for (final screen in ['chat', 'miss', 'mood', 'memories', 'dates', 'draw', 'chest']) {
+        expect(widgetActionNeedsPair(Uri.parse('loveapp://open/$screen')), isTrue, reason: screen);
+      }
+      for (final screen in ['home', 'plus', 'gifts', 'task']) {
+        expect(widgetActionNeedsPair(Uri.parse('loveapp://open/$screen')), isFalse, reason: screen);
+      }
+    });
   });
 
   group('лист выбора открывается и без сервера', () {

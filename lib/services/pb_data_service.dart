@@ -3505,6 +3505,8 @@ class PbDataService {
     // Вечернее напоминание (TOG-113): метка сборки, пояс телефона, режимы
     // пунктов (`on`/`off`, пусто — не трогал, включено), время и когда выбрано.
     put('remindV', 'remind_v');
+    // Уведомления «А»: версия отрисовки сборки (NotifRenderer.version).
+    put('notifV', 'notif_v');
     put('remindTz', 'remind_tz');
     put('remindMood', 'remind_mood');
     put('remindTask', 'remind_task');

@@ -74,7 +74,7 @@ object NotifChat {
             style.addMessage(NotificationCompat.MessagingStyle.Message(cover.body, ts, partner))
         }
         trim(style)
-        post(ctx, cover, raw, style, nextIds, shortcut, face, tag, id, channel, silent = false)
+        post(ctx, cover, raw, style, ArrayList(nextIds), shortcut, face, tag, id, channel, silent = false)
     }
 
     /**
