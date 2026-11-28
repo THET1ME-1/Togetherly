@@ -137,6 +137,31 @@ class ОтПриложения(unittest.TestCase):
         self.assertEqual(ids(c), ["chest"])
 
 
+class ЧтоИзЗаписи(unittest.TestCase):
+    """Экран блокировки видят и чужие: закрытое уходит без фото и названия."""
+
+    def test_открытое_с_фото_и_названием(self):
+        ctx = pc.memory_ctx({"data": {"title": " Крыша ", "imageUrl": "pb://media/r/p.webp"}}, "Алина")
+        self.assertEqual(ctx, {"from_name": "Алина", "title": "Крыша", "photo": "pb://media/r/p.webp"})
+
+    def test_секретное_18_и_капсула_без_фото(self):
+        for ключ in ("isSecret", "isAdult", "sealed"):
+            данные = {"title": "Тайна", "imageUrl": "pb://media/r/p.webp", ключ: True}
+            self.assertEqual(pc.memory_ctx({"data": данные}, "Алина"), {"from_name": "Алина"}, ключ)
+            c = собрать("memory", **pc.memory_ctx({"data": данные}, "Алина"))
+            self.assertEqual(c["art"], {"app": True}, ключ)
+            self.assertNotIn("Тайна", str(c), ключ)
+
+    def test_данные_строкой_как_из_базы(self):
+        rec = {"data": '{"isSecret": true, "imageUrl": "pb://media/r/p.webp"}'}
+        self.assertEqual(pc.memory_ctx(rec, "Алина"), {"from_name": "Алина"})
+        self.assertEqual(pc.memory_ctx({"data": "не json"}, "Алина")["photo"], "")
+
+    def test_настроение(self):
+        self.assertEqual(pc.mood_ctx({"mood_id": "love", "label": " Влюблённость "}),
+                         {"mood_id": "love", "label": "Влюблённость"})
+
+
 class Прочее(unittest.TestCase):
     def test_язык_получателя(self):
         c = собрать("miss", lang="en", from_name="Alina", body="I miss you")

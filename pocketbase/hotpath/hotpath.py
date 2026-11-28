@@ -1068,6 +1068,8 @@ async def _notify_group(group_id: str, author_uid: str, title, body,
         return 0
     if only_uid:
         targets = [t for t in targets if t["uid"] == only_uid]
+    if not targets:
+        return 0  # партнёр в сети — частый случай чата, автора не читаем
     автор = (await asyncio.to_thread(_автор_для_обложки, author_uid)
              if cover and author_uid else {})
     отправлено = 0
@@ -1085,9 +1087,12 @@ async def _notify_group(group_id: str, author_uid: str, title, body,
             # В потоке: каталог читается из SQLite, а соединение общее с
             # потоками адресатов — цикл событий ждать его не должен.
             try:
+                # Пустое из вызова не затирает известное об авторе: имя из
+                # записи бывает пустым, а в профиле оно есть.
+                что = {**автор, **{k: v for k, v in (cover(t["lang"]) or {}).items()
+                                    if v not in ("", None)}}
                 обложка = await asyncio.to_thread(
-                    push_cover.cover, thread, t["lang"],
-                    {**автор, **(cover(t["lang"]) or {})}, _каталог_для_обложки)
+                    push_cover.cover, thread, t["lang"], что, _каталог_для_обложки)
             except Exception as e:  # обложка — украшение, пуш важнее
                 log.warning("cover %s: %s", thread, e)
         if t["apns"]:
@@ -1687,29 +1692,6 @@ def _mood_push_body(label: str):
     return lambda язык: пуш("mood_marked", язык)
 
 
-def _воспоминание_для_обложки(rec: dict, имя: str) -> dict:
-    """Что показать в обложке нового воспоминания. Секретное, «18+» и
-    запечатанная капсула в шторку не попадают ни фото, ни названием: экран
-    блокировки видят и чужие."""
-    данные = rec.get("data")
-    if isinstance(данные, str):
-        try:
-            данные = json.loads(данные)
-        except ValueError:
-            данные = {}
-    if not isinstance(данные, dict):
-        данные = {}
-    закрыто = bool(данные.get("isSecret") or данные.get("isAdult") or данные.get("sealed"))
-    if закрыто:
-        return {"from_name": имя}
-    return {"from_name": имя, "title": (данные.get("title") or "").strip(),
-            "photo": данные.get("imageUrl") or ""}
-
-
-def _настроение_для_обложки(rec: dict) -> dict:
-    return {"mood_id": rec.get("mood_id") or "", "label": (rec.get("label") or "").strip()}
-
-
 async def _after_create(col: str, rec: dict) -> None:
     kind = COLLECTIONS[col]["after_create"]
     if kind == "chat":
@@ -1734,7 +1716,7 @@ async def _after_create(col: str, rec: dict) -> None:
                 rec.get("group_id") or "", rec.get("author_uid") or "",
                 lambda язык: имя or пуш("partner", язык),
                 lambda язык: пуш("memory_added", язык), "memory",
-                cover=lambda язык: _воспоминание_для_обложки(rec, имя))
+                cover=lambda язык: push_cover.memory_ctx(rec, имя))
     elif kind == "widget":
         # Тихий пуш «обнови виджеты» — как wakeGroup в apns_push.js.
         await _wake_group(rec.get("group_id") or "", rec.get("user_uid") or "")
@@ -1751,7 +1733,7 @@ async def _after_create(col: str, rec: dict) -> None:
             await _notify_group(
                 rec.get("group_id") or "", rec.get("user_uid") or "",
                 lambda язык: пуш("mood_title", язык), _mood_push_body(label), "mood",
-                cover=lambda язык: _настроение_для_обложки(rec))
+                cover=lambda язык: push_cover.mood_ctx(rec))
         # И тихий пуш «обнови виджеты»: на iPhone у виджетов своего фонового
         # обновления нет, и настроение партнёра на рабочем столе застывало до
         # следующего открытия приложения — «виджеты не обновляются под
@@ -1811,7 +1793,7 @@ async def _after_update(col: str, rec: dict) -> None:
     ушло = await _notify_group(
         group_id, rec.get("user_uid") or "",
         lambda язык: пуш("mood_title", язык), _mood_push_body(label), "mood",
-        cover=lambda язык: _настроение_для_обложки(rec))
+        cover=lambda язык: push_cover.mood_ctx(rec))
     if ушло:
         _отметить_miss("mood:" + group_id, теперь_мс)
     # Виджет обновляем даже когда баннер придержал антидребезг: человек

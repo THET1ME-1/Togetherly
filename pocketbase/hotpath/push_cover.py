@@ -19,9 +19,34 @@ iPhone берёт картинку миниатюрой и аватар парт
 закрыты, телефон берёт к ним пропуск своим входом (`auth: true`).
 """
 
+import json
+
 from push_texts import пуш
 
 ФАЙЛЫ = "https://togetherly.day/api/files"
+
+
+def memory_ctx(rec: dict, имя: str) -> dict:
+    """Что показать в обложке нового воспоминания. Секретное, «18+» и
+    запечатанная капсула (`data.isSecret`, `isAdult`, `sealed` — булевы, как
+    пишет `Memory.toJson`) уходят без фото и названия: экран блокировки видят
+    и чужие."""
+    данные = rec.get("data")
+    if isinstance(данные, str):
+        try:
+            данные = json.loads(данные)
+        except ValueError:
+            данные = {}
+    if not isinstance(данные, dict):
+        данные = {}
+    if данные.get("isSecret") or данные.get("isAdult") or данные.get("sealed"):
+        return {"from_name": имя}
+    return {"from_name": имя, "title": str(данные.get("title") or "").strip(),
+            "photo": str(данные.get("imageUrl") or "")}
+
+
+def mood_ctx(rec: dict) -> dict:
+    return {"mood_id": rec.get("mood_id") or "", "label": str(rec.get("label") or "").strip()}
 
 # Все ключи подписей обложки: тест проверяет, что у каждого девять языков.
 КЛЮЧИ_ТЕКСТОВ = (
