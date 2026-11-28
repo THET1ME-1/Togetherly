@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:love_app/models/pair_date.dart';
 import 'package:love_app/models/symbol_catalog.dart';
 import 'package:love_app/screens/dates/date_form_screen.dart';
+import 'package:love_app/screens/home/widgets/day_log_sheet.dart';
 import 'package:love_app/services/locale_service.dart';
 import 'package:love_app/theme/app_palettes.dart';
 import 'package:love_app/theme/profile_theme.dart';
@@ -181,5 +182,29 @@ void main() {
         ));
     await shot('phone_calendar', const Size(390, 600), Brightness.light,
         (cs) => sheet(cs, PhoneCalendarSheet(scheme: cs)));
+
+    // Пункт «Событие» листа дня: пустой и с датами дня.
+    final concertDay = concert.occurrencesBetween(DateTime(2026, 12, 4), DateTime(2026, 12, 4));
+    final birthdayOcc = auto.last.occurrencesBetween(DateTime(2027, 1, 17), DateTime(2027, 1, 17));
+    for (final b in Brightness.values) {
+      await shot('day_event_${b.name}', const Size(390, 520), b, (cs) {
+        return Scaffold(
+          backgroundColor: cs.surfaceContainerLow,
+          body: Column(
+            children: [
+              const SizedBox(height: 16),
+              DayEventCard(scheme: cs, dates: const [], line: (_) => '', onAdd: () {}, onOpen: (_) {}),
+              DayEventCard(
+                scheme: cs,
+                dates: [...concertDay, ...birthdayOcc],
+                line: (o) => o.date.isAuto ? 'Лиза · исполнится 27' : '19:00 · добавила Лиза',
+                onAdd: () {},
+                onOpen: (_) {},
+              ),
+            ],
+          ),
+        );
+      });
+    }
   });
 }

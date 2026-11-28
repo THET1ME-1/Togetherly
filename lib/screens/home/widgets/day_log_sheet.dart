@@ -140,10 +140,7 @@ class _DayLogSheetState extends State<_DayLogSheet> {
   /// Открыть дату или новую дату на этот день — отдельным экраном поверх
   /// календаря, лист закрывается.
   void _openDate([DateOccurrence? o]) {
-    if (o != null && o.date.isAuto) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(dt('dt.autoHint'))));
-      return;
-    }
+    if (o != null && o.date.isAuto) return;
     final nav = Navigator.of(context);
     nav.pop();
     nav.push(MaterialPageRoute<bool>(
@@ -276,7 +273,7 @@ class _DayLogSheetState extends State<_DayLogSheet> {
     final paired = widget.pairData.isPaired;
     final dates = _dates;
     final event = paired
-        ? _EventCard(
+        ? DayEventCard(
             scheme: _cs,
             dates: dates,
             line: (o) => [
@@ -674,8 +671,9 @@ class _LogCard extends StatelessWidget {
 
 /// Пункт листа дня с датами: пусто — «Отметить памятную дату» и «+»; есть
 /// даты — их строки внутри карточки, касание открывает дату.
-class _EventCard extends StatelessWidget {
-  const _EventCard({
+class DayEventCard extends StatelessWidget {
+  const DayEventCard({
+    super.key,
     required this.scheme,
     required this.dates,
     required this.line,
@@ -759,7 +757,9 @@ class _EventCard extends StatelessWidget {
                   clipBehavior: Clip.antiAlias,
                   child: InkWell(
                     key: ValueKey('day-log-date-${o.date.id}'),
-                    onTap: () => onOpen(o),
+                    // Готовая дата (годовщина, день рождения) не правится: её
+                    // подпись и так говорит, откуда она взята.
+                    onTap: o.date.isAuto ? null : () => onOpen(o),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       child: Row(
@@ -786,11 +786,7 @@ class _EventCard extends StatelessWidget {
                               ],
                             ),
                           ),
-                          Icon(
-                            o.date.isAuto ? Icons.info_outline_rounded : Icons.edit_rounded,
-                            size: 20,
-                            color: cs.onSurfaceVariant,
-                          ),
+                          if (!o.date.isAuto) Icon(Icons.edit_rounded, size: 20, color: cs.onSurfaceVariant),
                         ],
                       ),
                     ),

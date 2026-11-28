@@ -36,6 +36,11 @@ class PhoneCalendarSync extends ChangeNotifier {
   Timer? _debounce;
   Future<void>? _running;
 
+  /// Свои даты, виденные в этом сеансе. Пустой список на холодном старте
+  /// (кэш ещё не наполнился) не должен стирать календарь: пропажу даты
+  /// признаём, только если список не пуст или дату только что видели.
+  final Set<String> _seenIds = {};
+
   bool get enabled => _enabled;
   String get calendarId => _calendarId;
 
@@ -83,6 +88,7 @@ class PhoneCalendarSync extends ChangeNotifier {
   /// Даты изменились — догнать календарь телефона пачкой через пару секунд.
   void mirror(List<PairDate> dates) {
     _latest = dates;
+    _seenIds.addAll([for (final d in dates) if (!d.isAuto) d.id]);
     _debounce?.cancel();
     _debounce = Timer(const Duration(seconds: 2), () => unawaited(_run()));
   }
@@ -172,9 +178,14 @@ class PhoneCalendarSync extends ChangeNotifier {
     await load();
     if (!_enabled || _calendarId.isEmpty || !await hasAccess()) return;
     final plan = phoneCalendarPlan(dates: _latest, links: _links, sigs: _sigs);
-    if (plan.create.isEmpty && plan.replace.isEmpty && plan.remove.isEmpty) return;
+    final hasOwn = _latest.any((d) => !d.isAuto);
+    final remove = {
+      for (final e in plan.remove.entries)
+        if (hasOwn || _seenIds.contains(e.key)) e.key: e.value,
+    };
+    if (plan.create.isEmpty && plan.replace.isEmpty && remove.isEmpty) return;
 
-    for (final e in plan.remove.entries) {
+    for (final e in remove.entries) {
       await _deleteEvent(e.value);
       _links.remove(e.key);
       _sigs.remove(e.key);

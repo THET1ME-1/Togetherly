@@ -1725,6 +1725,21 @@ def _after_delete(col: str, rec: dict) -> None:
 
 # Не больше напоминаний на дату: столько же даёт форма в приложении.
 ДАТЫ_НАПОМИНАНИЙ_МАКС = 5
+
+# Пересчёт будильников даты. Созревшие, но ещё не отправленные не трогаем:
+# пересчёт идёт при каждом запуске hotpath, и без этого перезапуск в минуту
+# напоминания стирал бы его. Лишний (напоминание убрали) задача рассылки
+# отсеет сама. Сторож — test_date_alarms_sql.py.
+ДАТЫ_СНЯТЬ_БУДУЩИЕ = (
+    "DELETE FROM date_alarms WHERE kind = 'pair_date' AND ref_id = $1 AND fire_at > now()"
+)
+ДАТЫ_ПОСТАВИТЬ = (
+    "INSERT INTO date_alarms (kind, ref_id, group_id, uid, minutes, occ, fire_at) "
+    "VALUES ('pair_date', $1, $2, $3, $4, $5, $6) "
+    "ON CONFLICT (kind, ref_id, uid, minutes) "
+    "DO UPDATE SET occ = EXCLUDED.occ, fire_at = EXCLUDED.fire_at "
+    "WHERE date_alarms.fire_at > now()"
+)
 # Сервер лежал дольше — давнее напоминание уже не шлём, ставим следующее.
 ДАТЫ_ОПОЗДАНИЕ_МАКС_С = 6 * 3600
 
@@ -1787,15 +1802,9 @@ async def _даты_пересчитать(rec: dict) -> None:
                 строки.append((дата_id, group_id, uid, m, нашлось[1].isoformat(), нашлось[0]))
     async with pg.acquire() as c:
         async with c.transaction():
-            await c.execute(
-                "DELETE FROM date_alarms WHERE kind = 'pair_date' AND ref_id = $1", дата_id)
+            await c.execute(ДАТЫ_СНЯТЬ_БУДУЩИЕ, дата_id)
             if строки:
-                await c.executemany(
-                    "INSERT INTO date_alarms (kind, ref_id, group_id, uid, minutes, occ, fire_at) "
-                    "VALUES ('pair_date', $1, $2, $3, $4, $5, $6) "
-                    "ON CONFLICT (kind, ref_id, uid, minutes) "
-                    "DO UPDATE SET occ = EXCLUDED.occ, fire_at = EXCLUDED.fire_at",
-                    строки)
+                await c.executemany(ДАТЫ_ПОСТАВИТЬ, строки)
 
 
 async def _даты_снять(дата_id: str) -> None:
@@ -1873,20 +1882,25 @@ async def _даты_напоминания_worker() -> None:
     while True:
         await asyncio.sleep(20)
         try:
-            async with pg.acquire() as c:
-                созрели = await c.fetch(
-                    "DELETE FROM date_alarms WHERE id IN ("
-                    "SELECT id FROM date_alarms WHERE fire_at <= now() "
-                    "ORDER BY fire_at LIMIT 200 FOR UPDATE SKIP LOCKED) RETURNING *")
-            for будильник in созрели:
-                if будильник["kind"] != "pair_date":
-                    continue
-                try:
-                    await _дата_напомнить(будильник)
-                except Exception as e:  # noqa: BLE001 — один сбой не роняет остальные
-                    log.warning("даты: напоминание %s сорвалось: %s", будильник["ref_id"], e)
-            if созрели:
-                log.info("даты: напоминаний %d", len(созрели))
+            # Напоминания по умолчанию сходятся на 9:00 у всех — полная пачка
+            # значит, что созревших больше, и следующая берётся без паузы.
+            пачка = 200
+            while пачка == 200:
+                async with pg.acquire() as c:
+                    созрели = await c.fetch(
+                        "DELETE FROM date_alarms WHERE id IN ("
+                        "SELECT id FROM date_alarms WHERE fire_at <= now() "
+                        "ORDER BY fire_at LIMIT 200 FOR UPDATE SKIP LOCKED) RETURNING *")
+                пачка = len(созрели)
+                for будильник in созрели:
+                    if будильник["kind"] != "pair_date":
+                        continue
+                    try:
+                        await _дата_напомнить(будильник)
+                    except Exception as e:  # noqa: BLE001 — один сбой не роняет остальные
+                        log.warning("даты: напоминание %s сорвалось: %s", будильник["ref_id"], e)
+                if созрели:
+                    log.info("даты: напоминаний %d", len(созрели))
         except Exception as e:  # noqa: BLE001 — воркер не должен умирать
             log.warning("даты: сбой рассылки: %s", e)
 

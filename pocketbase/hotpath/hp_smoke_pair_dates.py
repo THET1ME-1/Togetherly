@@ -140,6 +140,33 @@ try:
     check("партнёр удаляет", r.status_code == 204, f"{r.status_code} {r.text[:200]}")
     time.sleep(2)
     check("будильники сняты", not alarms(date_id), str(alarms(date_id)))
+
+    # Очередь приложения начинает с правки: 404 на новый id — и тогда создание.
+    r = client.patch(f"{url}/smpd{secrets.token_hex(6)}", headers=HA, json={"title": "x"})
+    check("правка нового id отвечает 404", r.status_code == 404, f"{r.status_code} {r.text[:120]}")
+
+    # Настоящее срабатывание: дата через три минуты, напоминание за минуту.
+    if os.environ.get("FIRE"):
+        from datetime import datetime, timedelta, timezone
+        начало = (datetime.now(timezone.utc) + timedelta(minutes=3)).replace(second=0, microsecond=0)
+        fire_id = "smpd" + secrets.token_hex(6)
+        с_какого = time.strftime("%Y-%m-%d %H:%M:%S")
+        r = client.post(url, headers=HA, json={
+            "id": fire_id, "group_id": gid, "author_uid": A, "title": "Проба напоминания",
+            "symbol": "favorite", "day": начало.date().isoformat(),
+            "start_time": начало.strftime("%H:%M"), "tz": "UTC", "rrule": "", "reminders": [1]})
+        check("дата с напоминанием через 2 минуты заводится", r.status_code == 200, f"{r.status_code}")
+        time.sleep(2)
+        check("будильник встал обоим", len(alarms(fire_id)) == 2, str(alarms(fire_id)))
+        ждать = (начало - timedelta(minutes=1) - datetime.now(timezone.utc)).total_seconds() + 50
+        print(f"ждём срабатывания {int(ждать)} с", flush=True)
+        time.sleep(max(0, ждать))
+        check("будильник забран рассылкой", not alarms(fire_id), str(alarms(fire_id)))
+        import subprocess
+        журнал = subprocess.run(["journalctl", "-u", "hotpath", "--since", с_какого, "--no-pager", "-o", "cat"],
+                                capture_output=True, text=True).stdout
+        check("в журнале нет сорвавшихся напоминаний", "сорвалось" not in журнал and "сбой рассылки" not in журнал)
+        check("в журнале есть рассылка", "даты: напоминаний" in журнал)
 finally:
     for uid in people:
         lite.execute("DELETE FROM users WHERE id = ?", (uid,))
