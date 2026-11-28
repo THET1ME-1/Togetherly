@@ -29,12 +29,10 @@ class NotifPrefsSync {
       await PbDataService().updateUserProfile(uid, {
         ...notifPrefsBody(stored),
         ...chestPushBody(prefs.getBool(kNotifChestPref)),
-        ...eveningReminderBody(
-          mood: prefs.getString(kRemindMoodPref),
-          task: prefs.getString(kRemindTaskPref),
-          at: prefs.getString(kRemindAtPref),
-          tz: await deviceTimeZone(),
-        ),
+        // Вечернее напоминание: только метка сборки и пояс. Выбор человека
+        // уходит после его действия, иначе этот телефон затирал бы выбор,
+        // сделанный на другом (см. [reconcileEveningReminder]).
+        ...eveningReminderBaseBody(tz: await deviceTimeZone()),
         // Метка говорит серверу, что нули в колонках — выбор человека, а не
         // незаполненное поле.
         'notifSyncedAt': DateTime.now().toUtc().toIso8601String(),
@@ -44,51 +42,115 @@ class NotifPrefsSync {
     }
   }
 
-  /// Записать выбор в вечернем напоминании и отправить на сервер всё, что
-  /// выбрано к этому моменту. null — пункт не трогаем.
+  /// Выбор человека в вечернем напоминании: записать целиком с отметкой
+  /// времени и отправить. Не уехало — останется «неотправленным» и уйдёт при
+  /// следующей сверке с профилем, если к тому времени не появился выбор новее.
   static Future<void> saveEveningReminder({
     String? mood,
     String? task,
     String? at,
   }) async {
-    final prefs = await SharedPreferences.getInstance();
-    if (remindModeOf(mood) case final v?) await prefs.setString(kRemindMoodPref, v);
-    if (remindModeOf(task) case final v?) await prefs.setString(kRemindTaskPref, v);
-    if (remindAtValid(at) case final v?) await prefs.setString(kRemindAtPref, v);
     final uid = PocketBaseService().userId ?? '';
+    final prefs = await SharedPreferences.getInstance();
+    await _writeChoice(prefs, mood: mood, task: task, at: at);
+    await prefs.setInt(kRemindSetAtPref, DateTime.now().millisecondsSinceEpoch);
+    await prefs.setBool(kRemindPendingPref, true);
+    await prefs.setString(kRemindOwnerPref, uid);
     if (uid.isEmpty) return;
-    try {
-      await PbDataService().updateUserProfile(
-        uid,
-        eveningReminderBody(
-          mood: prefs.getString(kRemindMoodPref),
-          task: prefs.getString(kRemindTaskPref),
-          at: prefs.getString(kRemindAtPref),
-          tz: await deviceTimeZone(),
-        ),
-      );
-    } catch (e) {
-      // Не уехало сейчас — уедет при следующем запуске (pushToServer).
-      debugPrint('NotifPrefsSync: напоминание не уехало — $e');
+    if (await _pushChoice(uid, prefs)) {
+      await prefs.setBool(kRemindPendingPref, false);
     }
   }
 }
 
-/// Пустые prefs вечернего напоминания заполнить выбором с сервера (второе
-/// устройство, переустановка). Выбранное на этом телефоне не трогается.
-Future<void> adoptEveningReminder(Map<String, dynamic> profile) async {
-  final prefs = await SharedPreferences.getInstance();
-  final pairs = {
-    kRemindMoodPref: remindModeOf(profile['remindMood']?.toString()),
-    kRemindTaskPref: remindModeOf(profile['remindTask']?.toString()),
-    kRemindAtPref: remindAtValid(profile['remindAt']?.toString()),
+Future<bool> _pushChoice(String uid, SharedPreferences prefs) async {
+  try {
+    return await PbDataService().updateUserProfile(uid, {
+      ...eveningReminderBaseBody(tz: await deviceTimeZone()),
+      ...eveningReminderChoiceBody(
+        mood: prefs.getString(kRemindMoodPref),
+        task: prefs.getString(kRemindTaskPref),
+        at: prefs.getString(kRemindAtPref),
+        setAt: prefs.getInt(kRemindSetAtPref) ?? 0,
+      ),
+    });
+  } catch (e) {
+    debugPrint('NotifPrefsSync: напоминание не уехало — $e');
+    return false;
+  }
+}
+
+/// Записать выбор в prefs: годное — как есть, остальное — убрать.
+Future<void> _writeChoice(SharedPreferences prefs,
+    {String? mood, String? task, String? at}) async {
+  final values = {
+    kRemindMoodPref: remindModeOf(mood),
+    kRemindTaskPref: remindModeOf(task),
+    kRemindAtPref: remindAtValid(at),
   };
-  for (final e in pairs.entries) {
-    final value = e.value;
-    if (value != null && prefs.getString(e.key) == null) {
-      await prefs.setString(e.key, value);
+  for (final e in values.entries) {
+    final v = e.value;
+    if (v == null) {
+      await prefs.remove(e.key);
+    } else {
+      await prefs.setString(e.key, v);
     }
   }
+}
+
+/// Сверить вечернее напоминание телефона с профилем на сервере (при каждой
+/// загрузке профиля и при открытии блока настроек).
+///
+/// Побеждает выбор, сделанный позже (`remindSetAt`), а не тот, что раньше
+/// вышел на связь: телефон Б поменял без сети, потом А поменял в сети, Б
+/// выходит на связь — остаётся выбор А. Свой неотправленный выбор новее
+/// сервера уходит на сервер. Во всех остальных случаях prefs повторяют
+/// сервер, включая пустое: на телефоне мог войти другой аккаунт.
+///
+/// [push] подменяется в тестах; по умолчанию — запись своего профиля.
+Future<void> reconcileEveningReminder(
+  Map<String, dynamic> profile, {
+  required String uid,
+  Future<bool> Function(Map<String, dynamic> body)? push,
+}) async {
+  if (uid.isEmpty) return;
+  final prefs = await SharedPreferences.getInstance();
+  if (prefs.getString(kRemindOwnerPref) != uid) {
+    // Выбор другого аккаунта: на сервер не уходит, здесь не нужен.
+    await _writeChoice(prefs);
+    await prefs.remove(kRemindSetAtPref);
+    await prefs.setBool(kRemindPendingPref, false);
+    await prefs.setString(kRemindOwnerPref, uid);
+  }
+  final serverSetAt = int.tryParse('${profile['remindSetAt'] ?? 0}') ?? 0;
+  final localSetAt = prefs.getInt(kRemindSetAtPref) ?? 0;
+  final pending = prefs.getBool(kRemindPendingPref) ?? false;
+
+  if (pending && localSetAt > serverSetAt) {
+    final body = eveningReminderChoiceBody(
+      mood: prefs.getString(kRemindMoodPref),
+      task: prefs.getString(kRemindTaskPref),
+      at: prefs.getString(kRemindAtPref),
+      setAt: localSetAt,
+    );
+    final ok = push != null
+        ? await push(body)
+        : await PbDataService().updateUserProfile(uid, {
+            ...eveningReminderBaseBody(tz: await deviceTimeZone()),
+            ...body,
+          });
+    if (ok) await prefs.setBool(kRemindPendingPref, false);
+    return;
+  }
+
+  await _writeChoice(
+    prefs,
+    mood: profile['remindMood']?.toString(),
+    task: profile['remindTask']?.toString(),
+    at: profile['remindAt']?.toString(),
+  );
+  await prefs.setInt(kRemindSetAtPref, serverSetAt);
+  await prefs.setBool(kRemindPendingPref, false);
 }
 
 /// Ключ в SharedPreferences → поле профиля. Список один на всё приложение:
@@ -127,6 +189,12 @@ const String kRemindTaskPref = 'remind_task_mode';
 const String kRemindAtPref = 'remind_at';
 const String kEveningReminderDefaultAt = '21:00';
 
+/// Когда человек сделал выбор (мс), есть ли он уже на сервере и чей он:
+/// по ним [reconcileEveningReminder] решает, чей выбор новее.
+const String kRemindSetAtPref = 'remind_set_at';
+const String kRemindPendingPref = 'remind_pending';
+const String kRemindOwnerPref = 'remind_owner';
+
 /// Метка «сборка знает напоминание» (`users.remind_v`). Уходит всегда: только
 /// таким сборкам сервер его шлёт — у выпущенных раньше выключателя нет.
 const int kEveningReminderVersion = 1;
@@ -158,27 +226,27 @@ String remindAtOf(int minutes) {
   return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
 }
 
-/// Тело запроса к профилю. Метка сборки и пояс телефона уходят всегда (пояс
-/// нужен и человеку без пары: записи виджета с поясом у него может не быть).
-/// Пункты и время — только выбранные: пустой телефон (второе устройство,
-/// переустановка) иначе затёр бы выбор человека значениями по умолчанию.
-Map<String, dynamic> eveningReminderBody({
+/// Уходит при каждом запуске: метка сборки и пояс телефона (пояс нужен и
+/// человеку без пары — записи виджета с поясом у него может не быть).
+Map<String, dynamic> eveningReminderBaseBody({required String? tz}) => {
+      'remindV': kEveningReminderVersion,
+      if (tz != null && tz.isNotEmpty) 'remindTz': tz,
+    };
+
+/// Выбор человека целиком, с отметкой времени. Нерешённый пункт и время по
+/// умолчанию — пустой строкой: выбор заменяет прежний полностью.
+Map<String, dynamic> eveningReminderChoiceBody({
   required String? mood,
   required String? task,
   required String? at,
-  required String? tz,
-}) {
-  final m = remindModeOf(mood);
-  final t = remindModeOf(task);
-  final a = remindAtValid(at);
-  return {
-    'remindV': kEveningReminderVersion,
-    if (tz != null && tz.isNotEmpty) 'remindTz': tz,
-    'remindMood': ?m,
-    'remindTask': ?t,
-    'remindAt': ?a,
-  };
-}
+  required int setAt,
+}) =>
+    {
+      'remindMood': remindModeOf(mood) ?? '',
+      'remindTask': remindModeOf(task) ?? '',
+      'remindAt': remindAtValid(at) ?? '',
+      'remindSetAt': setAt,
+    };
 
 /// Тело запроса к профилю. Значения нет — значит человек тумблер не трогал, а
 /// приложение показывает его включённым; таким и отправляем.

@@ -48,6 +48,7 @@ void main() {
                 moodHabit: moodHabit,
                 taskHabit: taskHabit,
                 paired: paired,
+                uid: 'me',
                 loadServer: server ?? () async => const {},
                 onSave: ({mood, task, at}) async {
                   inFlight++;
@@ -65,6 +66,17 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
     await tester.pump(const Duration(milliseconds: 200));
   }
+
+  /// Выбор этого человека, уже отправленный (`remind_set_at` = 100), и тот же
+  /// выбор в профиле на сервере.
+  Map<String, Object> mine({required String mood, required String task}) => {
+        'flutter.remind_owner': 'me',
+        'flutter.remind_mood_mode': mood,
+        'flutter.remind_task_mode': task,
+        'flutter.remind_set_at': 100,
+      };
+  Map<String, dynamic> server({required String mood, required String task}) =>
+      {'remindMood': mood, 'remindTask': task, 'remindAt': '', 'remindSetAt': 100};
 
   Switch switchOf(WidgetTester tester, String key) => tester.widget<Switch>(
       find.descendant(of: find.byKey(ValueKey(key)), matching: find.byType(Switch)));
@@ -91,7 +103,8 @@ void main() {
   testWidgets('выбор с сервера сильнее привычки и не переписывается', (tester) async {
     SharedPreferences.setMockInitialValues({});
     await pump(tester, moodHabit: true, taskHabit: true,
-        server: () async => {'remindMood': 'off', 'remindTask': 'on', 'remindAt': '23:00'});
+        server: () async =>
+            {'remindMood': 'off', 'remindTask': 'on', 'remindAt': '23:00', 'remindSetAt': 200});
     expect(switchOf(tester, 'er-mood').value, isFalse);
     expect(switchOf(tester, 'er-task').value, isTrue);
     expect(find.text('23:00'), findsOneWidget);
@@ -107,45 +120,55 @@ void main() {
     expect(saved.last, ('off', null, null), reason: 'нажатие — уже выбор человека');
   });
 
-  testWidgets('до загрузки выключатели не нажимаются', (tester) async {
+  // Сервер без сети отвечает секундами — выключатели не ждут его. Нажатие —
+  // выбор человека, и поздний ответ сервера его не перетирает.
+  testWidgets('нажатие до ответа сервера не перетирается поздним ответом', (tester) async {
     SharedPreferences.setMockInitialValues({});
-    final never = Completer<Map<String, dynamic>?>();
-    await pump(tester, moodHabit: true, server: () => never.future);
-    await tap(tester, 'er-mood');
-    expect(saved, isEmpty);
-    expect(switchOf(tester, 'er-mood').onChanged, isNull);
-    // Сервер молчит дольше срока — блок оживает, но сам ничего не пишет.
-    await tester.pump(const Duration(seconds: 7));
-    await tester.pump(const Duration(milliseconds: 100));
+    final late = Completer<Map<String, dynamic>?>();
+    await pump(tester, moodHabit: true, server: () => late.future);
     expect(switchOf(tester, 'er-mood').onChanged, isNotNull);
-    expect(switchOf(tester, 'er-mood').value, isTrue);
-    expect(saved, isEmpty);
+    await tap(tester, 'er-mood');
+    expect(saved.last, ('off', null, null));
+    late.complete({'remindMood': 'on', 'remindSetAt': 999});
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(switchOf(tester, 'er-mood').value, isFalse);
   });
 
-  testWidgets('своё на телефоне — без запроса к серверу', (tester) async {
+  testWidgets('своё на телефоне видно сразу и сверяется с профилем', (tester) async {
     SharedPreferences.setMockInitialValues({
+      'flutter.remind_owner': 'me',
       'flutter.remind_mood_mode': 'on',
       'flutter.remind_task_mode': 'off',
       'flutter.remind_at': '20:30',
+      'flutter.remind_set_at': 100,
     });
     var asked = false;
     await pump(tester, server: () async {
       asked = true;
-      return const {};
+      return {'remindMood': 'on', 'remindTask': 'off', 'remindAt': '20:30', 'remindSetAt': 100};
     });
-    expect(asked, isFalse);
+    expect(asked, isTrue);
     expect(switchOf(tester, 'er-mood').value, isTrue);
     expect(switchOf(tester, 'er-task').value, isFalse);
     expect(find.text('20:30'), findsOneWidget);
     expect(saved, isEmpty);
   });
 
-  testWidgets('сохранения идут по очереди, последнее — с итоговым состоянием', (tester) async {
+  testWidgets('выбор с другого телефона приезжает при открытии', (tester) async {
     SharedPreferences.setMockInitialValues({
+      'flutter.remind_owner': 'me',
       'flutter.remind_mood_mode': 'on',
-      'flutter.remind_task_mode': 'on',
+      'flutter.remind_set_at': 100,
     });
-    await pump(tester);
+    await pump(tester, server: () async => {'remindMood': 'off', 'remindSetAt': 300});
+    expect(switchOf(tester, 'er-mood').value, isFalse);
+    expect(saved, isEmpty);
+  });
+
+  testWidgets('сохранения идут по очереди, последнее — с итоговым состоянием', (tester) async {
+    SharedPreferences.setMockInitialValues(mine(mood: 'on', task: 'on'));
+    await pump(tester, server: () async => server(mood: 'on', task: 'on'));
     await tester.tap(find.byKey(const ValueKey('er-mood')));
     await tester.pump(const Duration(milliseconds: 10));
     await tester.tap(find.byKey(const ValueKey('er-mood')));
@@ -159,11 +182,8 @@ void main() {
   });
 
   testWidgets('выбор времени уходит на сервер', (tester) async {
-    SharedPreferences.setMockInitialValues({
-      'flutter.remind_mood_mode': 'on',
-      'flutter.remind_task_mode': 'on',
-    });
-    await pump(tester);
+    SharedPreferences.setMockInitialValues(mine(mood: 'on', task: 'on'));
+    await pump(tester, server: () async => server(mood: 'on', task: 'on'));
     await tester.tap(find.byKey(const ValueKey('er-time')));
     await tester.pump(const Duration(milliseconds: 500));
     await tester.tap(find.text('OK'));
@@ -173,11 +193,8 @@ void main() {
   });
 
   testWidgets('оба выключены — время не выбрать', (tester) async {
-    SharedPreferences.setMockInitialValues({
-      'flutter.remind_mood_mode': 'off',
-      'flutter.remind_task_mode': 'off',
-    });
-    await pump(tester);
+    SharedPreferences.setMockInitialValues(mine(mood: 'off', task: 'off'));
+    await pump(tester, server: () async => server(mood: 'off', task: 'off'));
     await tester.tap(find.byKey(const ValueKey('er-time')));
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byType(TimePickerDialog), findsNothing);

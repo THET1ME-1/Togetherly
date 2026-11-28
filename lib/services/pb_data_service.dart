@@ -3412,11 +3412,12 @@ class PbDataService {
       'mascotSleep': d['mascot_sleep'],
       // Свои темы Togetherly+ (до пяти цветов), см. models/custom_theme.dart
       'customThemes': d['custom_themes'],
-      // Выбор в вечернем напоминании: на новом телефоне он приезжает в
-      // пустые prefs (`adoptEveningReminder`), а не затирается умолчанием.
+      // Выбор в вечернем напоминании и когда он сделан: телефон сверяет с
+      // ним свой (`reconcileEveningReminder`), побеждает более поздний.
       'remindMood': d['remind_mood'],
       'remindTask': d['remind_task'],
       'remindAt': d['remind_at'],
+      'remindSetAt': d['remind_set_at'],
       'missYouWishes': d['miss_you_wishes'],
       // Когда заведён аккаунт: от неё зависят сезонные темы («Хэллоуин»
       // остаётся у тех, кто пришёл до конца сезона).
@@ -3508,6 +3509,7 @@ class PbDataService {
     put('remindMood', 'remind_mood');
     put('remindTask', 'remind_task');
     put('remindAt', 'remind_at');
+    put('remindSetAt', 'remind_set_at');
     // Метка «телефон присылал настройки». Без неё сервер не знает, ноль в
     // колонке — выбор человека или ещё не заполненное поле, и молчал тем, кто
     // не открывал вкладку «Профиль» (обращение №133, 06.09.2026).

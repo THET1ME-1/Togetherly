@@ -63,7 +63,7 @@ import date_rules
 from push_texts import пуш
 from fastapi.responses import (ORJSONResponse, JSONResponse, Response,
                                FileResponse)
-from sqlite_read import ReadyCache, build_list, load_fields, serialize
+from sqlite_read import FieldsCache, ReadyCache, build_list, serialize
 
 log = logging.getLogger("hotpath")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -4736,7 +4736,13 @@ SQLITE_READ = {
     # Пароль и tokenKey в схеме скрытые, в ответ не попадают.
     "users": "self",
 }
-_sqlite_meta: dict[str, tuple[str, dict]] = {}   # имя -> (id коллекции, поля)
+# Имя -> (id коллекции, поля). Перечитывается раз в минуту: поле, заведённое
+# после запуска, иначе не попадало в ответ до перезапуска (28.11.2026).
+_sqlite_meta = FieldsCache(SQLITE_READ)
+
+
+def _fields_of(col: str) -> tuple[str, dict]:
+    return _sqlite_meta.get(lite_read, _lite_read_lock, col)
 # Каталог приложение тянет целиком на каждом запуске, и сборка ответа в
 # Python стоила 28 мс процессора против 16 у PocketBase. Ответ один на всех,
 # поэтому готовый живёт 30 секунд (замер 19.10.2026).
@@ -4756,7 +4762,7 @@ async def _pb_passthrough(request: Request) -> Response:
 
 
 def _sqlite_list_sync(col, conds, uid, groups, sort, page, per_page, skip_total):
-    collection_id, fields = _sqlite_meta[col]
+    collection_id, fields = _fields_of(col)
     sql, args, count_sql, count_args = build_list(
         col, fields, conds, groups, sort, page, per_page, sortable=set(fields),
         scope=SQLITE_READ[col], uid=uid)
@@ -4769,7 +4775,7 @@ def _sqlite_list_sync(col, conds, uid, groups, sort, page, per_page, skip_total)
 
 
 def _sqlite_get_sync(col, rid, uid, groups):
-    collection_id, fields = _sqlite_meta[col]
+    collection_id, fields = _fields_of(col)
     if SQLITE_READ[col] == "public":
         sql, args = f"SELECT * FROM {col} WHERE id = ?", [rid]
     elif SQLITE_READ[col] == "self":
@@ -4810,7 +4816,7 @@ async def _sqlite_list(col: str, request: Request):
     uid, groups, denied = await _sqlite_auth(col, request)
     if denied:
         return denied
-    _, fields = _sqlite_meta[col]
+    _, fields = await asyncio.to_thread(_fields_of, col)
     try:
         page = max(1, int(q.get("page", "1")))
         per_page = min(1000, max(1, int(q.get("perPage", "30"))))
@@ -5652,8 +5658,10 @@ async def _startup():
     # `lite` не должна ждать списка подарков.
     lite_read = sqlite3.connect(f"file:{PB_DB}?mode=ro", uri=True, check_same_thread=False)
     lite_read.execute("PRAGMA busy_timeout=5000")
+    # Схема читается сразу: сломанная `_collections` уронит запуск, а не
+    # первый запрос человека.
     for name in SQLITE_READ:
-        _sqlite_meta[name] = load_fields(lite_read, name)
+        _fields_of(name)
     # запись — только точечные вещи: messages_count и чистка мёртвых пуш-токенов.
     lite_rw = sqlite3.connect(PB_DB, timeout=10, check_same_thread=False)
     lite_rw.execute("PRAGMA busy_timeout=10000")

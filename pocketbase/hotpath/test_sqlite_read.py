@@ -129,5 +129,23 @@ got, _ = run([("recipient_uid", "=", "u1")], frozenset({"pairA", "pairB"}), sort
 got, _ = run([("state", "<>", "sent")], frozenset({"pairA", "pairB"}))
 проверить("неравенство", got == ["g2"], str(got))
 
+# Схему hotpath читал один раз при запуске, и поле, заведённое позже, в ответ
+# не попадало до перезапуска: 28.11.2026 так пропали из своего профиля поля
+# вечернего напоминания. Схема перечитывается по сроку.
+import threading  # noqa: E402
+
+from sqlite_read import FieldsCache  # noqa: E402
+
+часы = [100.0]
+кэш = FieldsCache(["gifts"], ttl=60.0, clock=lambda: часы[0])
+lock = threading.Lock()
+проверить("поля читаются сразу", "price" in кэш.get(db, lock, "gifts")[1])
+raw = json.loads(db.execute("SELECT fields FROM _collections WHERE name = 'gifts'").fetchone()[0])
+raw.append({"name": "fresh_field", "type": "text"})
+db.execute("UPDATE _collections SET fields = ? WHERE name = 'gifts'", (json.dumps(raw),))
+проверить("до срока — прежняя схема", "fresh_field" not in кэш.get(db, lock, "gifts")[1])
+часы[0] += 61
+проверить("после срока новое поле видно", "fresh_field" in кэш.get(db, lock, "gifts")[1])
+
 print(f"итог: провалов {len(провалы)}" + (f" — {провалы}" if провалы else ""))
 raise SystemExit(1 if провалы else 0)

@@ -101,7 +101,7 @@ USERS_CUSTOM = [
     # `remind_mood_off`, `remind_task_off`, `remind_custom` — от первой версии,
     # их никто не читает, на проде ждут удаления в тихий час.
     number("remind_v"), text("remind_mood"), text("remind_task"),
-    text("remind_at"), text("remind_tz"),
+    text("remind_at"), text("remind_tz"), number("remind_set_at"),
     jsonf("solo_timers"),
     date("updated_at"), date("last_daily_bonus_at"),
     date("last_memory_reward_at"), text("ad_rewards_date"),

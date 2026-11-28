@@ -25,10 +25,9 @@ typedef EveningReminderServer = Future<Map<String, dynamic>?> Function();
 /// напоминать и во сколько. Пуш шлёт сервер (`evening_reminder_push.py`) и
 /// только если что-то из выбранного за день не сделано.
 ///
-/// Экран обязан показывать то, что сервер сделает. Тому, кто блок не
-/// открывал, сервер напоминает по привычке; первый показ записывает положение
-/// выключателей явным `on`/`off`. Сперва спрашиваем сервер — выбор мог быть
-/// сделан на другом телефоне, — и только если там пусто, решает привычка.
+/// Тому, кто блок не открывал, сервер напоминает по привычке. Пишет на сервер
+/// только нажатие человека; выбор сверяется с профилем при каждом открытии
+/// (`reconcileEveningReminder`): побеждает сделанный позже, на любом телефоне.
 class EveningReminderBlock extends StatefulWidget {
   const EveningReminderBlock({
     super.key,
@@ -37,10 +36,11 @@ class EveningReminderBlock extends StatefulWidget {
     required this.paired,
     this.onSave,
     this.loadServer,
+    this.uid,
   });
 
   /// Привычка к настроению и к заданиям (`moodHabitOf`, `taskHabitOf`):
-  /// начальное положение выключателей при первом показе.
+  /// положение нерешённого пункта на экране.
   final bool moodHabit;
   final bool taskHabit;
 
@@ -49,6 +49,9 @@ class EveningReminderBlock extends StatefulWidget {
 
   final EveningReminderSave? onSave;
   final EveningReminderServer? loadServer;
+
+  /// Чей выбор сверяем; по умолчанию — вошедший.
+  final String? uid;
 
   @override
   State<EveningReminderBlock> createState() => _EveningReminderBlockState();
@@ -62,9 +65,12 @@ class _EveningReminderBlockState extends State<EveningReminderBlock> {
   /// `ЧЧ:ММ`, выбранное человеком; null — 21:00 по умолчанию.
   String? _at;
 
-  /// Пока prefs и сервер не прочитаны, выключатели не нажимаются: поздний
-  /// ответ перетёр бы нажатие, а сохранение ушло бы с умолчаниями.
+  /// Пока prefs не прочитаны, выключатели не нажимаются: сохранение ушло бы
+  /// с умолчаниями. Сервер не ждём — без сети это секунды на каждом открытии.
   bool _loaded = false;
+
+  /// Человек уже нажимал: поздний ответ сервера его выбор не перетирает.
+  bool _touched = false;
 
   /// Сохранения по очереди: при быстрых нажатиях запросы иначе приходят на
   /// сервер в любом порядке, и там остаётся не последнее.
@@ -86,29 +92,29 @@ class _EveningReminderBlockState extends State<EveningReminderBlock> {
     _at = remindAtValid(prefs.getString(kRemindAtPref));
   }
 
-  bool get _undecided => _mood == null || (widget.paired && _task == null);
-
   Future<void> _load() async {
     await _readPrefs();
-    if (_undecided) {
-      Map<String, dynamic>? server;
-      try {
-        server = await (widget.loadServer ?? _ownProfile)()
-            .timeout(const Duration(seconds: 6));
-      } catch (_) {
-        server = null;
-      }
-      if (server != null) {
-        await adoptEveningReminder(server);
-        await _readPrefs();
-      }
-    }
     if (!mounted) return;
     // Первый показ ничего не пишет: привычку телефон считает по неполным
     // данным (отметки только этой пары, прогресс заданий до загрузки) и мог
     // записать «выкл» тому, кто отмечает настроение каждый день. Нерешённый
     // пункт остаётся за сервером, пишет только нажатие человека.
     setState(() => _loaded = true);
+
+    // Свериться с профилем: выбор мог быть сделан на другом телефоне.
+    Map<String, dynamic>? server;
+    try {
+      server = await (widget.loadServer ?? _ownProfile)()
+          .timeout(const Duration(seconds: 6));
+    } catch (_) {
+      server = null;
+    }
+    if (server == null || !mounted || _touched) return;
+    await reconcileEveningReminder(server,
+        uid: widget.uid ?? PocketBaseService().userId ?? '');
+    if (!mounted || _touched) return;
+    await _readPrefs();
+    if (mounted) setState(() {});
   }
 
   static Future<Map<String, dynamic>?> _ownProfile() async {
@@ -118,6 +124,7 @@ class _EveningReminderBlockState extends State<EveningReminderBlock> {
   }
 
   void _queueSave() {
+    _touched = true;
     // Каждое сохранение читает состояние в момент отправки: последнее в
     // очереди уносит итог, сколько бы нажатий ни было.
     _chain = _chain.then((_) {

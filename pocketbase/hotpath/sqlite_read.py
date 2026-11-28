@@ -7,6 +7,31 @@ PocketBase. Записи остаются за PocketBase. Ответ собир
 """
 
 import json
+import time
+
+
+class FieldsCache:
+    """Поля коллекций для ответов из SQLite, перечитываются раз в `ttl` секунд.
+
+    Схему hotpath читал один раз при запуске, и поле, заведённое позже, в
+    ответы не попадало до перезапуска: 28.11.2026 так пропали из своего
+    профиля поля вечернего напоминания, и сверка выбора на телефоне увидела
+    бы пустой сервер. Чтение `_collections` стоит доли миллисекунды, раз в
+    минуту — даром.
+    """
+
+    def __init__(self, names, ttl: float = 60.0, clock=time.monotonic):
+        self.names, self.ttl, self.clock = list(names), ttl, clock
+        self._at: float | None = None
+        self._meta: dict[str, tuple[str, dict]] = {}
+
+    def get(self, db, lock, name: str) -> tuple[str, dict]:
+        now = self.clock()
+        if self._at is None or now - self._at >= self.ttl:
+            with lock:
+                fresh = {n: load_fields(db, n) for n in self.names}
+            self._meta, self._at = fresh, now
+        return self._meta[name]
 
 
 class ReadyCache:

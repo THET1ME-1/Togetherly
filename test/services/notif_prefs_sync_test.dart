@@ -88,57 +88,109 @@ void main() {
   });
 
   group('вечернее напоминание (TOG-113)', () {
-    // Метка сборки и пояс уходят всегда: по метке сервер узнаёт сборку, где
-    // напоминание можно выключить. Пункты и время — только выбранные: пустой
-    // телефон (второе устройство, переустановка) не затирает выбор человека.
-    test('пустые prefs — только метка сборки и пояс', () {
-      expect(eveningReminderBody(mood: null, task: null, at: null, tz: 'Europe/Kyiv'), {
+    // При каждом запуске уходят только метка сборки и пояс: по метке сервер
+    // узнаёт сборку, где напоминание можно выключить. Выбор человека уходит
+    // только после его действия и с отметкой времени — иначе телефон со
+    // старым выбором затирал бы при запуске выбор, сделанный на другом.
+    test('запуск — только метка сборки и пояс', () {
+      expect(eveningReminderBaseBody(tz: 'Europe/Kyiv'), {
         'remindV': kEveningReminderVersion,
         'remindTz': 'Europe/Kyiv',
       });
-      expect(eveningReminderBody(mood: null, task: null, at: null, tz: null),
-          {'remindV': kEveningReminderVersion});
+      expect(eveningReminderBaseBody(tz: null), {'remindV': kEveningReminderVersion});
     });
 
-    test('выбранное уходит как есть', () {
-      expect(eveningReminderBody(mood: 'off', task: 'on', at: '20:30', tz: 'Asia/Almaty'), {
-        'remindV': kEveningReminderVersion,
-        'remindTz': 'Asia/Almaty',
+    test('выбор уходит целиком, нерешённое — пустой строкой', () {
+      expect(eveningReminderChoiceBody(mood: 'off', task: null, at: 'вечер', setAt: 42), {
         'remindMood': 'off',
-        'remindTask': 'on',
-        'remindAt': '20:30',
+        'remindTask': '',
+        'remindAt': '',
+        'remindSetAt': 42,
       });
     });
 
-    test('мусор в prefs не уходит', () {
-      expect(eveningReminderBody(mood: 'maybe', task: '', at: 'вечер', tz: ''),
-          {'remindV': kEveningReminderVersion});
-    });
+    group('сверка с профилем', () {
+      late List<Map<String, dynamic>> pushed;
+      Future<bool> push(Map<String, dynamic> body) async {
+        pushed.add(body);
+        return true;
+      }
 
-    test('пустые prefs заполняются с сервера, свои не трогаются', () async {
-      SharedPreferences.setMockInitialValues({'flutter.$kRemindTaskPref': 'on'});
-      await adoptEveningReminder({
-        'remindMood': 'off',
-        'remindTask': 'off',
-        'remindAt': '23:00',
+      Future<SharedPreferences> prefsWith(Map<String, Object> values) async {
+        pushed = [];
+        SharedPreferences.setMockInitialValues({
+          for (final e in values.entries) 'flutter.${e.key}': e.value,
+        });
+        return SharedPreferences.getInstance();
+      }
+
+      test('нет неотправленного — повторяем сервер, включая пустое', () async {
+        final prefs = await prefsWith({
+          kRemindOwnerPref: 'me',
+          kRemindMoodPref: 'on',
+          kRemindTaskPref: 'on',
+          kRemindAtPref: '20:00',
+          kRemindSetAtPref: 100,
+        });
+        await reconcileEveningReminder(
+            {'remindMood': 'off', 'remindTask': '', 'remindAt': '', 'remindSetAt': 200},
+            uid: 'me', push: push);
+        expect(prefs.getString(kRemindMoodPref), 'off');
+        expect(prefs.getString(kRemindTaskPref), isNull);
+        expect(prefs.getString(kRemindAtPref), isNull);
+        expect(prefs.getInt(kRemindSetAtPref), 200);
+        expect(pushed, isEmpty);
       });
-      final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getString(kRemindMoodPref), 'off');
-      expect(prefs.getString(kRemindTaskPref), 'on', reason: 'своё на телефоне сильнее');
-      expect(prefs.getString(kRemindAtPref), '23:00');
-    });
 
-    test('пустой ответ сервера ничего не пишет', () async {
-      SharedPreferences.setMockInitialValues({});
-      await adoptEveningReminder({'remindMood': '', 'remindTask': null, 'remindAt': ''});
-      final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getKeys(), isEmpty);
+      test('свой неотправленный выбор новее сервера — уходит на сервер', () async {
+        final prefs = await prefsWith({
+          kRemindOwnerPref: 'me',
+          kRemindMoodPref: 'off',
+          kRemindSetAtPref: 300,
+          kRemindPendingPref: true,
+        });
+        await reconcileEveningReminder({'remindMood': 'on', 'remindSetAt': 200},
+            uid: 'me', push: push);
+        expect(pushed.single, containsPair('remindMood', 'off'));
+        expect(pushed.single, containsPair('remindSetAt', 300));
+        expect(prefs.getString(kRemindMoodPref), 'off');
+        expect(prefs.getBool(kRemindPendingPref), isFalse);
+      });
+
+      // Б меняет без сети, потом А меняет в сети, Б выходит на связь:
+      // остаться должен выбор А, хотя у Б он «не отправлен».
+      test('выбор с другого телефона позже своего — побеждает он', () async {
+        final prefs = await prefsWith({
+          kRemindOwnerPref: 'me',
+          kRemindMoodPref: 'off',
+          kRemindSetAtPref: 100,
+          kRemindPendingPref: true,
+        });
+        await reconcileEveningReminder({'remindMood': 'on', 'remindSetAt': 200},
+            uid: 'me', push: push);
+        expect(pushed, isEmpty);
+        expect(prefs.getString(kRemindMoodPref), 'on');
+        expect(prefs.getBool(kRemindPendingPref), isFalse);
+      });
+
+      test('на телефоне вошёл другой аккаунт — чужой выбор не уходит', () async {
+        final prefs = await prefsWith({
+          kRemindOwnerPref: 'other',
+          kRemindMoodPref: 'off',
+          kRemindSetAtPref: 900,
+          kRemindPendingPref: true,
+        });
+        await reconcileEveningReminder({}, uid: 'me', push: push);
+        expect(pushed, isEmpty);
+        expect(prefs.getString(kRemindMoodPref), isNull);
+        expect(prefs.getString(kRemindOwnerPref), 'me');
+      });
     });
 
     test('профиль отдаёт поля напоминания', () {
       final pb = File('lib/services/pb_data_service.dart').readAsStringSync();
       for (final f in ["'remindMood': d['remind_mood']", "'remindTask': d['remind_task']",
-          "'remindAt': d['remind_at']"]) {
+          "'remindAt': d['remind_at']", "'remindSetAt': d['remind_set_at']"]) {
         expect(pb.contains(f), isTrue, reason: f);
       }
     });
@@ -166,6 +218,7 @@ void main() {
         "put('remindMood', 'remind_mood')",
         "put('remindTask', 'remind_task')",
         "put('remindAt', 'remind_at')",
+        "put('remindSetAt', 'remind_set_at')",
       ]) {
         expect(pb.contains(f), isTrue, reason: f);
       }

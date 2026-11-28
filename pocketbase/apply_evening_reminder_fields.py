@@ -8,7 +8,9 @@
     привычке» — человек блок настроек не открывал);
   * `remind_at` — время `ЧЧ:ММ` по часам человека, пусто — 21:00;
   * `remind_tz` — пояс телефона (`Europe/Kyiv`): у человека без пары записи
-    виджета с поясом может не быть.
+    виджета с поясом может не быть;
+  * `remind_set_at` — когда человек сделал выбор (мс). По нему телефоны
+    решают, чей выбор новее (`reconcileEveningReminder`).
 
 Пишет их приложение (`NotifPrefsSync`, блок «Вечернее напоминание»).
 Коллекция `users` системная и в `collections_schema.json` не выгружается,
@@ -37,6 +39,7 @@ WANTED = [
     {"name": "remind_task", "type": "text", "max": 3},
     {"name": "remind_at", "type": "text", "max": 5},
     {"name": "remind_tz", "type": "text", "max": 64},
+    {"name": "remind_set_at", "type": "number", "onlyInt": True},
 ]
 
 
