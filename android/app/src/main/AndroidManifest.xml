@@ -6,6 +6,11 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Голосовая связь в комнате просмотра: маршрутизация звука. -->
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <!-- «Наши даты» в календаре телефона (TOG-61): только когда человек сам
+         включил это на листе «Календарь телефона». Чтение нужно, чтобы
+         показать его календари и найти свои события при повторном включении. -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <uses-permission android:name="android.permission.WRITE_CALENDAR" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     

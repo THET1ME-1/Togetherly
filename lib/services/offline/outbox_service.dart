@@ -429,6 +429,10 @@ class OutboxService {
         return k('wish_categories', (p['kind'] as Map?)?['id']);
       case 'wishCategoryDelete':
         return k('wish_categories', p['id']);
+      case 'dateUpsert':
+        return k('pair_dates', (p['date'] as Map?)?['id']);
+      case 'dateDelete':
+        return k('pair_dates', p['id']);
       case 'chatUpsert':
       case 'chatVoice':
       case 'chatNote':
@@ -675,6 +679,11 @@ class OutboxService {
       case 'wishCategoryUpsert':
         return _replaceOrMerge(db, type, p,
             (a, b) => (a['kind'] as Map?)?['id'] == (b['kind'] as Map?)?['id']);
+      // Дату правят подряд (название, повтор, напоминания) — серверу нужна
+      // последняя версия записи.
+      case 'dateUpsert':
+        return _replaceOrMerge(db, type, p,
+            (a, b) => (a['date'] as Map?)?['id'] == (b['date'] as Map?)?['id']);
       // «Дарю» нажимают туда-обратно: серверу нужно последнее состояние.
       case 'wishReserve':
         return _replaceOrMerge(db, type, p,
@@ -867,6 +876,14 @@ class OutboxService {
         );
       case 'wishCategoryDelete':
         return data.deleteWishCategory(p['id'] as String? ?? '');
+      // ── наши даты ──
+      case 'dateUpsert':
+        return data.upsertPairDate(
+          p['groupId'] as String? ?? '',
+          Map<String, dynamic>.from(p['date'] as Map? ?? const {}),
+        );
+      case 'dateDelete':
+        return data.deletePairDate(p['id'] as String? ?? '');
       // ── комментарии ──
       case 'commentUpsert':
         return data.upsertComment(

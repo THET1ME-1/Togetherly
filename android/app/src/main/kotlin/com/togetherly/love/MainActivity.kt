@@ -182,6 +182,19 @@ class MainActivity : FlutterActivity() {
             AgeSignalsBridge.CHANNEL
         ).setMethodCallHandler(AgeSignalsBridge { if (isFinishing || isDestroyed) null else this })
 
+        // Часовой пояс телефона по имени города (`Europe/Kyiv`): по нему сервер
+        // шлёт напоминания «Наших дат» в 9:00 по часам человека, и перевод
+        // часов не сдвигает их на час (TOG-61). Смещения `+03:00` для этого мало.
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "love_app/time_zone"
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "name" -> result.success(java.util.TimeZone.getDefault().id)
+                else -> result.notImplemented()
+            }
+        }
+
         // Запись номеров фото-виджетов для фонового Dart: виджеты, стоявшие
         // до обновления, ещё не успели записать себя сами.
         WidgetIdRegistry.refresh(applicationContext)

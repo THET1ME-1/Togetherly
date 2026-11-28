@@ -82,8 +82,8 @@ class Напоминания(unittest.TestCase):
         self.assertEqual(повтор, date(2026, 12, 4))
 
     def test_пояс_человека_из_виджета(self):
-        self.assertEqual(str(dr.пояс_человека({"tzn": "Europe/Kyiv", "tz": "+02:00"}, None)), "Europe/Kyiv")
-        смещение = dr.пояс_человека({"tz": "+05:30"}, None)
+        self.assertEqual(str(dr.пояс_человека({"tzn": "Europe/Kyiv", "zone": "+02:00"}, None)), "Europe/Kyiv")
+        смещение = dr.пояс_человека({"zone": "+05:30"}, None)
         self.assertEqual(смещение.utcoffset(None).total_seconds(), 5.5 * 3600)
         self.assertEqual(str(dr.пояс_человека({}, "America/New_York")), "America/New_York")
         self.assertEqual(str(dr.пояс_человека(None, "мусор")), "Europe/Moscow")

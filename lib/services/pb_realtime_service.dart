@@ -918,6 +918,17 @@ class PbRealtimeService {
     reconcile: true,
   );
 
+  /// Памятные даты пары (TOG-61) — по дню начала. Дату удаляет любой из пары,
+  /// насовсем: без сверки удалённая партнёром висела бы в календаре вечно.
+  Stream<List<RecordModel>> watchPairDates(String groupId) => watchList(
+    'pair_dates',
+    filter: _pb.filter('group_id = {:g}', {'g': groupId}),
+    scope: RecordScope('pair_dates:g=$groupId', equals: {'group_id': groupId}),
+    compare: (a, b) => _strAsc(a.data['day'], b.data['day']),
+    rtChannel: 'pair:$groupId',
+    reconcile: true,
+  );
+
   /// Свои категории желаний — в порядке заведения.
   Stream<List<RecordModel>> watchWishCategories(String groupId) => watchList(
     'wish_categories',

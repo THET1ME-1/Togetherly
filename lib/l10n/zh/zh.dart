@@ -37,6 +37,7 @@ import 'login_methods.dart';
 import 'feedback.dart';
 import 'doing.dart';
 import 'xmas.dart';
+import 'dates.dart';
 import 'chat_pins.dart';
 
 const Map<String, String> kZhStrings = {
@@ -46,6 +47,7 @@ const Map<String, String> kZhStrings = {
   ...feedbackZh,
   ...doingZh,
   ...xmasZh,
+  ...datesZh,
   ...chatPinsZh,
   ...smallAZh,
   ...smallBZh,

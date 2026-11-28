@@ -329,6 +329,12 @@
 	<string>Togetherly saves photos and videos from your memories to your library.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Togetherly adds photos to your memories and saves photos from memories to the Togetherly album.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Togetherly adds the special dates you save as a couple to the calendar you choose.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Togetherly adds the special dates you save as a couple to the calendar you choose and keeps them up to date when you edit them.</string>
+	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+	<string>Togetherly adds the special dates you save as a couple to your calendar.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

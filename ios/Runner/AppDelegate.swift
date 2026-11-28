@@ -75,6 +75,32 @@ import WidgetKit
     setupScreenAwakeChannel(engineBridge.pluginRegistry)
     setupAdCoverChannel(engineBridge.pluginRegistry)
     setupAgeSignalsChannel(engineBridge.pluginRegistry)
+    setupTimeZoneChannel(engineBridge.pluginRegistry)
+  }
+
+  // MARK: - Часовой пояс телефона
+
+  /// Канал `love_app/time_zone`: имя пояса по городу (`Europe/Kyiv`). По нему
+  /// сервер шлёт напоминания «Наших дат» в 9:00 по часам человека, и перевод
+  /// часов не сдвигает их на час (TOG-61). Смещения `+03:00` для этого мало.
+  private func setupTimeZoneChannel(_ registry: FlutterPluginRegistry) {
+    guard let messenger = registry
+      .registrar(forPlugin: "TogetherlyTimeZone")?
+      .messenger()
+    else { return }
+
+    let channel = FlutterMethodChannel(
+      name: "love_app/time_zone",
+      binaryMessenger: messenger
+    )
+    channel.setMethodCallHandler { call, result in
+      switch call.method {
+      case "name":
+        result(TimeZone.current.identifier)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
   }
 
   // MARK: - Возраст из App Store

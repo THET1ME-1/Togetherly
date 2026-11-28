@@ -26,6 +26,16 @@ void main() {
       expect(data['note'], 'привет');
       expect(data['zone'], '+03:00');
     });
+
+    test('имя пояса ложится рядом, по нему сервер шлёт напоминания дат', () {
+      final data = withZone({'note': 'привет'}, '+02:00', name: 'Europe/Kyiv');
+      expect(data['zone'], '+02:00');
+      expect(data[kZoneNameKey], 'Europe/Kyiv');
+      expect(zoneNameFromData(data), 'Europe/Kyiv');
+      expect(withZone({}, '+02:00').containsKey(kZoneNameKey), isFalse);
+      expect(zoneNameFromData({'tzn': ''}), isNull);
+      expect(zoneNameFromData({'tzn': 5}), isNull);
+    });
   });
 
   group('часы партнёра', () {

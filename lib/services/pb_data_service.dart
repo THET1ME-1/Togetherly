@@ -1776,6 +1776,60 @@ class PbDataService {
     }, op: 'upsertWishCategory');
   }
 
+  // ══════════════════════════════════════════════ НАШИ ДАТЫ (TOG-61)
+
+  /// Памятные даты пары (коллекция только в hotpath).
+  Future<List<RecordModel>> loadPairDates(String groupId) async {
+    if (groupId.isEmpty) return const [];
+    try {
+      return await _pb.collection('pair_dates').getFullList(
+            filter: _pb.filter('group_id = {:g}', {'g': groupId}),
+            sort: 'day',
+          );
+    } catch (e) {
+      debugPrint('PbData.loadPairDates($groupId) failed: $e');
+      return const [];
+    }
+  }
+
+  /// Дату правит любой из пары. Чужую, которую автор уже удалил, заново не
+  /// создаём: сервер пускает автором только самого человека, и правка
+  /// крутилась бы в очереди вечно (урок 10.11.2026 с воспоминаниями).
+  Future<bool> upsertPairDate(String groupId, Map<String, dynamic> date) async {
+    final id = date['id'] as String?;
+    if (id == null || id.isEmpty || groupId.isEmpty) return false;
+    final ghost = missingRecordIsDone(
+      authorUid: (date['author_uid'] ?? '').toString(),
+      myUid: PocketBaseService().userId ?? '',
+    );
+    return _upsertById('pair_dates', id, ifMissing: ghost ? true : null,
+        onMissing: () => unawaited(LocalStore.instance.deleteRecord('pair_dates', id)), {
+      'group_id': groupId,
+      'author_uid': date['author_uid'] ?? '',
+      'title': date['title'] ?? '',
+      'symbol': date['symbol'] ?? 'favorite',
+      'note': date['note'] ?? '',
+      'day': date['day'] ?? '',
+      'start_time': date['start_time'] ?? '',
+      'tz': date['tz'] ?? '',
+      'rrule': date['rrule'] ?? '',
+      'exdates': date['exdates'] ?? const [],
+      'reminders': date['reminders'] ?? const [],
+    }, op: 'upsertPairDate');
+  }
+
+  Future<bool> deletePairDate(String id) async {
+    if (id.isEmpty) return false;
+    try {
+      await _pb.collection('pair_dates').delete(id);
+      return true;
+    } catch (e) {
+      if (e is ClientException && e.statusCode == 404) return true;
+      debugPrint('PbData.deletePairDate($id) failed: $e');
+      return false;
+    }
+  }
+
   Future<bool> deleteWishCategory(String id) async {
     if (id.isEmpty) return false;
     try {

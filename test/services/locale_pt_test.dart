@@ -137,7 +137,7 @@ void main() {
     test('задания дня переведены все, имя партнёра на месте', () {
       LocaleService.instance.setLanguage(AppLanguage.en);
       final broken = <String>[];
-      for (final task in DailyTask.all) {
+      for (final task in DailyTask.known) {
         final pt = kDailyTasksPt[task.id];
         if (pt == null) {
           broken.add('${task.id}: нет перевода');
@@ -147,7 +147,7 @@ void main() {
       }
       expect(broken, isEmpty, reason: broken.take(10).join('\n'));
       final stray = kDailyTasksPt.keys
-          .where((id) => !DailyTask.all.any((t) => t.id == id));
+          .where((id) => !DailyTask.known.any((t) => t.id == id));
       expect(stray, isEmpty, reason: 'опечатка в id: ${stray.take(5)}');
     });
 

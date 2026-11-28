@@ -8,6 +8,8 @@ import '../l10n/zh/daily_tasks.dart';
 import '../services/locale_service.dart';
 import 'memory.dart';
 
+part 'daily_task_new_year.dart';
+
 /// Ежедневное «задание для пары» — лёгкий тёплый импульс поделиться моментом,
 /// привязанный к типу воспоминания ([MemoryType]). Выполнение = создание пина
 /// этого типа в Ленте воспоминаний. Награда — 1 монета (начисляется серверным
@@ -97,12 +99,17 @@ class DailyTask {
     }
   }
 
+  /// Ищет и в общем каталоге, и в новогоднем декабре: по id прогресс дня
+  /// узнаёт закрытое задание, а лента подписывает ответ на него.
   static DailyTask? byId(String id) {
-    for (final t in all) {
+    for (final t in known) {
       if (t.id == id) return t;
     }
     return null;
   }
+
+  /// Все задания, которые может выдать сборка: общий каталог и декабрь.
+  static Iterable<DailyTask> get known => [...all, ...NewYearTasks.all];
 
   /// Полный каталог. Упор на самые лёгкие типы (фото/заметка) — чтобы задание
   /// хотелось выполнить, а не откладывать.
@@ -1163,6 +1170,10 @@ final Map<String, DailyTaskDay> _dayCache = {};
 DailyTaskDay dailyTaskDayFor({required DateTime day, required String pairId}) {
   final utc = day.toUtc();
   final date = DateTime.utc(utc.year, utc.month, utc.day);
+  // В декабре у всех пар новогодние задания. Обычная очередь при этом идёт
+  // своим ходом ниже, поэтому январь у новой и прежней сборки совпадает.
+  final newYear = NewYearTasks.dayFor(date);
+  if (newYear != null) return newYear;
   final index = date.difference(_kTaskEpoch).inDays.clamp(0, 1 << 20);
   final cacheKey = '$pairId|$index';
   final cached = _dayCache[cacheKey];

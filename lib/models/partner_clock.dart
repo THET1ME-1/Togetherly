@@ -18,11 +18,25 @@ String? zoneFromData(dynamic data) {
   return PairTime.zoneToDuration(raw) == null ? null : raw;
 }
 
-/// Поле `data` с новым поясом. Остальные ключи (занятие, заметка, цвет) на
-/// месте: сервер перезаписывает json целиком.
-Map<String, dynamic> withZone(Map<dynamic, dynamic> data, String zone) => {
+/// Ключ имени пояса (`Europe/Kyiv`) в поле `data`. Смещения хватает часам
+/// партнёра, а серверу, который шлёт напоминания «Наших дат» в 9:00 по часам
+/// человека (TOG-61), нужно имя: по нему он знает переводы часов.
+const String kZoneNameKey = 'tzn';
+
+/// Имя пояса из поля `data` записи виджета. Пусто и мусор — null.
+String? zoneNameFromData(dynamic data) {
+  if (data is! Map) return null;
+  final raw = data[kZoneNameKey];
+  return raw is String && raw.isNotEmpty ? raw : null;
+}
+
+/// Поле `data` с новым поясом и, если телефон его назвал, именем пояса.
+/// Остальные ключи (занятие, заметка, цвет) на месте: сервер перезаписывает
+/// json целиком.
+Map<String, dynamic> withZone(Map<dynamic, dynamic> data, String zone, {String? name}) => {
       for (final e in data.entries) e.key.toString(): e.value,
       kZoneKey: zone,
+      if (name != null && name.isNotEmpty) kZoneNameKey: name,
     };
 
 /// Ключ подписи «у неё 02:14» по роду партнёра.
