@@ -67,20 +67,24 @@ enum CoverSymbol {
   }
 
   /// Плашка значка [name] стороны [side]: фон тона, значок насыщенным
-  /// цветом, как `NotifArt.tile` на Android. Шрифта нет — nil.
-  static func tile(_ name: String, tone: CoverTone, side: Int) -> CGImage? {
+  /// цветом, как `NotifArt.tile` на Android. [plain] — без плашки, значок
+  /// чёрным: карточка красит его сама под тему. Шрифта нет — nil.
+  static func tile(_ name: String, tone: CoverTone, side: Int, plain: Bool = false) -> CGImage? {
     guard let font, let ctx = context(side) else { return nil }
     let s = CGFloat(side)
-    ctx.addPath(CGPath(roundedRect: CGRect(x: 0, y: 0, width: s, height: s),
-                       cornerWidth: s * 0.25, cornerHeight: s * 0.25, transform: nil))
-    ctx.clip()
-    ctx.setFillColor(CoverTone.cg(tone.tint))
-    ctx.fill(CGRect(x: 0, y: 0, width: s, height: s))
+    let ink = plain ? CGColor(gray: 0, alpha: 1) : CoverTone.cg(tone.deep)
+    if !plain {
+      ctx.addPath(CGPath(roundedRect: CGRect(x: 0, y: 0, width: s, height: s),
+                         cornerWidth: s * 0.25, cornerHeight: s * 0.25, transform: nil))
+      ctx.clip()
+      ctx.setFillColor(CoverTone.cg(tone.tint))
+      ctx.fill(CGRect(x: 0, y: 0, width: s, height: s))
+    }
     let ct = CTFontCreateWithGraphicsFont(font, s * 0.58, nil, nil)
-    var line = self.line(name, font: ct, color: CoverTone.cg(tone.deep))
+    var line = self.line(name, font: ct, color: ink)
     // Имя без лигатуры шире плашки: такого значка нет — сердце.
     if CTLineGetTypographicBounds(line, nil, nil, nil) > Double(s * 0.9) {
-      line = self.line("favorite", font: ct, color: CoverTone.cg(tone.deep))
+      line = self.line("favorite", font: ct, color: ink)
     }
     center(line, in: ctx, side: s)
     return ctx.makeImage()
@@ -89,23 +93,26 @@ enum CoverSymbol {
   /// Волна голосового, как пузырь в чате и `NotifArt.waveform` на Android:
   /// [peaks] — до 40 цифр 0–9 (`VoicePeaks`), столбики насыщенного цвета
   /// тона на его плашке.
-  static func waveform(_ peaks: String, tone: CoverTone, width: Int, height: Int) -> CGImage? {
+  static func waveform(_ peaks: String, tone: CoverTone, width: Int, height: Int, plain: Bool = false) -> CGImage? {
     guard let ctx = CGContext(
       data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
       space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
     ) else { return nil }
     let w = CGFloat(width), h = CGFloat(height)
-    ctx.addPath(CGPath(roundedRect: CGRect(x: 0, y: 0, width: w, height: h),
-                       cornerWidth: h * 0.22, cornerHeight: h * 0.22, transform: nil))
-    ctx.setFillColor(CoverTone.cg(tone.tint))
-    ctx.fillPath()
+    // [plain] — без плашки, столбики чёрным: карточка красит их под тему.
+    if !plain {
+      ctx.addPath(CGPath(roundedRect: CGRect(x: 0, y: 0, width: w, height: h),
+                         cornerWidth: h * 0.22, cornerHeight: h * 0.22, transform: nil))
+      ctx.setFillColor(CoverTone.cg(tone.tint))
+      ctx.fillPath()
+    }
     var levels = peaks.compactMap { $0.wholeNumberValue }.map { CGFloat(min(9, max(0, $0))) / 9 }
     if levels.isEmpty { levels = Array(repeating: 0.35, count: 40) }
     let padX = w * 0.08
     let step = (w - 2 * padX) / CGFloat(levels.count)
     let bar = step * 0.55
     let maxH = h * 0.62
-    ctx.setFillColor(CoverTone.cg(tone.deep))
+    ctx.setFillColor(plain ? CGColor(gray: 0, alpha: 1) : CoverTone.cg(tone.deep))
     for (i, v) in levels.enumerated() {
       // Тишина — короткая засечка, а не разрыв, как в чате.
       let barH = max(bar, maxH * max(0.12, v))

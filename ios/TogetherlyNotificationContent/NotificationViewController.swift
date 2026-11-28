@@ -137,9 +137,12 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
 
     NSLayoutConstraint.deactivate(placed)
     placed = []
-    if let image, let cover {
-      let place = Self.placement(for: cover)
-      art.image = image
+    let place = cover.map { Self.placement(for: $0) }
+    let own = cover.flatMap { c in place.flatMap { Self.ownPicture(c, $0) } }
+    if let picture = own ?? image, let cover, let place {
+      art.image = picture
+      // Значок и волна — шаблоном: цвет подписи под светлую и тёмную тему.
+      art.tintColor = Self.dynamic(light: tone.deep, dark: tone.labelNight)
       band.isHidden = false
       band.backgroundColor = place == .photo
         ? .clear : Self.dynamic(light: tone.tint, dark: tone.deep, darkAlpha: 0.5)
@@ -171,15 +174,15 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
           art.centerYAnchor.constraint(equalTo: band.centerYAnchor),
           art.heightAnchor.constraint(equalToConstant: 168),
           art.widthAnchor.constraint(equalTo: art.heightAnchor,
-                                     multiplier: max(0.5, min(1.6, image.size.width / max(1, image.size.height)))),
+                                     multiplier: max(0.5, min(1.6, picture.size.width / max(1, picture.size.height)))),
         ]
       case .symbol:
         art.contentMode = .scaleAspectFit
         placed = [
           art.centerXAnchor.constraint(equalTo: band.centerXAnchor),
           art.centerYAnchor.constraint(equalTo: band.centerYAnchor),
-          art.widthAnchor.constraint(equalToConstant: 132),
-          art.heightAnchor.constraint(equalToConstant: 132),
+          art.widthAnchor.constraint(equalToConstant: 156),
+          art.heightAnchor.constraint(equalToConstant: 156),
         ]
       case .wave:
         art.contentMode = .scaleAspectFit
@@ -200,6 +203,24 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
       stackTop.constant = 16
     }
     fit()
+  }
+
+  /// Значок и волну карточка рисует сама, без плашки: вложение сделано для
+  /// миниатюры баннера и несёт светлую подложку, а на тёмной полосе она
+  /// встала бы чужим светлым квадратом. Шрифта значков нет — вложение.
+  private static func ownPicture(_ cover: Cover, _ place: Placement) -> UIImage? {
+    let drawn: CGImage?
+    switch place {
+    case .symbol:
+      drawn = cover.thumbnail.flatMap { $0.symbol.isEmpty ? nil : $0.symbol }
+        .flatMap { CoverSymbol.tile($0, tone: CoverTone.of("app"), side: 300, plain: true) }
+    case .wave:
+      drawn = cover.chat.flatMap { $0.peaks.isEmpty ? nil : $0.peaks }
+        .flatMap { CoverSymbol.waveform($0, tone: CoverTone.of("chat"), width: 720, height: 240, plain: true) }
+    default:
+      drawn = nil
+    }
+    return drawn.map { UIImage(cgImage: $0, scale: 3, orientation: .up).withRenderingMode(.alwaysTemplate) }
   }
 
   private static func dynamic(light: UInt32, dark: UInt32, darkAlpha: CGFloat = 1) -> UIColor {
