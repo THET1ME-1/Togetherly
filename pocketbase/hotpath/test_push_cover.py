@@ -55,6 +55,13 @@ class ОтПартнёра(unittest.TestCase):
         self.assertEqual([a["link"] for a in вечер["actions"]],
                          ["loveapp://open/mood", "loveapp://open/task"])
 
+    def test_у_каждой_обложки_подпись_неудачи(self):
+        # «Обнять» и снежок из шторки не повторяются сами: не дошло — человек
+        # видит это на своём языке, а не тишину.
+        self.assertEqual(собрать("miss", body="x")["failed"], "Не отправилось, открой приложение")
+        self.assertEqual(собрать("chest", lang="en", title="t")["failed"],
+                         "Didn’t go through, open the app")
+
     def test_у_каждого_вида_ссылка_на_экран(self):
         for вид in ("miss", "mood", "chat", "memory", "date", "snowball", "gift", "comment",
                     "draw", "plusgift", "pair_reset", "security", "date_remind", "evening", "chest"):

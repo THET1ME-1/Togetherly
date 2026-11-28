@@ -145,6 +145,8 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         ReelsInviteBridge.attach(flutterEngine.dartExecutor.binaryMessenger)
         PushArrivedBridge.attach(flutterEngine.dartExecutor.binaryMessenger)
+        // Уведомления «А»: свои уведомления Dart рисует тем же видом, что пуш.
+        com.togetherly.love.notif.NotifChannel.attach(flutterEngine.dartExecutor.binaryMessenger, this)
 
         sharedTextChannel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,

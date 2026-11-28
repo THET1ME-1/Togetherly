@@ -1,0 +1,734 @@
+{
+ "catalog": {
+  "art_act_miss": [
+   [
+    "sm_a.webp",
+    "lg_a.webp",
+    "still_miss.png"
+   ],
+   {}
+  ],
+  "art_act_rest": [
+   [
+    "still_rest.png"
+   ],
+   {}
+  ],
+  "art_act_wake": [
+   [
+    "still_wake.png"
+   ],
+   {}
+  ],
+  "art_act_draw": [
+   [
+    "still_draw.png"
+   ],
+   {}
+  ],
+  "art_chest_idle2": [
+   [
+    "sm_c.webp",
+    "still_chest.png"
+   ],
+   {}
+  ],
+  "moti": [
+   [],
+   {
+    "moods": [
+     {
+      "id": "love",
+      "url": "https://togetherly.day/api/files/catalog_items/moti/love_x.webp"
+     },
+     {
+      "id": "sad",
+      "url": "https://togetherly.day/api/files/catalog_items/moti/sad_x.webp"
+     }
+    ]
+   }
+  ],
+  "gift_bouquet": [
+   [
+    "sm_b.webp",
+    "still_bouquet.png"
+   ],
+   {}
+  ],
+  "frame_hearts": [
+   [
+    "still_hearts.png"
+   ],
+   {}
+  ],
+  "frame_cloud": [
+   [
+    "still_cloud.png"
+   ],
+   {
+    "hole": 27
+   }
+  ]
+ },
+ "cases": [
+  {
+   "kind": "miss",
+   "lang": "ru",
+   "ctx": {
+    "from_name": "Алина",
+    "body": "Хочу обнять",
+    "group_id": "g1",
+    "event_id": "e1"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "miss",
+    "failed": "Не отправилось, открой приложение",
+    "group": "g1",
+    "kicker": "Скучаю · Алина",
+    "title": "Скучает по тебе",
+    "body": "Хочу обнять",
+    "tone": "miss",
+    "art": {
+     "url": "https://togetherly.day/api/files/catalog_items/art_act_miss/still_miss.png"
+    },
+    "actions": [
+     {
+      "id": "hug",
+      "label": "Обнять в ответ"
+     },
+     {
+      "id": "write",
+      "label": "Написать",
+      "link": "loveapp://open/chat"
+     }
+    ],
+    "link": "loveapp://open/miss",
+    "event_id": "e1"
+   }
+  },
+  {
+   "kind": "miss",
+   "lang": "en",
+   "ctx": {
+    "body": "I miss you"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "miss",
+    "failed": "Didn’t go through, open the app",
+    "kicker": "Missing you · Partner",
+    "title": "Misses you",
+    "body": "I miss you",
+    "tone": "miss",
+    "art": {
+     "url": "https://togetherly.day/api/files/catalog_items/art_act_miss/still_miss.png"
+    },
+    "actions": [
+     {
+      "id": "hug",
+      "label": "Hug back"
+     },
+     {
+      "id": "write",
+      "label": "Write",
+      "link": "loveapp://open/chat"
+     }
+    ],
+    "link": "loveapp://open/miss",
+    "event_id": ""
+   }
+  },
+  {
+   "kind": "mood",
+   "lang": "ru",
+   "ctx": {
+    "from_name": "Алина",
+    "mood_id": "love",
+    "label": "Влюблённость"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "mood",
+    "failed": "Не отправилось, открой приложение",
+    "kicker": "Настроение · Алина",
+    "title": "Влюблённость",
+    "body": "Настроение на сегодня",
+    "tone": "mood",
+    "art": {
+     "url": "https://togetherly.day/api/files/catalog_items/moti/love_x.webp"
+    },
+    "actions": [
+     {
+      "id": "mood_back",
+      "label": "Ответить настроением",
+      "link": "loveapp://open/mood"
+     }
+    ],
+    "link": "loveapp://open/mood"
+   }
+  },
+  {
+   "kind": "mood",
+   "lang": "uk",
+   "ctx": {
+    "from_name": "Аліна",
+    "mood_id": "pride",
+    "label": "Гордість"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "mood",
+    "failed": "Не надіслалося, відкрий застосунок",
+    "kicker": "Настрій · Аліна",
+    "title": "Гордість",
+    "body": "Настрій на сьогодні",
+    "tone": "mood",
+    "art": {
+     "app": true
+    },
+    "actions": [
+     {
+      "id": "mood_back",
+      "label": "Відповісти настроєм",
+      "link": "loveapp://open/mood"
+     }
+    ],
+    "link": "loveapp://open/mood"
+   }
+  },
+  {
+   "kind": "chat",
+   "lang": "ru",
+   "ctx": {
+    "from_name": "Алина",
+    "body": "Ты уже дома?",
+    "avatar": "pb://media/r1/a.jpg",
+    "frame": "cloud",
+    "message_id": "m1",
+    "group_id": "g1",
+    "from_uid": "u1",
+    "ts": 1795873555018,
+    "photo": "pb://media/r2/n.webp"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "chat",
+    "failed": "Не отправилось, открой приложение",
+    "group": "g1",
+    "kicker": "Сообщение",
+    "title": "Алина",
+    "body": "Ты уже дома?",
+    "tone": "chat",
+    "art": {
+     "url": "https://togetherly.day/api/files/media/r1/a.jpg?thumb=200x200"
+    },
+    "actions": [
+     {
+      "id": "reply",
+      "label": "Ответить"
+     },
+     {
+      "id": "hug",
+      "label": "Обнять"
+     },
+     {
+      "id": "read",
+      "label": "Прочитано"
+     }
+    ],
+    "link": "loveapp://open/chat",
+    "chat": {
+     "from_uid": "u1",
+     "from_name": "Алина",
+     "group_id": "g1",
+     "message_id": "m1",
+     "ts": 1795873555018,
+     "avatar": "https://togetherly.day/api/files/media/r1/a.jpg?thumb=200x200",
+     "frame": "https://togetherly.day/api/files/catalog_items/frame_cloud/still_cloud.png",
+     "frame_hole": 27,
+     "you": "Вы",
+     "queued": "Отправлю, когда появится связь",
+     "hugged": "Объятие отправлено",
+     "image": "https://togetherly.day/api/files/media/r2/n.webp?thumb=400x400",
+     "quick": [
+      "Обнимаю",
+      "Скучаю тоже",
+      "Люблю тебя"
+     ]
+    }
+   }
+  },
+  {
+   "kind": "chat",
+   "lang": "de",
+   "ctx": {
+    "from_name": "Alina",
+    "body": "Hallo",
+    "group_id": "g1"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "chat",
+    "failed": "Nicht gesendet, öffne die App",
+    "group": "g1",
+    "kicker": "Nachricht",
+    "title": "Alina",
+    "body": "Hallo",
+    "tone": "chat",
+    "art": {
+     "app": true
+    },
+    "actions": [
+     {
+      "id": "reply",
+      "label": "Antworten"
+     },
+     {
+      "id": "hug",
+      "label": "Umarmen"
+     },
+     {
+      "id": "read",
+      "label": "Gelesen"
+     }
+    ],
+    "link": "loveapp://open/chat",
+    "chat": {
+     "from_uid": "",
+     "from_name": "Alina",
+     "group_id": "g1",
+     "message_id": "",
+     "ts": 0,
+     "avatar": "",
+     "frame": "",
+     "frame_hole": 31,
+     "you": "Du",
+     "queued": "Wird gesendet, sobald du wieder online bist",
+     "hugged": "Umarmung gesendet",
+     "image": "",
+     "quick": [
+      "Umarme dich",
+      "Vermisse dich auch",
+      "Hab dich lieb"
+     ]
+    }
+   }
+  },
+  {
+   "kind": "memory",
+   "lang": "ru",
+   "ctx": {
+    "from_name": "Алина",
+    "title": "Вечер на крыше",
+    "photo": "pb://media/r9/p.webp"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "memory",
+    "failed": "Не отправилось, открой приложение",
+    "kicker": "Воспоминание · Алина",
+    "title": "Вечер на крыше",
+    "body": "",
+    "tone": "memory",
+    "art": {
+     "url": "https://togetherly.day/api/files/media/r9/p.webp?thumb=400x400",
+     "auth": true
+    },
+    "actions": [
+     {
+      "id": "open",
+      "label": "Смотреть",
+      "link": "loveapp://open/memories"
+     }
+    ],
+    "link": "loveapp://open/memories"
+   }
+  },
+  {
+   "kind": "memory",
+   "lang": "fr",
+   "ctx": {
+    "from_name": "Alina"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "memory",
+    "failed": "Échec de l’envoi, ouvre l’appli",
+    "kicker": "Souvenir · Alina",
+    "title": "Nouveau souvenir",
+    "body": "",
+    "tone": "memory",
+    "art": {
+     "app": true
+    },
+    "actions": [
+     {
+      "id": "open",
+      "label": "Voir",
+      "link": "loveapp://open/memories"
+     }
+    ],
+    "link": "loveapp://open/memories"
+   }
+  },
+  {
+   "kind": "date",
+   "lang": "es",
+   "ctx": {
+    "from_name": "Alina",
+    "title": "Concierto",
+    "symbol": "theater_comedy"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "date",
+    "failed": "No se envió, abre la app",
+    "kicker": "Nueva fecha · Alina",
+    "title": "Concierto",
+    "body": "",
+    "tone": "date",
+    "art": {
+     "symbol": "theater_comedy"
+    },
+    "actions": [
+     {
+      "id": "open",
+      "label": "Abrir",
+      "link": "loveapp://open/dates"
+     }
+    ],
+    "link": "loveapp://open/dates"
+   }
+  },
+  {
+   "kind": "snowball",
+   "lang": "it",
+   "ctx": {
+    "from_name": "Alina",
+    "group_id": "g1"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "snowball",
+    "failed": "Non è partito, apri l’app",
+    "group": "g1",
+    "kicker": "Palla di neve · Alina",
+    "title": "Ti è arrivata una palla di neve",
+    "body": "Apri l’app e rilanciala",
+    "tone": "snow",
+    "art": {
+     "url": "https://togetherly.day/api/files/catalog_items/art_act_wake/still_wake.png"
+    },
+    "actions": [
+     {
+      "id": "throw",
+      "label": "Rilancia"
+     }
+    ],
+    "link": "loveapp://open/home"
+   }
+  },
+  {
+   "kind": "gift",
+   "lang": "pt",
+   "ctx": {
+    "from_name": "Alina",
+    "gift_key": "bouquet",
+    "title": "Buquê"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "gift",
+    "failed": "Não foi enviado, abra o app",
+    "kicker": "Presente · Alina",
+    "title": "Buquê",
+    "body": "",
+    "tone": "gift",
+    "art": {
+     "url": "https://togetherly.day/api/files/catalog_items/gift_bouquet/still_bouquet.png"
+    },
+    "actions": [
+     {
+      "id": "open",
+      "label": "Abrir presente",
+      "link": "loveapp://open/gifts"
+     }
+    ],
+    "link": "loveapp://open/gifts"
+   }
+  },
+  {
+   "kind": "gift",
+   "lang": "ru",
+   "ctx": {
+    "from_name": "Алина",
+    "gift_key": "frame_hearts",
+    "title": "Рамка"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "gift",
+    "failed": "Не отправилось, открой приложение",
+    "kicker": "Подарок · Алина",
+    "title": "Рамка",
+    "body": "",
+    "tone": "gift",
+    "art": {
+     "url": "https://togetherly.day/api/files/catalog_items/frame_hearts/still_hearts.png"
+    },
+    "actions": [
+     {
+      "id": "open",
+      "label": "Открыть подарок",
+      "link": "loveapp://open/gifts"
+     }
+    ],
+    "link": "loveapp://open/gifts"
+   }
+  },
+  {
+   "kind": "comment",
+   "lang": "zh",
+   "ctx": {
+    "from_name": "阿琳娜",
+    "body": "想再去",
+    "photo": "pb://media/r1/p.webp"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "comment",
+    "failed": "未发送，请打开应用",
+    "kicker": "评论 · 阿琳娜",
+    "title": "回忆",
+    "body": "想再去",
+    "tone": "memory",
+    "art": {
+     "url": "https://togetherly.day/api/files/media/r1/p.webp?thumb=400x400",
+     "auth": true
+    },
+    "actions": [
+     {
+      "id": "open",
+      "label": "打开",
+      "link": "loveapp://open/memories"
+     }
+    ],
+    "link": "loveapp://open/memories"
+   }
+  },
+  {
+   "kind": "draw",
+   "lang": "ru",
+   "ctx": {
+    "from_name": "Алина",
+    "title": "Порисуем?",
+    "body": "Открой холст"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "draw",
+    "failed": "Не отправилось, открой приложение",
+    "kicker": "Рисунок · Алина",
+    "title": "Порисуем?",
+    "body": "Открой холст",
+    "tone": "draw",
+    "art": {
+     "url": "https://togetherly.day/api/files/catalog_items/art_act_draw/still_draw.png"
+    },
+    "actions": [
+     {
+      "id": "open",
+      "label": "Открыть холст",
+      "link": "loveapp://open/draw"
+     }
+    ],
+    "link": "loveapp://open/draw"
+   }
+  },
+  {
+   "kind": "plusgift",
+   "lang": "en",
+   "ctx": {
+    "from_name": "Alina",
+    "title": "Togetherly+",
+    "body": "A gift for you"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "plusgift",
+    "failed": "Didn’t go through, open the app",
+    "kicker": "Gift · Alina",
+    "title": "Togetherly+",
+    "body": "A gift for you",
+    "tone": "plus",
+    "art": {
+     "app": true
+    },
+    "actions": [
+     {
+      "id": "open",
+      "label": "Open",
+      "link": "loveapp://open/plus"
+     }
+    ],
+    "link": "loveapp://open/plus"
+   }
+  },
+  {
+   "kind": "pair_reset",
+   "lang": "ru",
+   "ctx": {
+    "title": "Пароль меняют",
+    "body": "Если это не вы"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "pair_reset",
+    "failed": "Не отправилось, открой приложение",
+    "kicker": "Безопасность",
+    "title": "Пароль меняют",
+    "body": "Если это не вы",
+    "tone": "app",
+    "art": {
+     "app": true
+    },
+    "actions": [
+     {
+      "id": "open",
+      "label": "Открыть",
+      "link": "loveapp://open/home"
+     }
+    ],
+    "link": "loveapp://open/home"
+   }
+  },
+  {
+   "kind": "security",
+   "lang": "en",
+   "ctx": {
+    "title": "Password changed",
+    "body": "All good"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "security",
+    "failed": "Didn’t go through, open the app",
+    "kicker": "Security",
+    "title": "Password changed",
+    "body": "All good",
+    "tone": "app",
+    "art": {
+     "app": true
+    },
+    "actions": [
+     {
+      "id": "open",
+      "label": "Open",
+      "link": "loveapp://open/home"
+     }
+    ],
+    "link": "loveapp://open/home"
+   }
+  },
+  {
+   "kind": "date_remind",
+   "lang": "ru",
+   "ctx": {
+    "title": "Годовщина",
+    "body": "Завтра",
+    "symbol": "cake"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "date_remind",
+    "failed": "Не отправилось, открой приложение",
+    "kicker": "Наша дата",
+    "title": "Годовщина",
+    "body": "Завтра",
+    "tone": "date",
+    "art": {
+     "app": true
+    },
+    "art_big": {
+     "symbol": "cake"
+    },
+    "actions": [
+     {
+      "id": "open",
+      "label": "Открыть",
+      "link": "loveapp://open/dates"
+     }
+    ],
+    "link": "loveapp://open/dates"
+   }
+  },
+  {
+   "kind": "evening",
+   "lang": "ru",
+   "ctx": {
+    "title": "Как прошёл день?",
+    "body": "Отметь настроение"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "evening",
+    "failed": "Не отправилось, открой приложение",
+    "kicker": "Вечернее напоминание",
+    "title": "Как прошёл день?",
+    "body": "Отметь настроение",
+    "tone": "evening",
+    "art": {
+     "app": true
+    },
+    "art_big": {
+     "url": "https://togetherly.day/api/files/catalog_items/art_act_rest/still_rest.png"
+    },
+    "actions": [
+     {
+      "id": "mood",
+      "label": "Отметить настроение",
+      "link": "loveapp://open/mood"
+     },
+     {
+      "id": "task",
+      "label": "Задание дня",
+      "link": "loveapp://open/task"
+     }
+    ],
+    "link": "loveapp://open/mood"
+   }
+  },
+  {
+   "kind": "chest",
+   "lang": "uk",
+   "ctx": {
+    "title": "Скриня знову повна",
+    "body": "Зазирни"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "chest",
+    "failed": "Не надіслалося, відкрий застосунок",
+    "kicker": "Скриня",
+    "title": "Скриня знову повна",
+    "body": "Зазирни",
+    "tone": "chest",
+    "art": {
+     "app": true
+    },
+    "art_big": {
+     "url": "https://togetherly.day/api/files/catalog_items/art_chest_idle2/still_chest.png"
+    },
+    "actions": [
+     {
+      "id": "chest",
+      "label": "Відкрити скриню",
+      "link": "loveapp://open/chest"
+     }
+    ],
+    "link": "loveapp://open/chest"
+   }
+  }
+ ]
+}

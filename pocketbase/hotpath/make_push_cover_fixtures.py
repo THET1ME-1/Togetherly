@@ -1,0 +1,76 @@
+"""Примеры обложек «А» для тестов приложения: `test/fixtures/push_cover_cases.json`.
+
+Обложку собирают три места — сервер (`push_cover.py`), Dart для своих
+уведомлений (`lib/models/push_cover.dart`) и Kotlin её разбирает
+(`notif/Cover.kt`). Тесты Dart и Kotlin сверяются с этим файлом, поэтому
+правится он только скриптом:
+
+    python3 pocketbase/hotpath/make_push_cover_fixtures.py
+"""
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import push_cover  # noqa: E402
+
+F = "https://togetherly.day/api/files"
+
+# Каталог примеров: записи как в боевой базе (файлы и data).
+КАТАЛОГ = {
+    "art_act_miss": [["sm_a.webp", "lg_a.webp", "still_miss.png"], {}],
+    "art_act_rest": [["still_rest.png"], {}],
+    "art_act_wake": [["still_wake.png"], {}],
+    "art_act_draw": [["still_draw.png"], {}],
+    "art_chest_idle2": [["sm_c.webp", "still_chest.png"], {}],
+    "moti": [[], {"moods": [{"id": "love", "url": f"{F}/catalog_items/moti/love_x.webp"},
+                            {"id": "sad", "url": f"{F}/catalog_items/moti/sad_x.webp"}]}],
+    "gift_bouquet": [["sm_b.webp", "still_bouquet.png"], {}],
+    "frame_hearts": [["still_hearts.png"], {}],
+    "frame_cloud": [["still_cloud.png"], {"hole": 27}],
+}
+
+ПРИМЕРЫ = [
+    ("miss", "ru", {"from_name": "Алина", "body": "Хочу обнять", "group_id": "g1", "event_id": "e1"}),
+    ("miss", "en", {"body": "I miss you"}),
+    ("mood", "ru", {"from_name": "Алина", "mood_id": "love", "label": "Влюблённость"}),
+    ("mood", "uk", {"from_name": "Аліна", "mood_id": "pride", "label": "Гордість"}),
+    ("chat", "ru", {"from_name": "Алина", "body": "Ты уже дома?", "avatar": "pb://media/r1/a.jpg",
+                    "frame": "cloud", "message_id": "m1", "group_id": "g1", "from_uid": "u1",
+                    "ts": 1795873555018, "photo": "pb://media/r2/n.webp"}),
+    ("chat", "de", {"from_name": "Alina", "body": "Hallo", "group_id": "g1"}),
+    ("memory", "ru", {"from_name": "Алина", "title": "Вечер на крыше", "photo": "pb://media/r9/p.webp"}),
+    ("memory", "fr", {"from_name": "Alina"}),
+    ("date", "es", {"from_name": "Alina", "title": "Concierto", "symbol": "theater_comedy"}),
+    ("snowball", "it", {"from_name": "Alina", "group_id": "g1"}),
+    ("gift", "pt", {"from_name": "Alina", "gift_key": "bouquet", "title": "Buquê"}),
+    ("gift", "ru", {"from_name": "Алина", "gift_key": "frame_hearts", "title": "Рамка"}),
+    ("comment", "zh", {"from_name": "阿琳娜", "body": "想再去", "photo": "pb://media/r1/p.webp"}),
+    ("draw", "ru", {"from_name": "Алина", "title": "Порисуем?", "body": "Открой холст"}),
+    ("plusgift", "en", {"from_name": "Alina", "title": "Togetherly+", "body": "A gift for you"}),
+    ("pair_reset", "ru", {"title": "Пароль меняют", "body": "Если это не вы"}),
+    ("security", "en", {"title": "Password changed", "body": "All good"}),
+    ("date_remind", "ru", {"title": "Годовщина", "body": "Завтра", "symbol": "cake"}),
+    ("evening", "ru", {"title": "Как прошёл день?", "body": "Отметь настроение"}),
+    ("chest", "uk", {"title": "Скриня знову повна", "body": "Зазирни"}),
+]
+
+
+def look(item_id):
+    found = КАТАЛОГ.get(item_id)
+    return (found[0], found[1]) if found else None
+
+
+def main():
+    cases = [{"kind": k, "lang": lang, "ctx": ctx, "cover": push_cover.cover(k, lang, ctx, look)}
+             for k, lang, ctx in ПРИМЕРЫ]
+    root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    out = os.path.join(root, "test", "fixtures", "push_cover_cases.json")
+    with open(out, "w", encoding="utf-8") as f:
+        json.dump({"catalog": КАТАЛОГ, "cases": cases}, f, ensure_ascii=False, indent=1)
+        f.write("\n")
+    print(f"{len(cases)} примеров → {os.path.relpath(out, root)}")
+
+
+if __name__ == "__main__":
+    main()

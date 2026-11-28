@@ -8,8 +8,12 @@ on:
   push:
     paths:
       - 'android/app/src/main/kotlin/**'
-      - 'android/app/src/main/res/layout/**'
+      - 'android/app/src/main/res/**'
+      - 'android/app/src/main/AndroidManifest.xml'
+      - 'android/app/src/test/**'
       - 'android/app/build.gradle.kts'
+      - 'test/fixtures/push_cover_cases.json'
+      - 'pocketbase/hotpath/push_cover.py'
       - '.github/workflows/android-widget-compile.yml'
   workflow_dispatch:
 
@@ -59,3 +63,10 @@ jobs:
       - name: Компиляция Kotlin
         working-directory: android
         run: ./gradlew :app:processDebugMainManifest :app:compileDebugKotlin --no-daemon --stacktrace
+
+      # Уведомления «А»: разбор обложки сверяется с примерами сервера
+      # (test/fixtures/push_cover_cases.json) и с именами тонов и действий
+      # в push_cover.py.
+      - name: Тесты уведомлений на JVM
+        working-directory: android
+        run: ./gradlew :app:testDebugUnitTest --tests 'com.togetherly.love.notif.*' --no-daemon --stacktrace

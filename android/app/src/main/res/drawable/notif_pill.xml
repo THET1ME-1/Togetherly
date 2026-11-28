@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Кнопка уведомления «А»: белая пилюля, цвет тона кладёт NotifCover
+     через setColorFilter (фон RemoteViews перекрасить нельзя, картинку можно). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <corners android:radius="20dp" />
+    <solid android:color="#FFFFFFFF" />
+</shape>

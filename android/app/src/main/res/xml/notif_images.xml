@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Фото из сообщения в переписке шторки: шторка читает его через
+     FileProvider (NotifChat.kt), файл живёт в кэше два дня. -->
+<paths>
+    <cache-path name="notif" path="notif/" />
+</paths>

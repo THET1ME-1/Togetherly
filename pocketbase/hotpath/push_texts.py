@@ -346,6 +346,13 @@ English»). Теперь приложение кладёт код языка в 
         "it": "Lo invio appena torna la connessione", "pt": "Envio quando a conexão voltar",
         "zh": "联网后发送", "uk": "Надішлю, щойно з’явиться зв’язок",
     },
+    "c_failed": {
+        "ru": "Не отправилось, открой приложение", "en": "Didn’t go through, open the app",
+        "de": "Nicht gesendet, öffne die App", "fr": "Échec de l’envoi, ouvre l’appli",
+        "es": "No se envió, abre la app", "it": "Non è partito, apri l’app",
+        "pt": "Não foi enviado, abra o app", "zh": "未发送，请打开应用",
+        "uk": "Не надіслалося, відкрий застосунок",
+    },
     "c_hugged": {
         "ru": "Объятие отправлено", "en": "Hug sent", "de": "Umarmung gesendet",
         "fr": "Câlin envoyé", "es": "Abrazo enviado", "it": "Abbraccio inviato",

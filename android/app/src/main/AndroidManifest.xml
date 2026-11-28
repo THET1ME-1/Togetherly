@@ -962,6 +962,26 @@
             android:foregroundServiceType="dataSync"
             android:exported="false" />
 
+        <!-- Уведомления «А» (28.11.2026): кнопки шторки, которые телефон
+             выполняет сам — ответ, «обнять», «прочитано», снежок
+             (notif/NotifActionReceiver.kt). Снаружи недоступен. -->
+        <receiver
+            android:name=".notif.NotifActionReceiver"
+            android:exported="false" />
+
+        <!-- Фото из сообщения в переписке шторки: шторка читает файл через
+             этот поставщик (notif/NotifChat.kt). Свой класс, чтобы не спорить
+             в манифесте с поставщиками плагинов. -->
+        <provider
+            android:name=".notif.NotifImagesProvider"
+            android:authorities="${applicationId}.notifimages"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/notif_images" />
+        </provider>
+
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

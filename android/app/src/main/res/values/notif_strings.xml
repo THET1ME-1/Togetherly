@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Канал уведомлений партнёра, если пуш пришёл раньше, чем приложение его
+     завело (NotifCover.ensureChannel). Имя то же, что pushChannelName в Dart. -->
+<resources>
+    <string name="notif_channel_partner">Partner notifications</string>
+</resources>

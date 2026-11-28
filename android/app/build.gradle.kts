@@ -122,6 +122,16 @@ dependencies {
     // держать последнюю версию; getApplicableAgeFeatures появился в 0.0.6.
     implementation("com.google.android.play:age-signals:0.0.6")
 
+    // Уведомления «А» (notif/): переписка в шторке с ярлыком разговора
+    // (ShortcutManagerCompat.pushDynamicShortcut, MessagingStyle с Person).
+    // Плагины тянут androidx.core старше, Gradle выберет большую версию.
+    implementation("androidx.core:core:1.13.1")
+
+    // JVM-тесты разбора уведомлений (src/test): org.json в android.jar —
+    // заглушки, на JVM нужен настоящий.
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
+
     // Проверка вырезки звука на эмуляторе CI: в приложение не попадает.
     // Версии те же, что уже тянет integration_test: тестовый APK обязан
     // совпадать с приложением, и 1.6.2 падала на строгом 1.3.0.

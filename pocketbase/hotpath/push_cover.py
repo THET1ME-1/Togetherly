@@ -54,7 +54,7 @@ def mood_ctx(rec: dict) -> dict:
     "c_snow", "c_evening", "c_chest", "c_gift", "c_comment", "c_draw", "c_security",
     "a_hug_back", "a_hug", "a_write", "a_reply", "a_read", "a_open", "a_watch", "a_throw",
     "a_mood", "a_task", "a_chest", "a_mood_back", "a_open_gift", "a_canvas",
-    "q_hug", "q_miss", "q_love", "c_you", "c_queued", "c_hugged",
+    "q_hug", "q_miss", "q_love", "c_you", "c_queued", "c_hugged", "c_failed",
 )
 
 
@@ -135,7 +135,9 @@ def cover(kind, lang, ctx, look):
     имя = (ctx.get("from_name") or "").strip() or пуш("partner", lang)
     body = (ctx.get("body") or "").strip()
     title = (ctx.get("title") or "").strip()
-    base = {"v": 1, "kind": kind}
+    # `failed` — подпись, если действие из шторки не дошло: «обнять» и
+    # снежок сами не повторяются.
+    base = {"v": 1, "kind": kind, "failed": пуш("c_failed", lang)}
     # Пара события: «обнять» и снежок телефон шлёт в неё сам.
     if ctx.get("group_id"):
         base["group"] = str(ctx["group_id"])

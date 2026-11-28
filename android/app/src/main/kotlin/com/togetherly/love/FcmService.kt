@@ -3,6 +3,8 @@ package com.togetherly.love
 import android.util.Log
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import com.togetherly.love.notif.NotifChannel
+import com.togetherly.love.notif.NotifCover
 
 /**
  * Приём пушей FCM.
@@ -18,9 +20,13 @@ import com.google.firebase.messaging.RemoteMessage
  * делегата APNs через swizzling, а там уже работает свой путь с ручным токеном.
  * Поэтому FCM живёт нативно и только на Android.
  *
- * Баннер с уведомлением рисует система — в пуше едет `notification`. Сюда
+ * Старым сборкам баннер рисует система — в пуше едет `notification`. Сюда
  * попадает либо тихий пуш «проснись и обнови виджеты», либо обычный, когда
  * приложение на переднем плане (тогда показывать нечего: человек и так внутри).
+ *
+ * С уведомлениями «А» (28.11.2026, `users.notif_v = 1`) сервер шлёт пуш
+ * только данными, с обложкой (`cover`), и рисует его приложение
+ * (`notif/NotifCover.kt`): система данные сама не показывает.
  */
 class FcmService : FirebaseMessagingService() {
 
@@ -44,6 +50,28 @@ class FcmService : FirebaseMessagingService() {
         }
 
         val kind = message.data["kind"] ?: return
+
+        // Пуш «А»: только данные, рисуем сами. На экране приложение — как с
+        // прежним пушем: баннера нет, открытый чат догоняет переписку.
+        val cover = message.data["cover"]
+        if (cover != null) {
+            if (PushArrivedBridge.onScreen && PushArrivedBridge.attached) {
+                PushArrivedBridge.arrived(kind)
+                return
+            }
+            NotifChannel.showOrPlain(
+                applicationContext, cover,
+                message.data["title"].orEmpty(), message.data["body"].orEmpty(),
+                // Метка и номер как у прежнего пуша (вид события, 0): своё
+                // уведомление Dart встаёт на то же место (`push_slot.dart`).
+                message.data["tag"].orEmpty().ifEmpty { kind }, 0,
+                NotifCover.CHANNEL_PARTNER,
+            )
+            // Приложение живо в фоне — пусть догонит то, что пришло пушем.
+            if (PushArrivedBridge.attached) PushArrivedBridge.arrived(kind)
+            return
+        }
+
         if (kind != "widgets") return
 
         // Данные виджетов у партнёра поменялись. Периодический WorkManager
