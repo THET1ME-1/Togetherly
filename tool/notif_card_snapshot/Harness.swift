@@ -185,6 +185,18 @@ final class HarnessApp: UIResponder, UIApplicationDelegate {
           backdrop.layer.render(in: ctx.cgContext)
         }
         save(shot, "\(name)_\(style == .dark ? "dark" : "light")")
+        // Дерево видов первой карточки — чтобы пустой снимок было чем объяснить.
+        if name == "miss_ru" || name == "days_theme_en" {
+          func dump(_ v: UIView, _ depth: Int) {
+            let bg = v.layer.backgroundColor.map { "\($0.components ?? []) a=\($0.alpha)" } ?? "—"
+            let text = (v as? UILabel).map { " «\($0.attributedText?.string ?? $0.text ?? "")» цвет=\($0.textColor.cgColor.components ?? [])" } ?? ""
+            let img = (v as? UIImageView).map { " картинка=\($0.image.map { "\($0.size)" } ?? "нет") содержимое=\($0.layer.contents != nil)" } ?? ""
+            print(String(repeating: "  ", count: depth) + "\(type(of: v)) \(v.frame) скрыт=\(v.isHidden) альфа=\(v.alpha) фон=\(bg) стиль=\(v.traitCollection.userInterfaceStyle.rawValue)\(text)\(img)")
+            v.subviews.forEach { dump($0, depth + 1) }
+          }
+          print("── дерево \(name) \(style == .dark ? "тёмная" : "светлая")")
+          dump(backdrop, 0)
+        }
         vc.willMove(toParent: nil)
         vc.view.removeFromSuperview()
         vc.removeFromParent()
