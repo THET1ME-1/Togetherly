@@ -69,7 +69,7 @@ routerAdd("POST", "/api/draw/invite", (e) => {
   push.notifyGroup(groupId, me,
     (lang) => T.t("draw_title", lang, { name: own || T.t("partner", lang) }),
     (lang) => T.t("draw_body", lang), "draw",
-    { cover: { from_name: own } });
+    { cover: { from_name: own, from_uid: me } });
 
   // Пишем ОДНУ колонку прямым запросом, а не всю запись `e.auth`. Запись входа —
   // снимок аккаунта на момент запроса, и `$app.save(e.auth)` возвращал в базу

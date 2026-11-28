@@ -182,7 +182,10 @@ onRecordAfterCreateSuccess((e) => {
         ? (text.length > 120 ? text.slice(0, 117) + "…" : text)
         : T.t("comment", lang),
       "comment",
-      { cover: (lang) => ({ from_name: name, title: T.t("comment", lang) }) });
+      { cover: (lang) => ({
+        from_name: name, title: T.t("comment", lang),
+        from_uid: String(rec.getString("author_uid") || ""),
+      }) });
   } catch (err) {
     $app.logger().warn("apns: комментарий", "err", String(err));
   }

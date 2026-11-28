@@ -38,6 +38,13 @@ for c in cases {
   // Миниатюра — та же картинка, что у сервера (у приложения — из развёрнутого).
   let expected = (raw["art_big"] ?? raw["art"]) as? [String: Any] ?? [:]
   check("\(kind)/\(lang): миниатюра", cover.thumbnail.url == (expected["url"] as? String ?? ""))
+  // Отправитель — у событий партнёра с номером, у приложения его нет.
+  let rawPerson = raw["person"] as? [String: Any]
+  check("\(kind)/\(lang): отправитель", (cover.person != nil) == (rawPerson != nil))
+  if let p = cover.person, let rp = rawPerson {
+    check("\(kind)/\(lang): аватар и рамка отправителя",
+          p.avatar == (rp["avatar"] as? String ?? "") && p.frame == (rp["frame"] as? String ?? ""))
+  }
   if kind == "chat" {
     check("chat/\(lang): подзаголовка нет, заголовок — имя",
           cover.bannerSubtitle.isEmpty && cover.bannerTitle == (raw["title"] as? String ?? ""))

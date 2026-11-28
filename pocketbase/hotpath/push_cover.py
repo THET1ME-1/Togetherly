@@ -143,7 +143,31 @@ def _кнопки(lang, *items):
     return out
 
 
+# События партнёра: у них в обложке отправитель (`person`) — iPhone ставит
+# его аватар в рамке слева, как у сообщения в мессенджере. У уведомлений
+# самого приложения и служебных (Плюс, пароль) слева иконка приложения.
+ОТ_ПАРТНЁРА = ("miss", "mood", "chat", "memory", "date", "snowball", "gift", "comment", "draw")
+
+
 def cover(kind, lang, ctx, look):
+    """Поле `cover` пуша вида [kind] на языке [lang] или None, если вид
+    обложки не знает (пуш уходит по-старому). Подробности — `_cover`."""
+    out = _cover(kind, lang, ctx, look)
+    uid = str(ctx.get("from_uid") or "")
+    if out is not None and kind in ОТ_ПАРТНЁРА and uid:
+        frame = (ctx.get("frame") or "").strip()
+        out["person"] = {
+            "uid": uid,
+            "name": (ctx.get("from_name") or "").strip() or пуш("partner", lang),
+            # Аватар оригиналом: он маленький, а миниатюра 400x400 тяжелее.
+            "avatar": _из_медиа(ctx.get("avatar")),
+            "frame": (_каталог(look, "frame_" + frame) or "") if frame else "",
+            "frame_hole": _дырка_рамки(look, frame),
+        }
+    return out
+
+
+def _cover(kind, lang, ctx, look):
     """Поле `cover` пуша вида [kind] на языке [lang] или None, если вид
     обложки не знает (пуш уходит по-старому).
 

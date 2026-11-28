@@ -54,6 +54,30 @@ struct CoverChat: Equatable {
   let queued: String
 }
 
+/// Отправитель события партнёра: его аватар в рамке iPhone ставит слева.
+struct CoverPerson: Equatable {
+  let uid: String
+  let name: String
+  let avatar: String
+  let frame: String
+  /// Радиус фото под рамкой в единицах 0..100 (`AvatarFrame.hole`).
+  let frameHole: Double
+
+  init?(_ any: Any?) {
+    guard let o = any as? [String: Any], let uid = o["uid"] as? String, !uid.isEmpty else { return nil }
+    func https(_ k: String) -> String {
+      let v = o[k] as? String ?? ""
+      return v.hasPrefix("https://") ? v : ""
+    }
+    self.uid = uid
+    name = o["name"] as? String ?? ""
+    avatar = https("avatar")
+    frame = https("frame")
+    let hole = (o["frame_hole"] as? NSNumber)?.doubleValue ?? 31
+    frameHole = min(31, max(18, hole.isNaN ? 31 : hole))
+  }
+}
+
 struct Cover: Equatable {
   static let nativeActions: Set<String> = ["reply", "hug", "read", "throw"]
 
@@ -70,6 +94,7 @@ struct Cover: Equatable {
   let eventId: String
   let failed: String
   let chat: CoverChat?
+  let person: CoverPerson?
 
   /// Пуш от самого приложения: слева иконка, картинка события — миниатюрой.
   var fromApp: Bool { art.isApp && artBig != nil }
@@ -138,7 +163,8 @@ struct Cover: Equatable {
       group: o["group"] as? String ?? "",
       eventId: o["event_id"] as? String ?? "",
       failed: o["failed"] as? String ?? "",
-      chat: chat
+      chat: chat,
+      person: CoverPerson(o["person"])
     )
   }
 

@@ -31,7 +31,8 @@ F = "https://togetherly.day/api/files"
 }
 
 ПРИМЕРЫ = [
-    ("miss", "ru", {"from_name": "Алина", "body": "Хочу обнять", "group_id": "g1", "event_id": "e1"}),
+    ("miss", "ru", {"from_name": "Алина", "body": "Хочу обнять", "group_id": "g1", "event_id": "e1",
+                    "from_uid": "u1", "avatar": "pb://media/r1/a.jpg", "frame": "hearts"}),
     ("miss", "en", {"body": "I miss you"}),
     ("mood", "ru", {"from_name": "Алина", "mood_id": "love", "label": "Влюблённость"}),
     ("mood", "uk", {"from_name": "Аліна", "mood_id": "pride", "label": "Гордість"}),

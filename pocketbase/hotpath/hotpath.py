@@ -1092,7 +1092,8 @@ async def _notify_group(group_id: str, author_uid: str, title, body,
             try:
                 # Пустое из вызова не затирает известное об авторе: имя из
                 # записи бывает пустым, а в профиле оно есть.
-                что = {"group_id": group_id, **автор,
+                # `from_uid` — отправитель: iPhone ставит его аватар слева.
+                что = {"group_id": group_id, "from_uid": author_uid, **автор,
                        **{k: v for k, v in (cover(t["lang"]) or {}).items()
                           if v not in ("", None)}}
                 обложка = await asyncio.to_thread(
@@ -3942,6 +3943,12 @@ async def internal_push_cover(request: Request):
         ctx = body.get("ctx") if isinstance(body.get("ctx"), dict) else {}
     except Exception:
         return _err(400, "bad params")
+    # Отправитель по номеру: аватар и рамка из профиля, если хук их не дал
+    # (iPhone ставит аватар слева).
+    uid = str(ctx.get("from_uid") or "")
+    if uid:
+        автор = await asyncio.to_thread(_автор_для_обложки, uid)
+        ctx = {**автор, **{k: v for k, v in ctx.items() if v not in ("", None)}}
     try:
         cover = await asyncio.to_thread(push_cover.cover, kind, lang, ctx, _каталог_для_обложки)
     except Exception as e:

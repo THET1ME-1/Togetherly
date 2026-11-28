@@ -205,6 +205,28 @@ class ЧтоИзЗаписи(unittest.TestCase):
                          {"mood_id": "love", "label": "Влюблённость"})
 
 
+class Отправитель(unittest.TestCase):
+    """iPhone ставит слева аватар партнёра в рамке (уведомление о сообщении):
+    у событий партнёра в обложке есть `person`, у уведомлений приложения — нет."""
+
+    def test_у_событий_партнёра_аватар_и_рамка(self):
+        КАТАЛОГ["frame_cloud"] = (["still_cloud.png"], {"hole": 27})
+        for вид in ("miss", "mood", "chat", "memory", "gift", "draw", "snowball", "date", "comment"):
+            c = собрать(вид, from_name="Алина", from_uid="u1", avatar="pb://media/r1/a.jpg", frame="cloud")
+            self.assertEqual(c["person"], {
+                "uid": "u1", "name": "Алина", "avatar": f"{F}/media/r1/a.jpg",
+                "frame": f"{F}/catalog_items/frame_cloud/still_cloud.png", "frame_hole": 27,
+            }, вид)
+
+    def test_у_уведомлений_приложения_отправителя_нет(self):
+        for вид in ("evening", "chest", "date_remind", "pair_reset", "security", "plusgift"):
+            c = собрать(вид, from_name="Алина", from_uid="u1", avatar="pb://media/r1/a.jpg", title="т")
+            self.assertNotIn("person", c, вид)
+
+    def test_без_номера_отправителя_нет(self):
+        self.assertNotIn("person", собрать("miss", from_name="Алина", body="x"))
+
+
 class КомуДанными(unittest.TestCase):
     """Пуш только данными — лишь токену, за который ручается сборка с
     отрисовкой: старая сборка на втором телефоне того же человека

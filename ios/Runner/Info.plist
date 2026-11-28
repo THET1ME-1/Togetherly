@@ -335,6 +335,14 @@
 	<string>Togetherly adds the special dates you save as a couple to the calendar you choose and keeps them up to date when you edit them.</string>
 	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
 	<string>Togetherly adds the special dates you save as a couple to your calendar.</string>
+	<!-- Уведомления «А»: события партнёра — уведомлениями о сообщении, с его
+	     аватаром в рамке слева (TogetherlyNotificationService). Работает,
+	     когда у App ID включены Communication Notifications; без них пуш
+	     показывается с миниатюрой, как обычный. -->
+	<key>NSUserActivityTypes</key>
+	<array>
+		<string>INSendMessageIntent</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

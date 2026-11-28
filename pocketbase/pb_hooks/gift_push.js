@@ -97,6 +97,8 @@ function notify(rec) {
     cover: (lang) => ({
       from_name: name, gift_key: String(key || "").replace(/^gift_/, ""),
       title: message(name, gender, key, lang).body, body: "",
+      // Отправитель: hotpath возьмёт его аватар и рамку для iPhone.
+      from_uid: rec.getString("sender_uid"),
     }),
   });
 }

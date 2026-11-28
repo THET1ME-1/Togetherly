@@ -78,7 +78,10 @@
     "from_name": "Алина",
     "body": "Хочу обнять",
     "group_id": "g1",
-    "event_id": "e1"
+    "event_id": "e1",
+    "from_uid": "u1",
+    "avatar": "pb://media/r1/a.jpg",
+    "frame": "hearts"
    },
    "cover": {
     "v": 1,
@@ -104,7 +107,14 @@
      }
     ],
     "link": "loveapp://open/miss",
-    "event_id": "e1"
+    "event_id": "e1",
+    "person": {
+     "uid": "u1",
+     "name": "Алина",
+     "avatar": "https://togetherly.day/api/files/media/r1/a.jpg",
+     "frame": "https://togetherly.day/api/files/catalog_items/frame_hearts/still_hearts.png",
+     "frame_hole": 31
+    }
    }
   },
   {
@@ -256,6 +266,13 @@
       "Скучаю тоже",
       "Люблю тебя"
      ]
+    },
+    "person": {
+     "uid": "u1",
+     "name": "Алина",
+     "avatar": "https://togetherly.day/api/files/media/r1/a.jpg",
+     "frame": "https://togetherly.day/api/files/catalog_items/frame_cloud/still_cloud.png",
+     "frame_hole": 27
     }
    }
   },

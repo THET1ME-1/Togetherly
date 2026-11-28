@@ -86,9 +86,33 @@ Map<String, Object?> memoryCoverContext(Map<String, dynamic>? data, String name)
   };
 }
 
+/// События партнёра: у них в обложке отправитель (`person`) — iPhone ставит
+/// его аватар в рамке слева. Как `ОТ_ПАРТНЁРА` сервера.
+const Set<String> kCoverFromPartner = {
+  'miss', 'mood', 'chat', 'memory', 'date', 'snowball', 'gift', 'comment', 'draw',
+};
+
 /// Обложка вида [kind] на языке [lang] или null, если вид обложки не знает
 /// (уведомление показывается по-старому). Повторяет `cover()` сервера.
 Map<String, Object?>? buildPushCover(
+    String kind, String lang, Map<String, Object?> ctx, CoverLook look) {
+  final out = _buildCover(kind, lang, ctx, look);
+  final uid = (ctx['from_uid'] ?? '').toString();
+  if (out != null && kCoverFromPartner.contains(kind) && uid.isNotEmpty) {
+    final frame = _s(ctx, 'frame');
+    final fromName = _s(ctx, 'from_name');
+    out['person'] = {
+      'uid': uid,
+      'name': fromName.isNotEmpty ? fromName : _t('partner', lang),
+      'avatar': _fromMedia(ctx['avatar']),
+      'frame': frame.isEmpty ? '' : (look.still('frame_$frame') ?? ''),
+      'frame_hole': _whole(frame.isEmpty ? 31 : look.frameHole(frame)),
+    };
+  }
+  return out;
+}
+
+Map<String, Object?>? _buildCover(
     String kind, String lang, Map<String, Object?> ctx, CoverLook look) {
   final fromName = _s(ctx, 'from_name');
   final name = fromName.isNotEmpty ? fromName : _t('partner', lang);
