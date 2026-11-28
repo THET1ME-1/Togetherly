@@ -60,6 +60,7 @@ import uvicorn
 from fastapi import FastAPI, Request
 import movies
 import date_rules
+import push_cover
 from push_texts import пуш
 from fastapi.responses import (ORJSONResponse, JSONResponse, Response,
                                FileResponse)
@@ -888,7 +889,7 @@ def _push_candidates(group_id: str, author_uid: str,
         u = lite.execute(
             "SELECT apns_token, apns_sandbox, fcm_token, apns_bg_ms, "
             "notif_chat, notif_mood, notif_new_memory, notif_miss_you, "
-            "notif_synced_at, lang "
+            f"notif_synced_at, lang, {_колонка_notif_v()} "
             "FROM users WHERE id = ?",
             (uid,),
         ).fetchone()
@@ -904,8 +905,70 @@ def _push_candidates(group_id: str, author_uid: str,
                     "notif_new_memory": u[6], "notif_miss_you": u[7],
                     "notif_synced_at": u[8],
                     # Язык приложения: на нём пишется текст уведомления.
-                    "lang": u[9] or ""})
+                    "lang": u[9] or "",
+                    # Сборка рисует уведомление «А» сама (пуш данными).
+                    "notif_v": int(u[10] or 0)})
     return out
+
+
+# Колонку `users.notif_v` заводит скрипт полей; до него запрос с ней падал бы
+# и глушил все пуши. Наличие проверяется раз в минуту.
+_notif_v_есть: tuple[float, bool] = (0.0, False)
+
+
+def _колонка_notif_v() -> str:
+    global _notif_v_есть
+    now = time.monotonic()
+    if now - _notif_v_есть[0] > 60:
+        try:
+            cols = {r[1] for r in lite.execute("PRAGMA table_info(users)")}
+            _notif_v_есть = (now, "notif_v" in cols)
+        except sqlite3.Error:
+            _notif_v_есть = (now, False)
+    return "notif_v" if _notif_v_есть[1] else "0"
+
+
+# Записи каталога для обложки пуша (позы Ту, «Моти», подарки, рамки):
+# id → (файлы, data). Каталог меняется редко — копия живёт десять минут.
+_каталог_кэш: dict[str, tuple] = {}
+_каталог_когда = 0.0
+
+
+def _каталог_для_обложки(item_id: str):
+    global _каталог_когда
+    now = time.monotonic()
+    if now - _каталог_когда > 600:
+        _каталог_кэш.clear()
+        _каталог_когда = now
+    if item_id not in _каталог_кэш:
+        try:
+            row = lite.execute(
+                "SELECT files, data FROM catalog_items WHERE id = ? AND enabled = 1",
+                (item_id,)).fetchone()
+        except sqlite3.Error:
+            row = None
+        if row is None:
+            _каталог_кэш[item_id] = None
+        else:
+            try:
+                files = json.loads(row[0] or "[]")
+                data = json.loads(row[1] or "{}")
+            except ValueError:
+                files, data = [], {}
+            _каталог_кэш[item_id] = (files, data)
+    return _каталог_кэш[item_id]
+
+
+def _автор_для_обложки(uid: str) -> dict:
+    """Аватар и рамка автора события — для обложки чата."""
+    try:
+        row = lite.execute("SELECT avatar_url, frame, display_name FROM users WHERE id = ?",
+                           (uid,)).fetchone()
+    except sqlite3.Error:
+        row = None
+    if row is None:
+        return {}
+    return {"avatar": row[0] or "", "frame": row[1] or "", "from_name": (row[2] or "").strip()}
 
 
 async def _online_uids(uids: list[str]) -> set:
@@ -979,7 +1042,7 @@ def _forget_token(uid: str, field: str) -> None:
 
 
 async def _notify_group(group_id: str, author_uid: str, title, body,
-                        thread: str, only_uid: str = "") -> int:
+                        thread: str, only_uid: str = "", cover=None) -> int:
     """Пуш всем в группе, кроме автора — как notifyGroup в apns_push.js.
 
     [title] и [body] — строка или функция от кода языка получателя
@@ -992,6 +1055,11 @@ async def _notify_group(group_id: str, author_uid: str, title, body,
 
     [only_uid] — только этому человеку: напоминание о дате у каждого своё,
     по его поясу.
+
+    [cover] — функция от языка, отдающая то, что известно о событии, для
+    обложки «А» (`push_cover.cover`). iPhone получает обложку всегда (без
+    расширения она не мешает), Android — только данными и только сборкам с
+    `notif_v`: старые пуш данными не показали бы вовсе.
     """
     try:
         targets = await _push_targets(group_id, author_uid, thread)
@@ -1000,6 +1068,8 @@ async def _notify_group(group_id: str, author_uid: str, title, body,
         return 0
     if only_uid:
         targets = [t for t in targets if t["uid"] == only_uid]
+    автор = (await asyncio.to_thread(_автор_для_обложки, author_uid)
+             if cover and author_uid else {})
     отправлено = 0
     for t in targets:
         # Человек выключил этот вид уведомлений в приложении — молчим.
@@ -1010,11 +1080,20 @@ async def _notify_group(group_id: str, author_uid: str, title, body,
             continue
         заголовок = title(t["lang"]) if callable(title) else title
         текст = body(t["lang"]) if callable(body) else body
+        обложка = None
+        if cover:
+            try:
+                обложка = push_cover.cover(
+                    thread, t["lang"], {**автор, **(cover(t["lang"]) or {})},
+                    _каталог_для_обложки)
+            except Exception as e:  # обложка — украшение, пуш важнее
+                log.warning("cover %s: %s", thread, e)
         if t["apns"]:
             try:
                 r = await push_client.post(APNS_RELAY, json={
                     "token": t["apns"], "title": заголовок, "body": текст,
                     "thread": thread, "sandbox": t["sandbox"], "data": {"kind": thread},
+                    **({"cover": обложка} if обложка else {}),
                 })
                 if (r.json() or {}).get("gone"):
                     await asyncio.to_thread(_forget_token, t["uid"], "apns_token")
@@ -1028,6 +1107,8 @@ async def _notify_group(group_id: str, author_uid: str, title, body,
                     "token": t["fcm"], "title": заголовок, "body": текст,
                     # Одна строка на вид события — как в apns_push.js.
                     "tag": thread, "data": {"kind": thread},
+                    **({"cover": обложка, "data_only": True}
+                       if обложка and t.get("notif_v", 0) >= 1 else {}),
                 })
                 if (r.json() or {}).get("gone"):
                     await asyncio.to_thread(_forget_token, t["uid"], "fcm_token")
@@ -1604,6 +1685,29 @@ def _mood_push_body(label: str):
     return lambda язык: пуш("mood_marked", язык)
 
 
+def _воспоминание_для_обложки(rec: dict, имя: str) -> dict:
+    """Что показать в обложке нового воспоминания. Секретное, «18+» и
+    запечатанная капсула в шторку не попадают ни фото, ни названием: экран
+    блокировки видят и чужие."""
+    данные = rec.get("data")
+    if isinstance(данные, str):
+        try:
+            данные = json.loads(данные)
+        except ValueError:
+            данные = {}
+    if not isinstance(данные, dict):
+        данные = {}
+    закрыто = bool(данные.get("isSecret") or данные.get("isAdult") or данные.get("sealed"))
+    if закрыто:
+        return {"from_name": имя}
+    return {"from_name": имя, "title": (данные.get("title") or "").strip(),
+            "photo": данные.get("imageUrl") or ""}
+
+
+def _настроение_для_обложки(rec: dict) -> dict:
+    return {"mood_id": rec.get("mood_id") or "", "label": (rec.get("label") or "").strip()}
+
+
 async def _after_create(col: str, rec: dict) -> None:
     kind = COLLECTIONS[col]["after_create"]
     if kind == "chat":
@@ -1613,7 +1717,13 @@ async def _after_create(col: str, rec: dict) -> None:
             await _notify_group(
                 rec.get("group_id") or "", rec.get("user_uid") or "",
                 lambda язык: имя or пуш("partner", язык),
-                lambda язык: _chat_push_text(rec, язык), "chat")
+                lambda язык: _chat_push_text(rec, язык), "chat",
+                cover=lambda язык: {
+                    "from_name": имя, "body": _chat_push_text(rec, язык),
+                    "message_id": rec.get("id") or "", "group_id": rec.get("group_id") or "",
+                    "from_uid": rec.get("user_uid") or "",
+                    # Кружок видеосообщения — его кадр картинкой в истории.
+                    "photo": rec.get("note_thumb") or ""})
     elif kind == "memory":
         if not rec.get("deleted"):
             _count(rec.get("group_id") or "", +1, field="memories_count")
@@ -1621,7 +1731,8 @@ async def _after_create(col: str, rec: dict) -> None:
             await _notify_group(
                 rec.get("group_id") or "", rec.get("author_uid") or "",
                 lambda язык: имя or пуш("partner", язык),
-                lambda язык: пуш("memory_added", язык), "memory")
+                lambda язык: пуш("memory_added", язык), "memory",
+                cover=lambda язык: _воспоминание_для_обложки(rec, имя))
     elif kind == "widget":
         # Тихий пуш «обнови виджеты» — как wakeGroup в apns_push.js.
         await _wake_group(rec.get("group_id") or "", rec.get("user_uid") or "")
@@ -1637,7 +1748,8 @@ async def _after_create(col: str, rec: dict) -> None:
         if пуш_о_настроении_нужен(rec, int(time.time() * 1000)):
             await _notify_group(
                 rec.get("group_id") or "", rec.get("user_uid") or "",
-                lambda язык: пуш("mood_title", язык), _mood_push_body(label), "mood")
+                lambda язык: пуш("mood_title", язык), _mood_push_body(label), "mood",
+                cover=lambda язык: _настроение_для_обложки(rec))
         # И тихий пуш «обнови виджеты»: на iPhone у виджетов своего фонового
         # обновления нет, и настроение партнёра на рабочем столе застывало до
         # следующего открытия приложения — «виджеты не обновляются под
@@ -1696,7 +1808,8 @@ async def _after_update(col: str, rec: dict) -> None:
     label = (rec.get("label") or "").strip()
     ушло = await _notify_group(
         group_id, rec.get("user_uid") or "",
-        lambda язык: пуш("mood_title", язык), _mood_push_body(label), "mood")
+        lambda язык: пуш("mood_title", язык), _mood_push_body(label), "mood",
+        cover=lambda язык: _настроение_для_обложки(rec))
     if ушло:
         _отметить_miss("mood:" + group_id, теперь_мс)
     # Виджет обновляем даже когда баннер придержал антидребезг: человек
@@ -1836,7 +1949,9 @@ async def _дата_добавлена(rec: dict) -> None:
         rec.get("group_id") or "", автор,
         lambda язык: имя or пуш("partner", язык),
         lambda язык: пуш("date_added", язык, title=название or пуш("date_untitled", язык)),
-        "date")
+        "date",
+        cover=lambda язык: {"from_name": имя, "title": название,
+                            "symbol": rec.get("symbol") or ""})
     await _даты_пересчитать(rec)
 
 
@@ -1861,7 +1976,10 @@ async def _дата_напомнить(будильник) -> None:
         повтор = date.fromisoformat(будильник["occ"])
         заголовок = lambda язык: date_rules.текст_напоминания(rec, повтор, пояс_ч, язык, сейчас)[0]
         текст = lambda язык: date_rules.текст_напоминания(rec, повтор, пояс_ч, язык, сейчас)[1]
-        await _notify_group(rec["group_id"], "", заголовок, текст, "date_remind", only_uid=uid)
+        await _notify_group(
+            rec["group_id"], "", заголовок, текст, "date_remind", only_uid=uid,
+            cover=lambda язык: {"title": заголовок(язык), "body": текст(язык),
+                                "symbol": rec.get("symbol") or ""})
     нашлось = date_rules.следующее(rec, минуты, пояс_ч, сейчас)
     if not нашлось:
         return
@@ -2409,7 +2527,9 @@ async def miss_you(request: Request):
             group_id, uid, lambda язык: пуш("miss_title", язык),
             (lambda язык: _miss_reply_push_text(vibe, text, язык)) if reply_to
             else (lambda язык: _miss_you_push_text(text, язык)),
-            "miss")
+            "miss",
+            cover=lambda язык: {"body": _miss_reply_push_text(vibe, text, язык) if reply_to
+                                else _miss_you_push_text(text, язык)})
         if ушло:
             _отметить_miss(group_id, теперь_мс)
     return ORJSONResponse({"ok": True, "count": _num(row["count"])})
@@ -2506,7 +2626,8 @@ async def snowball(request: Request):
         group_id, СНЕЖОК_ПУШ_НЕ_ЧАЩЕ_МИН)
     if not был_пуш:
         ушло = await _notify_group(
-            group_id, uid, lambda язык: пуш("snow_title", язык), lambda язык: пуш("snow_body", язык), "snowball")
+            group_id, uid, lambda язык: пуш("snow_title", язык), lambda язык: пуш("snow_body", язык), "snowball",
+            cover=lambda язык: {})
         if ушло:
             await pg.execute("UPDATE snowballs SET pushed = true WHERE id = $1", rid)
     return ORJSONResponse({"ok": True, "id": rid})
@@ -3813,6 +3934,26 @@ _MOOD_LOCAL = (
     "THEN tz::interval ELSE interval '0' END)"
 )
 _UTC_NOW = "(now() at time zone 'utc')"
+
+
+@app.post("/internal/push-cover")
+async def internal_push_cover(request: Request):
+    """Обложка «А» для пушей из хуков PocketBase (`apns_push.js`): правила и
+    тексты живут в одном месте, `push_cover.py`. Наружу закрыто, как прочие
+    `/internal/*`."""
+    try:
+        body = await request.json()
+        kind = str(body.get("kind") or "")
+        lang = str(body.get("lang") or "")
+        ctx = body.get("ctx") if isinstance(body.get("ctx"), dict) else {}
+    except Exception:
+        return _err(400, "bad params")
+    try:
+        cover = await asyncio.to_thread(push_cover.cover, kind, lang, ctx, _каталог_для_обложки)
+    except Exception as e:
+        log.warning("push-cover %s: %s", kind, e)
+        cover = None
+    return ORJSONResponse({"cover": cover})
 
 
 @app.post("/internal/record")

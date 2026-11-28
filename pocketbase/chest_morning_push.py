@@ -30,6 +30,7 @@
 
 import argparse
 import json
+import os
 import sqlite3
 import subprocess
 import sys
@@ -37,6 +38,16 @@ import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
+
+# Обложка «А» (28.11.2026): сборщик живёт у hotpath — рядом в репозитории,
+# `/opt/hotpath` на сервере. Не нашёлся — пуш уходит по-старому.
+for _путь in (os.path.join(os.path.dirname(os.path.abspath(__file__)), "hotpath"), "/opt/hotpath"):
+    if os.path.isdir(_путь) and _путь not in sys.path:
+        sys.path.append(_путь)
+try:
+    import push_cover
+except Exception:  # noqa: BLE001
+    push_cover = None
 
 DB = "/opt/pocketbase/pb_data/data.db"
 STATE = "/opt/pocketbase/pb_data/.chest_push.db"
@@ -147,7 +158,7 @@ def candidates(utc_now):
 
 def load_users(con, uids):
     cols = ["id", "fcm_token", "apns_token", "apns_sandbox", "notif_chest_off",
-            "notif_synced_at", "lang", *NOTIF_FIELDS]
+            "notif_synced_at", "lang", "notif_v", *NOTIF_FIELDS]
     have = {r[1] for r in con.execute("PRAGMA table_info(users)")}
     picked = [c for c in cols if c in have]
     users = {}
@@ -188,19 +199,58 @@ def post(url, body):
         return json.loads(r.read() or b"{}")
 
 
+def catalog_lookup(con):
+    """Картинка сундука для обложки — один раз на запуск: из потоков
+    рассылки к базе не ходим."""
+    cache = {}
+    for item_id in ("art_chest_idle2",):
+        try:
+            row = con.execute("SELECT files, data FROM catalog_items WHERE id = ? AND enabled = 1",
+                              (item_id,)).fetchone()
+            if row:
+                cache[item_id] = (json.loads(row[0] or "[]"), json.loads(row[1] or "{}"))
+        except (sqlite3.Error, ValueError):
+            pass
+    return cache.get
+
+
+_LOOK = lambda _id: None  # noqa: E731 — заменяется в main()
+
+
+def relay_bodies(user, look):
+    """Тела запросов к релеям. Обложка «А» (`push_cover.py`, 28.11.2026): у
+    iPhone всегда, у Android — данными и только сборкам с `users.notif_v`."""
+    data = {"kind": "chest"}
+    title = text_for(TITLE, user.get("lang"))
+    body = text_for(BODY, user.get("lang"))
+    cover = None
+    if push_cover is not None:
+        try:
+            cover = push_cover.cover("chest", user.get("lang"), {"title": title, "body": body}, look)
+        except Exception:
+            cover = None
+    apns = {"token": user.get("apns_token") or "", "title": title, "body": body,
+            "thread": "chest", "sandbox": bool(user.get("apns_sandbox")),
+            "data": data, "sync": True}
+    fcm = {"token": user.get("fcm_token") or "", "title": title, "body": body,
+           "tag": "chest", "data": data, "sync": True}
+    if cover:
+        apns["cover"] = cover
+        if int(user.get("notif_v") or 0) >= 1:
+            fcm["cover"] = cover
+            fcm["data_only"] = True
+    return apns, fcm
+
+
 def send(user):
     """`sync: True` — мимо общей очереди релея. Очередь держит 20 тысяч, а
     утро Москвы больше: залей пачку туда, и пуши чата пошли бы в отказ
     QueueFull. Прямой путь ещё и отвечает, дошло ли."""
-    data = {"kind": "chest"}
-    title = text_for(TITLE, user.get("lang"))
-    body = text_for(BODY, user.get("lang"))
+    apns, fcm = relay_bodies(user, _LOOK)
     ok = False
     if user.get("apns_token"):
         try:
-            ans = post(APNS, {"token": user["apns_token"], "title": title, "body": body,
-                              "thread": "chest", "sandbox": bool(user.get("apns_sandbox")),
-                              "data": data, "sync": True})
+            ans = post(APNS, apns)
             ok = ok or bool(ans.get("ok"))
             if ans.get("gone"):
                 bury("apns", user["apns_token"], ans.get("reason"))
@@ -208,8 +258,7 @@ def send(user):
             pass
     if user.get("fcm_token"):
         try:
-            ans = post(FCM, {"token": user["fcm_token"], "title": title, "body": body,
-                             "tag": "chest", "data": data, "sync": True})
+            ans = post(FCM, fcm)
             ok = ok or bool(ans.get("ok"))
             if ans.get("gone"):
                 bury("fcm", user["fcm_token"], ans.get("reason"))
@@ -242,6 +291,8 @@ def main():
     if not chest_enabled(con):
         log("сундук выключен в app_config, рассылки нет")
         return
+    global _LOOK
+    _LOOK = catalog_lookup(con)
 
     utc_now = datetime.now(timezone.utc)
     pool = candidates(utc_now)

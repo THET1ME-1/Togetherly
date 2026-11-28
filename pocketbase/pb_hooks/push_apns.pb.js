@@ -181,7 +181,8 @@ onRecordAfterCreateSuccess((e) => {
       (lang) => text
         ? (text.length > 120 ? text.slice(0, 117) + "…" : text)
         : T.t("comment", lang),
-      "comment");
+      "comment",
+      { cover: (lang) => ({ from_name: name, title: T.t("comment", lang) }) });
   } catch (err) {
     $app.logger().warn("apns: комментарий", "err", String(err));
   }

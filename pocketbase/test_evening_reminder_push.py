@@ -170,6 +170,26 @@ class Тексты(unittest.TestCase):
                     self.assertTrue(title and body, f"{lang} {need} {paired}")
 
 
+class Обложка(unittest.TestCase):
+    """Уведомления «А» (28.11.2026): обложка — иконка приложения, Ту в гамаке
+    в развёрнутом виде; Android — данными и только новой сборке."""
+
+    def test_тела_запросов_к_релеям(self):
+        u = {"id": "u1", "apns_token": "a", "fcm_token": "f", "lang": "ru", "notif_v": 1,
+             "_paired": True}
+        apns, fcm = m.relay_bodies(u, {"mood"}, look=lambda _id: (["still_r.png"], {}))
+        self.assertEqual(apns["cover"]["kind"], "evening")
+        self.assertEqual(apns["cover"]["art"], {"app": True})
+        self.assertTrue(fcm["data_only"])
+        self.assertEqual(fcm["cover"]["title"], "Как прошёл день?")
+
+    def test_старая_сборка_android_без_данных(self):
+        u = {"id": "u1", "apns_token": "", "fcm_token": "f", "lang": "ru", "notif_v": 0}
+        _apns, fcm = m.relay_bodies(u, {"task"}, look=lambda _id: None)
+        self.assertNotIn("data_only", fcm)
+        self.assertNotIn("cover", fcm)
+
+
 class Отправка(unittest.TestCase):
     def test_отметка_пишется_пачками_по_ходу(self):
         # Запусков в окне три: упади рассылка посередине или затянись дольше

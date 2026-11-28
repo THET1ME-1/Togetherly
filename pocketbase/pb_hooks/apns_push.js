@@ -109,21 +109,50 @@ function sendTo(uid, title, body, thread, opts) {
     if (raw === false || raw === 0) return;
   }
 
+  // Обложка «А» (28.11.2026): собирает hotpath (`/internal/push-cover`),
+  // чтобы правила и тексты на девяти языках жили в одном месте. Не ответил —
+  // пуш уходит по-старому. iPhone получает обложку всегда (без расширения
+  // она не мешает), Android — данными и только сборкам с `users.notif_v`.
+  // Виды, у которых есть обложка (`push_cover.py`): остальным лишний запрос.
+  const COVER_KINDS = { gift: 1, comment: 1, draw: 1, plusgift: 1, pair_reset: 1, security: 1 };
+  let cover = null;
+  if (COVER_KINDS[thread]) {
+    try {
+      // По умолчанию — заголовок и текст этого пуша на языке получателя;
+      // вызов дополняет, чего не хватает (ключ подарка, имя), функцией от языка.
+      const extra = opts && opts.cover
+        ? (typeof opts.cover === "function" ? opts.cover(lang) : opts.cover) : null;
+      const ctx = Object.assign({ title: title, body: body }, extra || {});
+      const res = $http.send({
+        url: "http://127.0.0.1:8120/internal/push-cover",
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: thread, lang: lang, ctx: ctx }),
+        timeout: 2,
+      });
+      if (res.statusCode === 200 && res.json && res.json.cover) cover = res.json.cover;
+    } catch (_) { cover = null; }
+  }
+  let coverV = 0;
+  try { coverV = Number(user.getInt("notif_v")) || 0; } catch (_) { coverV = 0; }
+
   const apnsToken = String(user.getString("apns_token") || "");
   if (apnsToken) {
     try {
+      const apnsBody = {
+        token: apnsToken,
+        title: title,
+        body: body,
+        thread: thread,
+        sandbox: !!user.get("apns_sandbox"),
+        data: data,
+      };
+      if (cover) apnsBody.cover = cover;
       const res = $http.send({
         url: APNS_RELAY,
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          token: apnsToken,
-          title: title,
-          body: body,
-          thread: thread,
-          sandbox: !!user.get("apns_sandbox"),
-          data: data,
-        }),
+        body: JSON.stringify(apnsBody),
         timeout: 10,
       });
       const answer = res.json || {};
@@ -140,19 +169,24 @@ function sendTo(uid, title, body, thread, opts) {
   const fcmToken = String(user.getString("fcm_token") || "");
   if (fcmToken) {
     try {
+      const fcmBody = {
+        token: fcmToken,
+        title: title,
+        body: body,
+        // Одна строка на вид события: новое сообщение заменяет прежнее в
+        // шторке, а не копится десятком одинаковых баннеров.
+        tag: thread,
+        data: data,
+      };
+      if (cover && coverV >= 1) {
+        fcmBody.cover = cover;
+        fcmBody.data_only = true;
+      }
       const res = $http.send({
         url: FCM_RELAY,
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          token: fcmToken,
-          title: title,
-          body: body,
-          // Одна строка на вид события: новое сообщение заменяет прежнее в
-          // шторке, а не копится десятком одинаковых баннеров.
-          tag: thread,
-          data: data,
-        }),
+        body: JSON.stringify(fcmBody),
         timeout: 10,
       });
       const answer = res.json || {};

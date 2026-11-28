@@ -26,8 +26,9 @@ from push_texts import пуш
 # Все ключи подписей обложки: тест проверяет, что у каждого девять языков.
 КЛЮЧИ_ТЕКСТОВ = (
     "c_miss", "c_mood", "c_mood_today", "c_memory", "c_memory_new", "c_date_new", "c_date",
-    "c_snow", "c_evening", "c_chest", "a_hug_back", "a_hug", "a_write", "a_reply", "a_read",
-    "a_open", "a_watch", "a_throw", "a_mood", "a_task", "a_chest", "a_mood_back",
+    "c_snow", "c_evening", "c_chest", "c_gift", "c_comment", "c_draw", "c_security",
+    "a_hug_back", "a_hug", "a_write", "a_reply", "a_read", "a_open", "a_watch", "a_throw",
+    "a_mood", "a_task", "a_chest", "a_mood_back", "a_open_gift", "a_canvas",
     "q_hug", "q_miss", "q_love",
 )
 
@@ -160,6 +161,67 @@ def cover(kind, lang, ctx, look):
             "tone": "snow",
             "art": _картинка(_каталог(look, "art_act_wake")),
             "actions": _кнопки(lang, ("throw", "a_throw")),
+            "link": "loveapp://home",
+        }
+
+    # ── Из хуков PocketBase (`/internal/push-cover`) ──
+
+    if kind == "gift":
+        ключ = (ctx.get("gift_key") or "").strip()
+        # Подарком бывает и рамка (`frame_<ключ>` — своя запись каталога).
+        запись = ключ if ключ.startswith("frame_") else ("gift_" + ключ if ключ else "")
+        return base | {
+            "kicker": f"{пуш('c_gift', lang)} · {имя}",
+            "title": title or пуш("c_gift", lang),
+            "body": body,
+            "tone": "gift",
+            "art": _картинка(_каталог(look, запись) if запись else None),
+            "actions": _кнопки(lang, ("open", "a_open_gift")),
+            "link": "loveapp://gifts",
+        }
+
+    if kind == "comment":
+        фото = _из_медиа(ctx.get("photo"), "400x400")
+        return base | {
+            "kicker": f"{пуш('c_comment', lang)} · {имя}",
+            "title": title or пуш("c_memory", lang),
+            "body": body,
+            "tone": "memory",
+            "art": {"url": фото, "auth": True} if фото else {"app": True},
+            "actions": _кнопки(lang, ("open", "a_open")),
+            "link": "loveapp://memory_lane",
+        }
+
+    if kind == "draw":
+        return base | {
+            "kicker": f"{пуш('c_draw', lang)} · {имя}",
+            "title": title,
+            "body": body,
+            "tone": "draw",
+            "art": _картинка(_каталог(look, "art_act_draw")),
+            "actions": _кнопки(lang, ("open", "a_canvas")),
+            "link": "loveapp://draw",
+        }
+
+    if kind == "plusgift":
+        return base | {
+            "kicker": f"{пуш('c_gift', lang)} · {имя}",
+            "title": title,
+            "body": body,
+            "tone": "plus",
+            "art": {"app": True},
+            "actions": _кнопки(lang, ("open", "a_open")),
+            "link": "loveapp://plus",
+        }
+
+    if kind in ("pair_reset", "security"):
+        return base | {
+            "kicker": пуш("c_security", lang),
+            "title": title,
+            "body": body,
+            "tone": "app",
+            "art": {"app": True},
+            "actions": _кнопки(lang, ("open", "a_open")),
             "link": "loveapp://home",
         }
 

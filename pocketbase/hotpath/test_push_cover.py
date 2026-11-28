@@ -83,6 +83,38 @@ class ОтПартнёра(unittest.TestCase):
         self.assertEqual(ids(c), ["throw"])
 
 
+class ИзХуков(unittest.TestCase):
+    """Подарок, комментарий, рисование, Плюс, пароль — пушат хуки PocketBase,
+    обложку они берут у hotpath (`/internal/push-cover`)."""
+
+    def test_подарок(self):
+        c = собрать("gift", from_name="Алина", gift_key="bouquet", title="Букет", body="С запиской")
+        self.assertEqual(c["kicker"], "Подарок · Алина")
+        self.assertEqual(c["art"], {"url": f"{F}/catalog_items/gift_bouquet/still_bouquet.png"})
+        self.assertEqual(c["title"], "Букет")
+        self.assertEqual(ids(c), ["open"])
+
+    def test_подарок_рамкой(self):
+        c = собрать("gift", from_name="Алина", gift_key="frame_hearts", title="Рамка")
+        self.assertEqual(c["art"], {"url": f"{F}/catalog_items/frame_hearts/still_hearts.png"})
+
+    def test_комментарий(self):
+        c = собрать("comment", from_name="Алина", body="Хочу туда снова",
+                    photo="pb://media/r1/p.webp", title="Вечер на крыше")
+        self.assertEqual(c["kicker"], "Комментарий · Алина")
+        self.assertEqual(c["art"]["auth"], True)
+        self.assertEqual(c["body"], "Хочу туда снова")
+
+    def test_рисование(self):
+        c = собрать("draw", from_name="Алина", title="Порисуем?", body="Открой холст")
+        self.assertEqual(c["art"]["url"], f"{F}/catalog_items/art_act_draw/still_draw.png")
+        self.assertEqual(ids(c), ["open"])
+
+    def test_плюс_в_подарок_и_пароль_иконкой(self):
+        self.assertEqual(собрать("plusgift", from_name="Алина", title="Плюс")["art"], {"app": True})
+        self.assertEqual(собрать("pair_reset", title="Пароль меняют")["art"], {"app": True})
+
+
 class ОтПриложения(unittest.TestCase):
     """Обложка — иконка приложения, картинка события — в развёрнутом виде."""
 

@@ -46,6 +46,7 @@
 
 import argparse
 import json
+import os
 import re
 import sqlite3
 import subprocess
@@ -55,6 +56,16 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+# Обложка «А» (28.11.2026): сборщик живёт у hotpath — рядом в репозитории,
+# `/opt/hotpath` на сервере. Не нашёлся — пуш уходит по-старому.
+for _путь in (os.path.join(os.path.dirname(os.path.abspath(__file__)), "hotpath"), "/opt/hotpath"):
+    if os.path.isdir(_путь) and _путь not in sys.path:
+        sys.path.append(_путь)
+try:
+    import push_cover
+except Exception:  # noqa: BLE001
+    push_cover = None
 
 DB = "/opt/pocketbase/pb_data/data.db"
 STATE = "/opt/pocketbase/pb_data/.evening_reminder.db"
@@ -323,7 +334,7 @@ def reminder_users(con):
 
 def load_users(con, uids):
     cols = ["id", "fcm_token", "apns_token", "apns_sandbox", "notif_synced_at", "lang",
-            "remind_v", "remind_mood", "remind_task", "remind_at", *NOTIF_FIELDS]
+            "remind_v", "remind_mood", "remind_task", "remind_at", "notif_v", *NOTIF_FIELDS]
     have = {r[1] for r in con.execute("PRAGMA table_info(users)")}
     picked = [c for c in cols if c in have]
     users = {}
@@ -405,18 +416,58 @@ def bury(kind, token, reason):
         f.write(json.dumps({"kind": kind, "token": token, "reason": reason or ""}) + "\n")
 
 
+def catalog_lookup(con):
+    """Записи каталога для обложки (Ту в гамаке) — один раз на запуск: из
+    потоков рассылки к базе не ходим."""
+    cache = {}
+    for item_id in ("art_act_rest",):
+        try:
+            row = con.execute("SELECT files, data FROM catalog_items WHERE id = ? AND enabled = 1",
+                              (item_id,)).fetchone()
+            if row:
+                cache[item_id] = (json.loads(row[0] or "[]"), json.loads(row[1] or "{}"))
+        except (sqlite3.Error, ValueError):
+            pass
+    return cache.get
+
+
+_LOOK = lambda _id: None  # noqa: E731 — заменяется в main()
+
+
+def relay_bodies(user, need, look):
+    """Тела запросов к релеям APNs и FCM. Обложка «А» (`push_cover.py`): у
+    iPhone всегда (без расширения не мешает), у Android — данными и только
+    сборкам с `users.notif_v`, старые пуш данными не показали бы."""
+    title, body = texts(need, user.get("lang"), user.get("_paired"))
+    data = {"kind": "evening"}
+    cover = None
+    if push_cover is not None:
+        try:
+            cover = push_cover.cover("evening", user.get("lang"), {"title": title, "body": body}, look)
+        except Exception:
+            cover = None
+    apns = {"token": user.get("apns_token") or "", "title": title, "body": body,
+            "thread": "evening", "sandbox": bool(user.get("apns_sandbox")),
+            "data": data, "sync": True}
+    fcm = {"token": user.get("fcm_token") or "", "title": title, "body": body,
+           "tag": "evening", "data": data, "sync": True}
+    if cover:
+        apns["cover"] = cover
+        if int(user.get("notif_v") or 0) >= 1:
+            fcm["cover"] = cover
+            fcm["data_only"] = True
+    return apns, fcm
+
+
 def send(item):
     """`sync: True` — мимо общей очереди релея, как утренний сундук: вечер
     Москвы большой, и пачка в очереди отодвинула бы пуши чата."""
     user, need = item
-    title, body = texts(need, user.get("lang"), user.get("_paired"))
-    data = {"kind": "evening"}
+    apns, fcm = relay_bodies(user, need, _LOOK)
     ok = False
     if user.get("apns_token"):
         try:
-            ans = post(APNS, {"token": user["apns_token"], "title": title, "body": body,
-                              "thread": "evening", "sandbox": bool(user.get("apns_sandbox")),
-                              "data": data, "sync": True})
+            ans = post(APNS, apns)
             ok = ok or bool(ans.get("ok"))
             if ans.get("gone"):
                 bury("apns", user["apns_token"], ans.get("reason"))
@@ -424,8 +475,7 @@ def send(item):
             pass
     if user.get("fcm_token"):
         try:
-            ans = post(FCM, {"token": user["fcm_token"], "title": title, "body": body,
-                             "tag": "evening", "data": data, "sync": True})
+            ans = post(FCM, fcm)
             ok = ok or bool(ans.get("ok"))
             if ans.get("gone"):
                 bury("fcm", user["fcm_token"], ans.get("reason"))
@@ -465,6 +515,8 @@ def main():
     con = sqlite3.connect(f"file:{DB}?mode=ro", uri=True, timeout=15)
     con.execute("PRAGMA busy_timeout = 15000")
     utc_now = datetime.now(timezone.utc)
+    global _LOOK
+    _LOOK = catalog_lookup(con)
 
     times = reminder_users(con)
     pool = set(times) & active_uids(utc_now)

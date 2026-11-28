@@ -54,5 +54,22 @@ class Пояс(unittest.TestCase):
         self.assertEqual(m.local_now(utc, 420).hour, 14)   # Новосибирск
 
 
+class Обложка(unittest.TestCase):
+    """Уведомления «А» (28.11.2026): иконка приложения, сундук в развёрнутом."""
+
+    def test_новая_сборка_android_данными(self):
+        u = {"id": "u1", "apns_token": "a", "fcm_token": "f", "lang": "ru", "notif_v": 1}
+        apns, fcm = m.relay_bodies(u, look=lambda _id: (["still_c.png"], {}))
+        self.assertEqual(apns["cover"]["kind"], "chest")
+        self.assertEqual(apns["cover"]["art"], {"app": True})
+        self.assertTrue(fcm["data_only"])
+
+    def test_старая_сборка_по_старому(self):
+        u = {"id": "u1", "fcm_token": "f", "lang": "en", "notif_v": 0}
+        _apns, fcm = m.relay_bodies(u, look=lambda _id: None)
+        self.assertNotIn("cover", fcm)
+        self.assertEqual(fcm["title"], m.text_for(m.TITLE, "en"))
+
+
 if __name__ == "__main__":
     unittest.main()

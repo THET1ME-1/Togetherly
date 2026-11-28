@@ -93,6 +93,11 @@ function notify(rec) {
     (lang) => message(name, gender, key, lang).body, "gift", {
     force: true,
     data: { group: rec.getString("group_id"), gift: rec.id },
+    // Обложка «А»: картинка подарка из каталога (`gift_<ключ>`).
+    cover: (lang) => ({
+      from_name: name, gift_key: String(key || "").replace(/^gift_/, ""),
+      title: message(name, gender, key, lang).body, body: "",
+    }),
   });
 }
 

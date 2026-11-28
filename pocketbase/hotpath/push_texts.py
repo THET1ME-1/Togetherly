@@ -235,7 +235,34 @@ English»). Теперь приложение кладёт код языка в 
         "ru": "Сундук", "en": "Chest", "de": "Truhe", "fr": "Coffre", "es": "Cofre",
         "it": "Forziere", "pt": "Baú", "zh": "宝箱", "uk": "Скриня",
     },
+    "c_gift": {
+        "ru": "Подарок", "en": "Gift", "de": "Geschenk", "fr": "Cadeau", "es": "Regalo",
+        "it": "Regalo", "pt": "Presente", "zh": "礼物", "uk": "Подарунок",
+    },
+    "c_comment": {
+        "ru": "Комментарий", "en": "Comment", "de": "Kommentar", "fr": "Commentaire",
+        "es": "Comentario", "it": "Commento", "pt": "Comentário", "zh": "评论",
+        "uk": "Коментар",
+    },
+    "c_draw": {
+        "ru": "Рисунок", "en": "Drawing", "de": "Zeichnung", "fr": "Dessin", "es": "Dibujo",
+        "it": "Disegno", "pt": "Desenho", "zh": "画画", "uk": "Малюнок",
+    },
+    "c_security": {
+        "ru": "Безопасность", "en": "Security", "de": "Sicherheit", "fr": "Sécurité",
+        "es": "Seguridad", "it": "Sicurezza", "pt": "Segurança", "zh": "安全", "uk": "Безпека",
+    },
     # Кнопки.
+    "a_open_gift": {
+        "ru": "Открыть подарок", "en": "Open gift", "de": "Geschenk öffnen",
+        "fr": "Ouvrir le cadeau", "es": "Abrir el regalo", "it": "Apri il regalo",
+        "pt": "Abrir presente", "zh": "打开礼物", "uk": "Відкрити подарунок",
+    },
+    "a_canvas": {
+        "ru": "Открыть холст", "en": "Open canvas", "de": "Leinwand öffnen",
+        "fr": "Ouvrir la toile", "es": "Abrir el lienzo", "it": "Apri la tela",
+        "pt": "Abrir a tela", "zh": "打开画布", "uk": "Відкрити полотно",
+    },
     "a_hug_back": {
         "ru": "Обнять в ответ", "en": "Hug back", "de": "Zurück umarmen",
         "fr": "Câlin en retour", "es": "Devolver el abrazo", "it": "Ricambia l’abbraccio",
