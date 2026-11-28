@@ -123,6 +123,17 @@ class Окно(unittest.TestCase):
             day, _, task_day = self.slot(utc, tz)
             self.assertEqual((day, task_day), ("2026-11-28", "2026-11-28"), tz)
 
+    def test_окленд_вчерашнее_задание_не_сегодняшнее(self):
+        # UTC+13: местный полдень 28-го — это ещё 27-е по UTC, и правило
+        # «UTC-дата в полдень» засчитало бы задание вчерашнего вечера.
+        utc = datetime(2026, 11, 28, 8, 0, tzinfo=UTC)  # 21:00 28.11 по Окленду
+        day, start, task_day = self.slot(utc, "Pacific/Auckland")
+        self.assertEqual((day, task_day), ("2026-11-28", "2026-11-28"))
+        вчера_вечером = {"date": "2026-11-27", "done": ["a"]}
+        need = m.what_to_remind(user(), mood_last=None, mood_days=0, tasks=вчера_вечером,
+                                paired=True, day_start=start, task_day=task_day)
+        self.assertEqual(need, {"task"})
+
     def test_сан_паулу_сделали_днём_молчим(self):
         utc = datetime(2026, 11, 29, 0, 0, tzinfo=UTC)
         day, start, task_day = self.slot(utc, "America/Sao_Paulo")

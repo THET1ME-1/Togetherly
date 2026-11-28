@@ -9,6 +9,7 @@ typedef EveningReminderSave = Future<void> Function({
   required bool mood,
   required bool task,
   required int atMinutes,
+  required bool custom,
 });
 
 /// Блок «Вечернее напоминание» в листе уведомлений (TOG-113): о чём
@@ -29,6 +30,9 @@ class _EveningReminderBlockState extends State<EveningReminderBlock> {
   bool _task = true;
   int _at = remindAtMinutes(null);
 
+  /// Человек выбрал время или включил пункт (см. [kRemindCustomPref]).
+  bool _custom = false;
+
   @override
   void initState() {
     super.initState();
@@ -42,21 +46,30 @@ class _EveningReminderBlockState extends State<EveningReminderBlock> {
       _mood = prefs.getBool(kRemindMoodPref) ?? true;
       _task = prefs.getBool(kRemindTaskPref) ?? true;
       _at = remindAtMinutes(prefs.getString(kRemindAtPref));
+      _custom = prefs.getBool(kRemindCustomPref) ?? false;
     });
   }
 
   Future<void> _save() {
     final save = widget.onSave ?? NotifPrefsSync.saveEveningReminder;
-    return save(mood: _mood, task: _task, atMinutes: _at);
+    return save(mood: _mood, task: _task, atMinutes: _at, custom: _custom);
   }
 
+  // Включение — знак «хочу напоминание», выключение метку не ставит: иначе
+  // выключивший настроение начал бы получать задание без привычки к нему.
   void _setMood(bool v) {
-    setState(() => _mood = v);
+    setState(() {
+      _mood = v;
+      _custom = _custom || v;
+    });
     _save();
   }
 
   void _setTask(bool v) {
-    setState(() => _task = v);
+    setState(() {
+      _task = v;
+      _custom = _custom || v;
+    });
     _save();
   }
 
@@ -67,7 +80,10 @@ class _EveningReminderBlockState extends State<EveningReminderBlock> {
       helpText: trKey('er.title'),
     );
     if (picked == null || !mounted) return;
-    setState(() => _at = picked.hour * 60 + picked.minute);
+    setState(() {
+      _at = picked.hour * 60 + picked.minute;
+      _custom = true;
+    });
     await _save();
   }
 

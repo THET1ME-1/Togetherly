@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Блок «Вечернее напоминание» в листе уведомлений (TOG-113).
 void main() {
-  late List<(bool, bool, int)> saved;
+  late List<(bool, bool, int, bool)> saved;
 
   Future<void> pump(WidgetTester tester, {double width = 360, double scale = 1}) async {
     saved = [];
@@ -26,8 +26,8 @@ void main() {
             padding: const EdgeInsets.all(16),
             children: [
               EveningReminderBlock(
-                onSave: ({required mood, required task, required atMinutes}) async =>
-                    saved.add((mood, task, atMinutes)),
+                onSave: ({required mood, required task, required atMinutes, required custom}) async =>
+                    saved.add((mood, task, atMinutes, custom)),
               ),
             ],
           ),
@@ -48,13 +48,34 @@ void main() {
     expect(find.text('21:00'), findsOneWidget);
   });
 
-  testWidgets('выключил настроение — сохраняется вместе со временем', (tester) async {
+  testWidgets('выключение не ставит «сам настраивал», включение ставит', (tester) async {
     SharedPreferences.setMockInitialValues({});
     await pump(tester);
     await tester.tap(find.byKey(const ValueKey('er-mood')));
     await tester.pump(const Duration(milliseconds: 300));
-    expect(saved, [(false, true, 21 * 60)]);
+    expect(saved.last, (false, true, 21 * 60, false));
     expect(switchOf(tester, 'er-mood').value, isFalse);
+    await tester.tap(find.byKey(const ValueKey('er-mood')));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(saved.last, (true, true, 21 * 60, true));
+  });
+
+  testWidgets('выбор времени ставит «сам настраивал»', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    await pump(tester);
+    await tester.tap(find.byKey(const ValueKey('er-time')));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.text('OK'));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(saved.last, (true, true, 21 * 60, true));
+  });
+
+  testWidgets('прошлая метка не теряется при выключении', (tester) async {
+    SharedPreferences.setMockInitialValues({'flutter.remind_custom': true});
+    await pump(tester);
+    await tester.tap(find.byKey(const ValueKey('er-task')));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(saved.last, (true, false, 21 * 60, true));
   });
 
   testWidgets('читает сохранённое', (tester) async {

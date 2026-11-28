@@ -90,7 +90,7 @@ void main() {
     // ей его шлёт. `remindCustom` — человек сам трогал настройку, тогда
     // напоминаем и без привычки.
     test('не трогал — оба включены, 21:00, по привычке', () {
-      expect(eveningReminderBody(mood: null, task: null, at: null), {
+      expect(eveningReminderBody(mood: null, task: null, at: null, custom: null), {
         'remindMoodOff': false,
         'remindTaskOff': false,
         'remindAt': '21:00',
@@ -99,12 +99,20 @@ void main() {
     });
 
     test('выключил одно и выбрал время', () {
-      expect(eveningReminderBody(mood: false, task: true, at: '20:30'), {
+      expect(eveningReminderBody(mood: false, task: true, at: '20:30', custom: true), {
         'remindMoodOff': true,
         'remindTaskOff': false,
         'remindAt': '20:30',
         'remindCustom': true,
       });
+    });
+
+    // Выключение не должно включать другое: метка «сам настраивал» снимает
+    // порог привычки, и человек, выключивший настроение, начал бы получать
+    // «Задание дня ждёт», которого раньше не было.
+    test('время в prefs ещё не значит «сам настраивал»', () {
+      expect(eveningReminderBody(mood: false, task: true, at: '21:00', custom: null)['remindCustom'],
+          isFalse);
     });
 
     test('время по умолчанию — 21:00', () {

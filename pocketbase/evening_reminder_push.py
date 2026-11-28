@@ -32,8 +32,9 @@
 
 Задания в приложении меняются по UTC (`DailyTaskProgress.dayKey`), а день
 человека — по его часам. «Сегодняшним» считается задание с датой не раньше
-UTC-даты в его местный полдень: иначе в Сан-Паулу в 21:00 (в UTC уже завтра)
-задание было бы «не сделано» всегда.
+меньшей из двух дат: местной и UTC в момент напоминания. Иначе в Сан-Паулу в
+21:00 (в UTC уже завтра) задание было бы «не сделано» всегда, а в Окленде
+засчиталось бы вчерашнее.
 
 Пояс: имя из записи виджета (`widget_data.data.tzn`), без него смещение
 (`data.zone`), без него — из последней отметки настроения, без неё Москва.
@@ -177,11 +178,14 @@ def reminder_slot(utc_now, tz, at, force=False):
     since = 0 if force else (local.hour * 60 + local.minute - _at_minutes(at)) % 1440
     if since >= WINDOW_MIN:
         return None
-    start_local = local - timedelta(minutes=since)
-    d = start_local.date()
+    start_utc = utc_now - timedelta(minutes=since)
+    d = start_utc.astimezone(tz).date()
     midnight = datetime(d.year, d.month, d.day, tzinfo=tz).astimezone(timezone.utc)
-    noon = datetime(d.year, d.month, d.day, 12, tzinfo=tz).astimezone(timezone.utc)
-    return d.isoformat(), midnight, noon.date().isoformat()
+    # День заданий — меньшая из дат: местной и UTC в начале окна. Западнее
+    # UTC вечером по UTC уже завтра (Сан-Паулу в 21:00), восточнее +12 местный
+    # полдень ещё вчера по UTC (Окленд) — оба раза берётся местная дата.
+    task_day = min(d, start_utc.date())
+    return d.isoformat(), midnight, task_day.isoformat()
 
 
 def _minus_days(day, n):

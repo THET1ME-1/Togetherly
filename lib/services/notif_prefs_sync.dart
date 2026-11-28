@@ -32,6 +32,7 @@ class NotifPrefsSync {
           mood: prefs.getBool(kRemindMoodPref),
           task: prefs.getBool(kRemindTaskPref),
           at: prefs.getString(kRemindAtPref),
+          custom: prefs.getBool(kRemindCustomPref),
         ),
         // Метка говорит серверу, что нули в колонках — выбор человека, а не
         // незаполненное поле.
@@ -42,25 +43,26 @@ class NotifPrefsSync {
     }
   }
 
-  /// Сохранить вечернее напоминание и отправить на сервер. Время пишется при
-  /// любой правке: кто трогал эти настройки, тот хочет напоминание, и сервер
-  /// перестаёт ждать от него привычки.
+  /// Сохранить вечернее напоминание и отправить на сервер. [custom] — человек
+  /// выбрал время или включил пункт (см. [kRemindCustomPref]).
   static Future<void> saveEveningReminder({
     required bool mood,
     required bool task,
     required int atMinutes,
+    required bool custom,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final at = remindAtOf(atMinutes);
     await prefs.setBool(kRemindMoodPref, mood);
     await prefs.setBool(kRemindTaskPref, task);
     await prefs.setString(kRemindAtPref, at);
+    await prefs.setBool(kRemindCustomPref, custom);
     final uid = PocketBaseService().userId ?? '';
     if (uid.isEmpty) return;
     try {
       await PbDataService().updateUserProfile(
         uid,
-        eveningReminderBody(mood: mood, task: task, at: at),
+        eveningReminderBody(mood: mood, task: task, at: at, custom: custom),
       );
     } catch (e) {
       // Не уехало сейчас — уедет при следующем запуске (pushToServer).
@@ -95,11 +97,15 @@ Map<String, dynamic> chestPushBody(bool? stored) =>
 const String kRemindMoodPref = 'remind_mood';
 const String kRemindTaskPref = 'remind_task';
 
-/// Время `ЧЧ:ММ`. Пока человек настройку не трогал, в prefs пусто, и сервер
-/// напоминает только по привычке (настроение — хотя бы 4 дня из 14, задание —
-/// за последние 3 дня).
+/// Время `ЧЧ:ММ`; пусто — 21:00.
 const String kRemindAtPref = 'remind_at';
 const String kEveningReminderDefaultAt = '21:00';
+
+/// Человек сам выбрал время или включил пункт — напоминать без привычки.
+/// Пока метки нет, сервер напоминает только по привычке (настроение — хотя бы
+/// 4 дня из 14, задание — за последние 3 дня). Выключение метку не ставит:
+/// иначе выключивший настроение начал бы получать задание, которого не было.
+const String kRemindCustomPref = 'remind_custom';
 
 /// `ЧЧ:ММ` → минуты от полуночи. Пусто или криво — 21:00, как на сервере.
 int remindAtMinutes(String? at) {
@@ -121,21 +127,19 @@ String remindAtOf(int minutes) {
 
 /// Выключатели на сервере перевёрнуты, как у сундука. Время уходит всегда: по
 /// нему сервер узнаёт сборку, где напоминание можно выключить, и шлёт его
-/// только ей (у выпущенных раньше выключателя нет). `remindCustom` — человек
-/// сам трогал настройку, и тогда напоминаем без привычки.
+/// только ей (у выпущенных раньше выключателя нет).
 Map<String, dynamic> eveningReminderBody({
   required bool? mood,
   required bool? task,
   required String? at,
-}) {
-  final custom = at != null && at.isNotEmpty;
-  return {
-    'remindMoodOff': !(mood ?? true),
-    'remindTaskOff': !(task ?? true),
-    'remindAt': custom ? at : kEveningReminderDefaultAt,
-    'remindCustom': custom,
-  };
-}
+  required bool? custom,
+}) =>
+    {
+      'remindMoodOff': !(mood ?? true),
+      'remindTaskOff': !(task ?? true),
+      'remindAt': (at == null || at.isEmpty) ? kEveningReminderDefaultAt : at,
+      'remindCustom': custom ?? false,
+    };
 
 /// Тело запроса к профилю. Значения нет — значит человек тумблер не трогал, а
 /// приложение показывает его включённым; таким и отправляем.
