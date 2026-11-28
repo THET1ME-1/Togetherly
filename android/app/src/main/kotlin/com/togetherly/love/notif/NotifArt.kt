@@ -54,6 +54,34 @@ object NotifArt {
 
     private fun fetch(ctx: Context, art: Art, budgetMs: Long): Bitmap? {
         if (art.url.isEmpty()) return null
+        if (art.under.isEmpty() && art.over.isEmpty()) return fetchOne(ctx, art, budgetMs)
+        // Наряд Ту: картинка и слои того же размера, склеиваются в одну.
+        // Слои по одному в этом же потоке — пул занят теми, кто ждёт нас;
+        // со второго раза они берутся с диска.
+        val deadline = System.currentTimeMillis() + budgetMs
+        val base = fetchOne(ctx, art.copy(under = emptyList(), over = emptyList()), budgetMs) ?: return null
+        fun layer(url: String): Bitmap? {
+            val left = deadline - System.currentTimeMillis()
+            return if (left <= 0) null else fetchOne(ctx, Art(url = url), left)
+        }
+        val under = art.under.mapNotNull(::layer)
+        val over = art.over.mapNotNull(::layer)
+        return compose(base, under, over)
+    }
+
+    /** Слои под и над картинкой, каждый растянут на её размер. */
+    fun compose(base: Bitmap, under: List<Bitmap>, over: List<Bitmap>): Bitmap {
+        if (under.isEmpty() && over.isEmpty()) return base
+        val out = Bitmap.createBitmap(base.width, base.height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(out)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        val full = RectF(0f, 0f, base.width.toFloat(), base.height.toFloat())
+        for (b in under + listOf(base) + over) canvas.drawBitmap(b, null, full, paint)
+        return out
+    }
+
+    private fun fetchOne(ctx: Context, art: Art, budgetMs: Long): Bitmap? {
+        if (art.url.isEmpty()) return null
         // Открытые картинки (каталог, аватары) по одному адресу не меняются:
         // новый файл — новое имя. Берём с диска, а скачанное кладём туда же —
         // уведомление по расписанию в 00:10 без сети встаёт с картинкой.

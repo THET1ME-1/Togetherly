@@ -4,7 +4,10 @@ import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 import '../dict_strings.dart';
+import '../models/tu_wear.dart';
+import 'catalog_service.dart';
 import 'notif_renderer.dart';
+import 'tu_wear_service.dart';
 
 class MascotInactivityNotificationService {
   MascotInactivityNotificationService._();
@@ -97,10 +100,19 @@ class MascotInactivityNotificationService {
 
       // Android — видом «А» (`NotifAlarm`): иконка приложения, в развёрнутом
       // грустный Ту. Иначе — плагином, как раньше.
+      // Грустный Ту в своём наряде: слои надетых вещей для сцены `idle_sad`
+      // (номера записей каталога), склеивает их телефон.
+      final wear = TuWearService.instance;
+      final layers = wearSceneLayers(wear.outfit, CatalogService.instance.wearItems,
+          owned: wear.owned, scene: 'idle_sad');
       await NotifRenderer.schedule(
         plugin: _plugin,
         id: _notificationId,
         kind: 'mascot_miss',
+        ctx: {
+          'wear_under': [for (final k in layers.back) 'art_$k'],
+          'wear_over': [for (final k in layers.front) 'art_$k'],
+        },
         channel: _channelId,
         title: ruEn('Ваш маскот скучает 🥺', 'Your mascot misses you 🥺'),
         body: ruEn('Ты так давно не заходил — войди и обрадуй маскотика 🐾',

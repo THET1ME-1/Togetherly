@@ -309,6 +309,59 @@ class КакВМакете(unittest.TestCase):
         self.assertEqual([a["id"] for a in партнёру["actions"]], ["open"])
         self.assertNotIn("done", партнёру)
 
+    def test_поблагодарить_за_подарок(self):
+        c = собрать("gift", from_name="Алина", gift_key="bouquet", title="Букет", gift_id="g9")
+        self.assertEqual([a["id"] for a in c["actions"]], ["open", "thank"])
+        self.assertNotIn("link", c["actions"][1])
+        self.assertEqual(c["event_id"], "g9")
+        self.assertEqual(c["done"], "Спасибо отправлено")
+        # Звезде нужно желание, рамку не принимают, без номера отвечать некуда.
+        for ctx in ({"gift_key": "star", "gift_id": "g1"}, {"gift_key": "frame_hearts", "gift_id": "g1"},
+                    {"gift_key": "bouquet"}):
+            c = собрать("gift", title="т", **ctx)
+            self.assertEqual([a["id"] for a in c["actions"]], ["open"], ctx)
+            self.assertNotIn("done", c)
+
+    def test_ту_скучает_в_своём_наряде(self):
+        # Записи сцены и вещи — только на этот тест: без сцены другие тесты
+        # ждут прежнего грустного Ту.
+        КАТАЛОГ["art_cloud_idle_sad"] = (["still_idle_sad.png"], {})
+        КАТАЛОГ["art_tuw_acorn_idle_sad_f"] = (["still_acorn.png"], {})
+        try:
+            c = собрать("mascot_miss", title="Ту скучает", wear_over=["art_tuw_acorn_idle_sad_f", "art_tuw_x"])
+            self.assertTrue(c["art_big"]["url"].endswith("/art_cloud_idle_sad/still_idle_sad.png"))
+            # Вещи без записи пропускаются, а не ломают картинку.
+            self.assertEqual(len(c["art_big"]["over"]), 1)
+            self.assertNotIn("under", c["art_big"])
+            # Без наряда — та же сцена без слоёв.
+            self.assertEqual(set(собрать("mascot_miss", title="т")["art_big"]), {"url"})
+        finally:
+            КАТАЛОГ.pop("art_cloud_idle_sad", None)
+            КАТАЛОГ.pop("art_tuw_acorn_idle_sad_f", None)
+        # Сцены нет — прежний грустный Ту, и слои не прикладываются.
+        КАТАЛОГ["art_act_sad"] = (["still_sad.png"], {})
+        прежний = собрать("mascot_miss", title="т", wear_over=["art_tuw_acorn_idle_sad_f"])["art_big"]
+        self.assertTrue(прежний["url"].endswith("still_sad.png"))
+        self.assertNotIn("over", прежний)
+
+    def test_дни_вместе_в_цветах_темы(self):
+        тема = {"tint": "#ffd9e2", "label": "#8d4a5d", "deep": "#bb005b", "label_night": "#ffb1c8"}
+        c = собрать("days", title="128 дней вместе", accent=тема)
+        self.assertEqual(c["accent"], {k: v.upper() for k, v in тема.items()})
+        # Кривой цвет или неполный набор — нейтральный тон, а не мусор в шторке.
+        for плохо in ({**тема, "deep": "red"}, {"tint": "#FFFFFF"}, "#FFFFFF"):
+            self.assertNotIn("accent", собрать("days", title="т", accent=плохо))
+
+    def test_раскраска_своей_картинкой(self):
+        c = собрать("draw", from_name="Алина", title="Порисуем?", coloring="snowman")
+        self.assertEqual(c["art"], {"url": "https://togetherly.day/coloring/snowman_thumb.jpg"})
+        # Чужое имя или своя раскраска (картинки на сайте нет) — Ту с карандашом.
+        for чужое in ("../etc", "my_own_42", ""):
+            self.assertTrue(собрать("draw", title="т", coloring=чужое)["art"]["url"].endswith("still_draw.png"))
+        for имя in pc.РАСКРАСКИ:
+            путь = os.path.join(os.path.dirname(__file__), "..", "pb_public", "coloring", f"{имя}_thumb.jpg")
+            self.assertTrue(os.path.exists(путь), имя)
+
     def test_сезонный_сундук(self):
         КАТАЛОГ["chest_winter"] = (["idle.webp", "still_w.png"], {})
         c = собрать("chest", title="т", art_id="chest_winter")

@@ -62,7 +62,8 @@ def mood_ctx(rec: dict) -> dict:
     "a_mood", "a_task", "a_chest", "a_mood_back", "a_open_gift", "a_canvas",
     "q_hug", "q_miss", "q_love", "c_you", "c_queued", "c_hugged", "c_failed",
     "c_capsule", "c_celebration", "c_mascot", "c_invite", "a_open_letter", "c_days", "c_how_now",
-    "c_reels", "a_join", "c_badge", "a_plus_see", "a_cancel_reset", "c_reset_cancelled",
+    "c_reels", "a_join", "c_badge", "a_plus_see", "a_cancel_reset", "c_reset_cancelled", "c_plus",
+    "a_thank", "c_thanked",
 )
 
 
@@ -147,6 +148,20 @@ def _обложка_записи(ctx):
     return {"app": True}
 
 
+def _тон_темы(raw):
+    """Цвета темы человека (макет: у «Дней вместе» — «цвет темы человека»):
+    четыре цвета `#RRGGBB` с теми же ролями, что у тона. Иначе None."""
+    if not isinstance(raw, dict):
+        return None
+    out = {}
+    for ключ in ("tint", "label", "deep", "label_night"):
+        цвет = str(raw.get(ключ) or "")
+        if len(цвет) != 7 or not цвет.startswith("#") or any(с not in "0123456789abcdefABCDEF" for с in цвет[1:]):
+            return None
+        out[ключ] = цвет.upper()
+    return out
+
+
 def _экран_записи(ctx, ответ=False):
     """Лента на этом воспоминании; [ответ] — сразу с полем комментария."""
     номер = str(ctx.get("memory_id") or "").strip()
@@ -162,7 +177,16 @@ def _экран_записи(ctx, ответ=False):
 
 # Кнопки, которые телефон выполняет сам, не открывая приложение: ответ
 # текстом, «обнять», «прочитано», снежок в ответ. У остальных — ссылка.
-ДЕЙСТВИЯ_ТЕЛЕФОНА = ("reply", "hug", "read", "throw", "cancel_reset")
+ДЕЙСТВИЯ_ТЕЛЕФОНА = ("reply", "hug", "read", "throw", "cancel_reset", "thank")
+
+# Встроенные раскраски (`ColoringPicture.all` приложения): их превью лежат на
+# сайте, `pb_public/coloring/<id>_thumb.jpg`. Сверяет push_cover_test.dart.
+РАСКРАСКИ = ("cafe", "castle", "rain", "ferris", "metro", "camping", "festival", "baking", "beach",
+             "gaming", "snowman")
+
+# Подарки, которые принимают ответом текстом (`Gift.wantsReply` приложения):
+# «Поблагодарить» без текста им не годится. Сверяет push_cover_test.dart.
+ПОДАРКИ_С_ОТВЕТОМ = ("star",)
 
 
 def _кнопки(lang, *items):
@@ -318,14 +342,21 @@ def _cover(kind, lang, ctx, look):
         ключ = (ctx.get("gift_key") or "").strip()
         # Подарком бывает и рамка (`frame_<ключ>` — своя запись каталога).
         запись = ключ if ключ.startswith("frame_") else ("gift_" + ключ if ключ else "")
+        подарок = str(ctx.get("gift_id") or "").strip()
+        # «Поблагодарить» прямо из шторки — тот же отклик, что принятие в
+        # приложении. Звезде нужно желание текстом, рамку не принимают.
+        спасибо = bool(подарок) and bool(ключ) and not ключ.startswith("frame_") \
+            and ключ not in ПОДАРКИ_С_ОТВЕТОМ
+        кнопки = (("open", "a_open_gift", "gifts"),) + ((("thank", "a_thank"),) if спасибо else ())
         return base | {
             "kicker": f"{пуш('c_gift', lang)} · {имя}",
             "title": title or пуш("c_gift", lang),
             "body": body,
             "tone": "gift",
             "art": _картинка(_каталог(look, запись) if запись else None),
-            "actions": _кнопки(lang, ("open", "a_open_gift", "gifts")),
+            "actions": _кнопки(lang, *кнопки),
             "link": ОТКРЫТЬ + "gifts",
+            **({"event_id": подарок, "done": пуш("c_thanked", lang)} if спасибо else {}),
         }
 
     if kind == "comment":
@@ -343,12 +374,17 @@ def _cover(kind, lang, ctx, look):
         }
 
     if kind == "draw":
+        # Зовёт раскрашивать — картинка этой раскраски (превью лежат в
+        # `pb_public/coloring/`), иначе Ту с карандашом.
+        раскраска = str(ctx.get("coloring") or "").strip()
+        картинка = f"https://togetherly.day/coloring/{раскраска}_thumb.jpg" if раскраска in РАСКРАСКИ \
+            else _каталог(look, "art_act_draw")
         return base | {
             "kicker": f"{пуш('c_draw', lang)} · {имя}",
             "title": title,
             "body": body,
             "tone": "draw",
-            "art": _картинка(_каталог(look, "art_act_draw")),
+            "art": _картинка(картинка),
             "actions": _кнопки(lang, ("open", "a_canvas", "draw")),
             "link": ОТКРЫТЬ + "draw",
         }
@@ -377,6 +413,18 @@ def _cover(kind, lang, ctx, look):
             "body": body,
             "tone": "plus",
             "art": {"symbol": "add"},
+            "actions": _кнопки(lang, ("open", "a_plus_see", "plus")),
+            "link": ОТКРЫТЬ + "plus",
+        }
+
+    if kind == "plus":
+        # Плюс оплачен на сайте — от приложения: иконка, без картинок события.
+        return base | {
+            "kicker": пуш("c_plus", lang),
+            "title": title,
+            "body": body,
+            "tone": "plus",
+            "art": {"app": True},
             "actions": _кнопки(lang, ("open", "a_plus_see", "plus")),
             "link": ОТКРЫТЬ + "plus",
         }
@@ -480,13 +528,26 @@ def _cover(kind, lang, ctx, look):
         }
 
     if kind == "mascot_miss":
+        # Грустный Ту в его наряде (макет): сцена покоя `idle_sad` и слои
+        # надетых вещей для неё (`wear_under` — сзади, `wear_over` — спереди,
+        # номера записей каталога; приложение берёт их из наряда, телефон
+        # склеивает). Сцены нет — прежний грустный Ту без наряда.
+        сцена = _каталог(look, "art_cloud_idle_sad")
+        большая = _картинка(сцена or _каталог(look, "art_act_sad"))
+        if сцена:
+            снизу = [u for u in (_каталог(look, i) for i in (ctx.get("wear_under") or [])[:6]) if u]
+            сверху = [u for u in (_каталог(look, i) for i in (ctx.get("wear_over") or [])[:6]) if u]
+            if снизу:
+                большая["under"] = снизу
+            if сверху:
+                большая["over"] = сверху
         return base | {
             "kicker": пуш("c_mascot", lang),
             "title": title,
             "body": body,
             "tone": "miss",
             "art": {"app": True},
-            "art_big": _картинка(_каталог(look, "art_act_sad")),
+            "art_big": большая,
             "actions": _кнопки(lang, ("open", "a_open", "home")),
             "link": ОТКРЫТЬ + "home",
         }
@@ -512,7 +573,9 @@ def _cover(kind, lang, ctx, look):
         }
 
     if kind == "days":
-        # Постоянная тихая плашка «N дней вместе»: иконка приложения, без кнопок.
+        # Постоянная тихая плашка «N дней вместе»: иконка приложения, без
+        # кнопок, в цветах темы человека (`accent`, если приложение их дало).
+        акцент = _тон_темы(ctx.get("accent"))
         return base | {
             "kicker": пуш("c_days", lang),
             "title": title,
@@ -521,6 +584,7 @@ def _cover(kind, lang, ctx, look):
             "art": {"app": True},
             "actions": [],
             "link": ОТКРЫТЬ + "home",
+            **({"accent": акцент} if акцент else {}),
         }
 
     if kind == "badge":

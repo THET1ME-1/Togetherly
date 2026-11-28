@@ -117,6 +117,22 @@ const TEXTS = {
     es: "Te regalaron el acceso completo", it: "Ti hanno regalato l’accesso completo",
     pt: "Você ganhou acesso completo", zh: "你获得了完整权限", uk: "Вам подарували повний доступ",
   },
+  // Плюс оплачен на сайте (lava): приложение могло быть закрыто, и без
+  // уведомления человек не знал бы, что доступ уже открыт.
+  plus_open_title: {
+    ru: "Togetherly+ открыт", en: "Togetherly+ is unlocked", de: "Togetherly+ ist freigeschaltet",
+    fr: "Togetherly+ est activé", es: "Togetherly+ está activado", it: "Togetherly+ è attivo",
+    pt: "Togetherly+ liberado", zh: "Togetherly+ 已开通", uk: "Togetherly+ відкрито",
+  },
+  plus_open_body: {
+    ru: "Спасибо! Всё платное уже открыто вам обоим", en: "Thank you! Everything paid is now open for you both",
+    de: "Danke! Alles Kostenpflichtige ist jetzt für euch beide frei",
+    fr: "Merci ! Tout le contenu payant est ouvert pour vous deux",
+    es: "¡Gracias! Todo lo de pago ya está abierto para los dos",
+    it: "Grazie! Tutto ciò che è a pagamento ora è aperto per entrambi",
+    pt: "Obrigado! Tudo o que é pago já está liberado para vocês dois",
+    zh: "谢谢！付费内容已为你们俩开放", uk: "Дякуємо! Усе платне вже відкрито вам обом",
+  },
   reset_title: {
     ru: "{name} восстанавливает доступ", en: "{name} is restoring access",
     de: "{name} stellt den Zugang wieder her", fr: "{name} récupère son accès",

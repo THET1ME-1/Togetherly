@@ -10,6 +10,10 @@ struct CoverArt: Equatable {
   var auth: Bool = false
   /// Значок Material Symbols по имени (`theater_comedy`).
   var symbol: String = ""
+  /// Слои того же размера поверх картинки — наряд Ту: [under] под ней,
+  /// [over] над ней, снизу вверх. Склеивает `CoverMedia`.
+  var under: [String] = []
+  var over: [String] = []
 
   /// Иконка приложения: ни ссылки, ни значка.
   var isApp: Bool { url.isEmpty && symbol.isEmpty }
@@ -28,6 +32,13 @@ struct CoverArt: Equatable {
     url = raw.hasPrefix("https://") ? raw : ""
     auth = o["auth"] as? Bool ?? false
     symbol = o["symbol"] as? String ?? ""
+    if !url.isEmpty {
+      func layers(_ key: String) -> [String] {
+        Array(((o[key] as? [Any]) ?? []).compactMap { $0 as? String }.filter { $0.hasPrefix("https://") }.prefix(6))
+      }
+      under = layers("under")
+      over = layers("over")
+    }
   }
 }
 
@@ -56,6 +67,29 @@ struct CoverChat: Equatable {
   let queued: String
 }
 
+/// Цвета темы человека вместо тона («Дни вместе», макет): роли те же, что
+/// у `CoverTone`, цвета `0xRRGGBB`.
+struct CoverAccent: Equatable {
+  let tint: UInt32
+  let label: UInt32
+  let deep: UInt32
+  let labelNight: UInt32
+
+  init?(_ any: Any?) {
+    guard let o = any as? [String: Any] else { return nil }
+    func color(_ key: String) -> UInt32? {
+      guard let v = o[key] as? String, v.count == 7, v.hasPrefix("#") else { return nil }
+      return UInt32(v.dropFirst(), radix: 16)
+    }
+    guard let tint = color("tint"), let label = color("label"), let deep = color("deep"),
+          let night = color("label_night") else { return nil }
+    self.tint = tint
+    self.label = label
+    self.deep = deep
+    labelNight = night
+  }
+}
+
 /// Отправитель события партнёра: его аватар в рамке iPhone ставит слева.
 struct CoverPerson: Equatable {
   let uid: String
@@ -81,7 +115,7 @@ struct CoverPerson: Equatable {
 }
 
 struct Cover: Equatable {
-  static let nativeActions: Set<String> = ["reply", "hug", "read", "throw", "cancel_reset"]
+  static let nativeActions: Set<String> = ["reply", "hug", "read", "throw", "cancel_reset", "thank"]
 
   let kind: String
   let kicker: String
@@ -99,6 +133,8 @@ struct Cover: Equatable {
   let done: String
   let chat: CoverChat?
   let person: CoverPerson?
+  /// Цвета темы человека вместо тона, если приложение их дало.
+  var accent: CoverAccent? = nil
 
   /// Пуш от самого приложения: слева иконка, картинка события — миниатюрой.
   var fromApp: Bool { art.isApp && artBig != nil }
@@ -165,7 +201,7 @@ struct Cover: Equatable {
         queued: c["queued"] as? String ?? ""
       )
     }
-    return Cover(
+    var cover = Cover(
       kind: kind,
       kicker: o["kicker"] as? String ?? "",
       title: o["title"] as? String ?? "",
@@ -182,6 +218,8 @@ struct Cover: Equatable {
       chat: chat,
       person: CoverPerson(o["person"])
     )
+    cover.accent = CoverAccent(o["accent"])
+    return cover
   }
 
   /// Тексты баннера iPhone. Баннер рисует система, поэтому подпись тона

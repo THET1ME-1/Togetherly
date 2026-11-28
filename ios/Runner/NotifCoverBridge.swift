@@ -244,6 +244,14 @@ enum NotifCoverBridge {
       }
       return
     }
+    // «Поблагодарить» за подарок — тот же отклик, что принятие в приложении.
+    if action == "thank" {
+      NotifNetIOS.thankGift(cover.eventId) { ok in
+        notifyLocal(title: cover.bannerTitle, body: ok ? cover.done : cover.failed, thread: thread)
+        done()
+      }
+      return
+    }
     let group = cover.group.isEmpty ? (cover.chat?.groupId ?? "") : cover.group
     guard !group.isEmpty else { done(); return }
     switch action {

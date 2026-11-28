@@ -66,6 +66,12 @@ class DaysTogetherNotificationService {
       FlutterLocalNotificationsPlugin();
   bool _initialized = false;
 
+  /// Цвета темы человека для плашки (`themeAccent`, макет: «цвет темы
+  /// человека»). Ставит главная перед пересчётом; нет — нейтральный тон.
+  Map<String, String>? accent;
+
+  Map<String, Object?> get _ctx => {if (accent != null) 'accent': accent};
+
   // ── Init ───────────────────────────────────────────────────────────────────
 
   Future<void> init() async {
@@ -233,6 +239,7 @@ class DaysTogetherNotificationService {
           plugin: _plugin,
           id: _notificationId + i,
           kind: 'days',
+          ctx: _ctx,
           channel: _channelId,
           title: s.daysTogetherNotifBody(tick.days),
           body: s.daysTogetherNotifTagline,
@@ -262,6 +269,7 @@ class DaysTogetherNotificationService {
       // Видом «А»: постоянная тихая плашка с иконкой приложения.
       if (await NotifRenderer.showKind(
         kind: 'days',
+        ctx: _ctx,
         title: s.daysTogetherNotifBody(days),
         body: s.daysTogetherNotifTagline,
         id: _notificationId,
@@ -303,6 +311,7 @@ class DaysTogetherNotificationService {
         plugin: _plugin,
         id: _notificationId,
         kind: 'days',
+        ctx: _ctx,
         channel: _channelId,
         title: titles.first,
         body: s.daysTogetherNotifTagline,

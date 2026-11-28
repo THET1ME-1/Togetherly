@@ -34,9 +34,14 @@ data class Cover(
     val moods: List<MoodChoice> = emptyList(),
     /** Подпись после действия из шторки, которое дошло («Смена пароля отменена»). */
     val done: String = "",
+    /** Цвета темы человека вместо тона («Дни вместе», макет). */
+    val accent: Tone? = null,
 ) {
     /** Пуш от самого приложения: слева иконка, картинка события — в развёрнутом. */
     val fromApp: Boolean get() = art.app && artBig != null
+
+    /** Цвета обложки: тема человека, если дана, иначе тон события. */
+    val colors: Tone get() = accent ?: Tones.of(tone)
 }
 
 /** Картинка обложки: ссылка, значок даты или иконка приложения. */
@@ -46,6 +51,12 @@ data class Art(
     val auth: Boolean = false,
     /** Значок Material Symbols по имени (`theater_comedy`). */
     val symbol: String = "",
+    /**
+     * Слои поверх картинки [url] того же размера — наряд Ту: [under] под
+     * ней, [over] над ней, снизу вверх. Склеивает `NotifArt`.
+     */
+    val under: List<String> = emptyList(),
+    val over: List<String> = emptyList(),
 ) {
     /** Иконка приложения: ни ссылки, ни значка. */
     val app: Boolean get() = url.isEmpty() && symbol.isEmpty()
@@ -60,7 +71,15 @@ data class Art(
             // Ссылки только наши и только https: обложку собирает сервер, но
             // уведомление не должно ходить куда попало, даже если её подменят.
             val safe = if (url.startsWith("https://")) url else ""
-            return Art(url = safe, auth = json.optBoolean("auth", false), symbol = symbol)
+            fun layers(key: String): List<String> {
+                val arr = json.optJSONArray(key) ?: return emptyList()
+                return (0 until arr.length()).map { arr.optString(it, "") }.filter { it.startsWith("https://") }.take(6)
+            }
+            return Art(
+                url = safe, auth = json.optBoolean("auth", false), symbol = symbol,
+                under = if (safe.isEmpty()) emptyList() else layers("under"),
+                over = if (safe.isEmpty()) emptyList() else layers("over"),
+            )
         }
     }
 }
@@ -96,7 +115,7 @@ data class ChatPart(
 
 object CoverParser {
     /** Действия, которые телефон выполняет сам (`ДЕЙСТВИЯ_ТЕЛЕФОНА` сервера). */
-    val NATIVE_ACTIONS = setOf("reply", "hug", "read", "throw", "cancel_reset")
+    val NATIVE_ACTIONS = setOf("reply", "hug", "read", "throw", "cancel_reset", "thank")
 
     /** Обложка из строки JSON или null: старая версия, мусор, пусто. */
     fun parse(raw: String?): Cover? {
@@ -125,6 +144,23 @@ object CoverParser {
             chat = o.optJSONObject("chat")?.let { chat(it) },
             moods = moods(o.optJSONArray("moods")),
             done = o.optString("done", ""),
+            accent = accent(o.optJSONObject("accent")),
+        )
+    }
+
+    /** Четыре цвета `#RRGGBB` темы человека или null, если чего-то нет. */
+    private fun accent(o: JSONObject?): Tone? {
+        if (o == null) return null
+        fun color(key: String): Int? {
+            val v = o.optString(key, "")
+            if (v.length != 7 || v[0] != '#') return null
+            return v.substring(1).toLongOrNull(16)?.let { (0xFF000000 or it).toInt() }
+        }
+        return Tone(
+            tint = color("tint") ?: return null,
+            label = color("label") ?: return null,
+            deep = color("deep") ?: return null,
+            labelNight = color("label_night") ?: return null,
         )
     }
 

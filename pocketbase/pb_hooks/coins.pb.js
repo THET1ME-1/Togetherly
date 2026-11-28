@@ -985,7 +985,9 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
           partnerUid,
           (lang) => T.t("plusgift_title", lang),
           (lang) => from ? T.t("plusgift_from", lang, { name: from }) : T.t("plusgift_anon", lang),
-          "plusgift");
+          "plusgift",
+          // Обложка «А»: даритель — его имя и аватар (iPhone ставит слева).
+          { cover: { from_name: from, from_uid: e.auth.id } });
         $app.logger().warn("iap: подарок вручён", "from", e.auth.id, "to", partnerUid);
       } catch (err) {
         $app.logger().warn("iap: уведомление о подарке не ушло", "err", String(err));

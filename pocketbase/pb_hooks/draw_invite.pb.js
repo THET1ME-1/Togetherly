@@ -66,10 +66,13 @@ routerAdd("POST", "/api/draw/invite", (e) => {
 
   const T = require(`${__hooks}/push_texts.js`);
   const own = String(e.auth.getString("display_name") || "").trim();
+  // Раскраска, в которую зовут: обложка покажет её картинку. Только
+  // строчные латиница, цифры и `_` — номер уходит в ссылку на картинку.
+  const coloring = String(body.coloring || "").trim();
   push.notifyGroup(groupId, me,
     (lang) => T.t("draw_title", lang, { name: own || T.t("partner", lang) }),
     (lang) => T.t("draw_body", lang), "draw",
-    { cover: { from_name: own, from_uid: me } });
+    { cover: { from_name: own, from_uid: me, coloring: /^[a-z0-9_]{1,40}$/.test(coloring) ? coloring : "" } });
 
   // Пишем ОДНУ колонку прямым запросом, а не всю запись `e.auth`. Запись входа —
   // снимок аккаунта на момент запроса, и `$app.save(e.auth)` возвращал в базу

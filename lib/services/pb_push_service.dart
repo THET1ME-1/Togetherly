@@ -312,7 +312,8 @@ class PbPushService {
         _notify(('gift${r.id}').hashCode, partner, text,
             pierceQuiet: gift.piercesQuietHours,
             thread: 'gift',
-            cover: {'from_name': partner, 'gift_key': giftKey, 'title': text});
+            // Номер подарка: «Поблагодарить» из шторки отвечает на него.
+            cover: {'from_name': partner, 'gift_key': giftKey, 'title': text, 'gift_id': r.id});
       } catch (err) {
         debugPrint('PbPush gift callback error: $err');
       }

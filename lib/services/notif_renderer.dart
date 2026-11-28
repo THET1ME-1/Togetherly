@@ -34,7 +34,7 @@ class NotifRenderer {
   /// Виды пушей с обложкой: у каждого своя категория кнопок `tg_<вид>`.
   static const List<String> coverKinds = [
     'miss', 'mood', 'chat', 'memory', 'date', 'snowball', 'gift', 'comment', 'draw',
-    'plusgift', 'pair_reset', 'pair_reset_own', 'security', 'date_remind', 'evening', 'chest',
+    'plusgift', 'plus', 'pair_reset', 'pair_reset_own', 'security', 'date_remind', 'evening', 'chest',
     // Зов в совместную ленту и значок в подарок.
     'reels', 'badge',
     // Свои уведомления по расписанию.
@@ -52,7 +52,12 @@ class NotifRenderer {
       'snowball' => const ['art_act_wake'],
       'draw' => const ['art_act_draw'],
       'reels' => const ['art_act_phone'],
-      'mascot_miss' => const ['art_act_sad'],
+      'mascot_miss' => [
+          'art_cloud_idle_sad',
+          'art_act_sad',
+          for (final key in ['wear_under', 'wear_over'])
+            for (final id in (ctx[key] as List?) ?? const []) '$id',
+        ],
       'invite' => const ['art_guide_wait'],
       'celebration' => ['${ctx['art_id'] ?? ''}'].where((id) => id.isNotEmpty).toList(),
       'gift' when giftKey.isNotEmpty => [giftKey.startsWith('frame_') ? giftKey : 'gift_$giftKey'],

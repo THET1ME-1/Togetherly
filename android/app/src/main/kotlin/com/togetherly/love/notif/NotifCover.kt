@@ -65,7 +65,7 @@ object NotifCover {
             showMoodLock(ctx, cover, raw, tag, id, channel)
             return
         }
-        val tone = Tones.of(cover.tone)
+        val tone = cover.colors
         val density = ctx.resources.displayMetrics.density
         val smallSide = (44 * density).toInt()
         val bigSide = (96 * density).toInt()
@@ -124,7 +124,7 @@ object NotifCover {
      * настроение прямо со шторки (`NotifActions`, действие `mood:<номер>`).
      */
     private fun showMoodLock(ctx: Context, cover: Cover, raw: String, tag: String, id: Int, channel: String) {
-        val tone = Tones.of(cover.tone)
+        val tone = cover.colors
         val density = ctx.resources.displayMetrics.density
         val wanted = buildMap<String, Art> {
             if (cover.art.url.isNotEmpty()) put("art", cover.art)

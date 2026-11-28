@@ -9,6 +9,8 @@
 //
 // Рисует обложку Android (`notif/NotifCover.kt`, канал `love_app/notif`).
 
+import 'dart:ui' show Color;
+
 import '../l10n/push_cover_texts.dart';
 
 /// Откуда брать картинки: каталог приложения или примеры в тесте.
@@ -32,7 +34,17 @@ const String _files = 'https://togetherly.day/api/files';
 const String kCoverOpen = 'loveapp://open/';
 
 /// Кнопки, которые телефон выполняет сам, не открывая приложение.
-const Set<String> kCoverNativeActions = {'reply', 'hug', 'read', 'throw', 'cancel_reset'};
+const Set<String> kCoverNativeActions = {'reply', 'hug', 'read', 'throw', 'cancel_reset', 'thank'};
+
+/// Встроенные раскраски, чьи превью лежат на сайте
+/// (`pocketbase/pb_public/coloring/<id>_thumb.jpg`). Как `РАСКРАСКИ` сервера.
+const Set<String> kColoringOnSite = {
+  'cafe', 'castle', 'rain', 'ferris', 'metro', 'camping', 'festival', 'baking', 'beach', 'gaming', 'snowman',
+};
+
+/// Подарки, которые принимают ответом текстом (`Gift.wantsReply`): им
+/// «Поблагодарить» из шторки не годится. Как `ПОДАРКИ_С_ОТВЕТОМ` сервера.
+const Set<String> kGiftsWantReply = {'star'};
 
 /// Код языка как у сервера: первые две буквы, незнакомый — русский.
 String coverLanguage(String? code) {
@@ -47,6 +59,28 @@ String _t(String key, String lang) {
 }
 
 String _s(Map<String, Object?> ctx, String key) => (ctx[key] ?? '').toString().trim();
+
+/// Цвета темы человека, как `_тон_темы` сервера: четыре `#RRGGBB` с ролями
+/// тона, иначе null.
+Map<String, String>? _themeTone(Object? raw) {
+  if (raw is! Map) return null;
+  final hex = RegExp(r'^#[0-9A-Fa-f]{6}$');
+  final out = <String, String>{};
+  for (final key in const ['tint', 'label', 'deep', 'label_night']) {
+    final v = '${raw[key] ?? ''}';
+    if (!hex.hasMatch(v)) return null;
+    out[key] = v.toUpperCase();
+  }
+  return out;
+}
+
+/// Цвета темы для обложки («Дни вместе» в цвете темы человека): из светлой
+/// схемы плашка, подпись и насыщенный, из тёмной — подпись на тёмной шторке.
+Map<String, String> themeAccent({required Color tint, required Color label, required Color deep,
+    required Color labelNight}) {
+  String hex(Color c) => '#${(c.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}';
+  return {'tint': hex(tint), 'label': hex(label), 'deep': hex(deep), 'label_night': hex(labelNight)};
+}
 
 /// Только цифры, не больше 40 — волна голосового, как `peaks` сервера.
 String _digits(String raw) {
@@ -272,6 +306,13 @@ Map<String, Object?>? _buildCover(
       final key = _s(ctx, 'gift_key');
       // Подарком бывает и рамка (`frame_<ключ>` — своя запись каталога).
       final record = key.startsWith('frame_') ? key : (key.isNotEmpty ? 'gift_$key' : '');
+      final giftId = _s(ctx, 'gift_id');
+      // «Поблагодарить» из шторки — тот же отклик, что принятие в приложении.
+      // Звезде нужно желание текстом, рамку не принимают.
+      final thank = giftId.isNotEmpty &&
+          key.isNotEmpty &&
+          !key.startsWith('frame_') &&
+          !kGiftsWantReply.contains(key);
       return {
         ...base,
         'kicker': '${_t('c_gift', lang)} · $name',
@@ -281,8 +322,11 @@ Map<String, Object?>? _buildCover(
         'art': _picture(record.isEmpty ? null : look.still(record)),
         'actions': _buttons(lang, [
           ['open', 'a_open_gift', 'gifts'],
+          if (thank) ['thank', 'a_thank'],
         ]),
         'link': '${kCoverOpen}gifts',
+        if (thank) 'event_id': giftId,
+        if (thank) 'done': _t('c_thanked', lang),
       };
     case 'comment':
       return {
@@ -299,13 +343,18 @@ Map<String, Object?>? _buildCover(
         'link': '$kCoverOpen${_memoryScreen(ctx)}',
       };
     case 'draw':
+      // Зовёт раскрашивать — картинка этой раскраски (превью на сайте),
+      // иначе Ту с карандашом.
+      final coloring = _s(ctx, 'coloring');
       return {
         ...base,
         'kicker': '${_t('c_draw', lang)} · $name',
         'title': title,
         'body': body,
         'tone': 'draw',
-        'art': _picture(look.still('art_act_draw')),
+        'art': _picture(kColoringOnSite.contains(coloring)
+            ? 'https://togetherly.day/coloring/${coloring}_thumb.jpg'
+            : look.still('art_act_draw')),
         'actions': _buttons(lang, [
           ['open', 'a_canvas', 'draw'],
         ]),
@@ -338,6 +387,20 @@ Map<String, Object?>? _buildCover(
         'tone': 'plus',
         // Знак Плюса на тёплой плашке (макет): подарок партнёра.
         'art': {'symbol': 'add'},
+        'actions': _buttons(lang, [
+          ['open', 'a_plus_see', 'plus'],
+        ]),
+        'link': '${kCoverOpen}plus',
+      };
+    case 'plus':
+      // Плюс оплачен на сайте — от приложения: иконка, без картинок события.
+      return {
+        ...base,
+        'kicker': _t('c_plus', lang),
+        'title': title,
+        'body': body,
+        'tone': 'plus',
+        'art': {'app': true},
         'actions': _buttons(lang, [
           ['open', 'a_plus_see', 'plus'],
         ]),
@@ -447,6 +510,19 @@ Map<String, Object?>? _buildCover(
         'link': '${kCoverOpen}home',
       };
     case 'mascot_miss':
+      // Грустный Ту в его наряде (макет): сцена покоя `idle_sad` и слои
+      // надетых вещей для неё; склеивает телефон. Сцены нет — прежний Ту.
+      final scene = look.still('art_cloud_idle_sad');
+      final big = _picture(scene ?? look.still('art_act_sad'));
+      if (scene != null) {
+        List<String> layers(String key) => [
+              for (final id in ((ctx[key] as List?) ?? const []).take(6))
+                if (look.still('$id') case final url?) url,
+            ];
+        final under = layers('wear_under'), over = layers('wear_over');
+        if (under.isNotEmpty) big['under'] = under;
+        if (over.isNotEmpty) big['over'] = over;
+      }
       return {
         ...base,
         'kicker': _t('c_mascot', lang),
@@ -454,7 +530,7 @@ Map<String, Object?>? _buildCover(
         'body': body,
         'tone': 'miss',
         'art': {'app': true},
-        'art_big': _picture(look.still('art_act_sad')),
+        'art_big': big,
         'actions': _buttons(lang, [
           ['open', 'a_open', 'home'],
         ]),
@@ -484,7 +560,9 @@ Map<String, Object?>? _buildCover(
         'moods': choices,
       };
     case 'days':
-      // Постоянная тихая плашка «N дней вместе»: иконка приложения, без кнопок.
+      // Постоянная тихая плашка «N дней вместе»: иконка приложения, без
+      // кнопок, в цветах темы человека (`accent`).
+      final accent = _themeTone(ctx['accent']);
       return {
         ...base,
         'kicker': _t('c_days', lang),
@@ -494,6 +572,7 @@ Map<String, Object?>? _buildCover(
         'art': {'app': true},
         'actions': const <Map<String, Object?>>[],
         'link': '${kCoverOpen}home',
+        'accent': ?accent,
       };
     case 'badge':
       // Значок в подарок от команды (спонсорам, помощникам): от приложения.

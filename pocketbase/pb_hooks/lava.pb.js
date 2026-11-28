@@ -341,10 +341,21 @@ routerAdd("POST", "/api/lava/webhook", (e) => {
             plusGrantedTo,
             (lang) => T.t("plusgift_title", lang),
             (lang) => from ? T.t("plusgift_from", lang, { name: from }) : T.t("plusgift_anon", lang),
-            "plusgift");
+            "plusgift",
+            // Обложка «А»: даритель — его имя и аватар (iPhone ставит слева).
+            { cover: { from_name: from, from_uid: giftedBy } });
           try { inv.set("granted", true); $app.save(inv); } catch (_) {}
           $app.logger().warn("lava/webhook: подарок вручён",
             "to", plusGrantedTo, "from", giftedBy, "order", orderId);
+        } else {
+          // Себе: оплачено на сайте, приложение могло быть закрыто.
+          const push = require(`${__hooks}/apns_push.js`);
+          const T = require(`${__hooks}/push_texts.js`);
+          push.sendTo(
+            plusGrantedTo,
+            (lang) => T.t("plus_open_title", lang),
+            (lang) => T.t("plus_open_body", lang),
+            "plus");
         }
       } catch (err) {
         $app.logger().warn("lava/webhook: уведомление о подарке не ушло",

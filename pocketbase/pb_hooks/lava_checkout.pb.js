@@ -658,9 +658,25 @@ cronAdd("lavaInvoicePoll", "*/6 * * * *", () => {
               user.id,
               (lang) => T.t("plusgift_title", lang),
               (lang) => from ? T.t("plusgift_from", lang, { name: from }) : T.t("plusgift_anon", lang),
-              "plusgift");
+              "plusgift",
+              // Обложка «А»: даритель — его имя и аватар (iPhone ставит слева).
+              { cover: { from_name: from, from_uid: giftedBy } });
           } catch (err) {
             $app.logger().warn("lava/poll: уведомление о подарке не ушло",
+              "contract", contractId, "err", String(err));
+          }
+        } else {
+          // Себе: оплачено на сайте, приложение могло быть закрыто.
+          try {
+            const push = require(`${__hooks}/apns_push.js`);
+            const T = require(`${__hooks}/push_texts.js`);
+            push.sendTo(
+              user.id,
+              (lang) => T.t("plus_open_title", lang),
+              (lang) => T.t("plus_open_body", lang),
+              "plus");
+          } catch (err) {
+            $app.logger().warn("lava/poll: уведомление о Плюсе не ушло",
               "contract", contractId, "err", String(err));
           }
         }

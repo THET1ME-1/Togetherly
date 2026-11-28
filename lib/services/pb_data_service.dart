@@ -292,11 +292,17 @@ class PbDataService {
   /// (`pb_hooks/draw_invite.pb.js`): и частоту, и выключатель, и то, что
   /// партнёру в приложении звать незачем. Ошибки глотаем молча — зов не должен
   /// мешать рисовать, а старый сервер про этот роут просто не знает.
-  Future<bool> inviteToDraw(String groupId) async {
+  ///
+  /// [coloring] — встроенная раскраска, в которую зовут: обложка уведомления
+  /// покажет её картинку (`push_cover.py`, превью на сайте).
+  Future<bool> inviteToDraw(String groupId, {String coloring = ''}) async {
     if (groupId.isEmpty) return false;
     try {
       final res = await _pb
-          .send('/api/draw/invite', method: 'POST', body: {'group_id': groupId})
+          .send('/api/draw/invite', method: 'POST', body: {
+            'group_id': groupId,
+            if (coloring.isNotEmpty) 'coloring': coloring,
+          })
           .timeout(const Duration(seconds: 8));
       return res is Map && res['sent'] == true;
     } catch (_) {

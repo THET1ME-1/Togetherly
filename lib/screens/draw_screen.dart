@@ -732,7 +732,9 @@ class _DrawScreenState extends State<DrawScreen>
     // всё решает сервер — и частоту, и выключатель, и то, что человеку в
     // приложении звать незачем. В одиночном холсте звать некого.
     if (_hasSharedCanvas) {
-      unawaited(PbDataService().inviteToDraw(_groupId));
+      // Встроенная раскраска — её картинкой на обложке уведомления партнёра.
+      final builtIn = ColoringPicture.all.any((c) => c.id == widget.coloringId);
+      unawaited(PbDataService().inviteToDraw(_groupId, coloring: builtIn ? widget.coloringId! : ''));
     }
   }
 

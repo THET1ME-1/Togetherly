@@ -107,7 +107,9 @@ final class NotificationViewController: UIViewController, UNNotificationContentE
   /// (`tool/notif_card_snapshot`) зовёт её без уведомления.
   func render(cover: Cover?, title: String, body text: String, image: UIImage?) {
     loadViewIfNeeded()
-    let tone = CoverTone.of(cover?.tone ?? "app")
+    // Цвета темы человека («Дни вместе»), если даны, иначе тон события.
+    let tone = cover?.accent.map { CoverTone(tint: $0.tint, label: $0.label, deep: $0.deep, labelNight: $0.labelNight) }
+      ?? CoverTone.of(cover?.tone ?? "app")
     kicker.attributedText = nil
     if let cover, !cover.kicker.isEmpty {
       // Подпись прописными с разрядкой 0,06 em, как в макете.

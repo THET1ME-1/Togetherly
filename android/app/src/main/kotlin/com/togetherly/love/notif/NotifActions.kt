@@ -33,7 +33,17 @@ object NotifActions {
         }
         // Смена пароля — дело аккаунта, а не пары: пара тут не нужна.
         if (action == "cancel_reset") {
-            cancelReset(ctx, cover, raw, tag, id)
+            val ok = NotifNet.token(ctx) != null &&
+                NotifNet.call(ctx, "POST", "/api/auth/partner-reset/cancel", JSONObject(), budgetMs = BUDGET_MS).ok
+            finish(ctx, cover, raw, tag, id, ok)
+            return
+        }
+        // «Поблагодарить» за подарок — тот же отклик, что принятие в приложении.
+        if (action == "thank") {
+            val gift = cover.eventId
+            val ok = gift.isNotEmpty() && NotifNet.token(ctx) != null &&
+                NotifNet.call(ctx, "POST", "/api/gifts/react", JSONObject().put("giftId", gift), budgetMs = BUDGET_MS).ok
+            finish(ctx, cover, raw, tag, id, ok)
             return
         }
         when (action) {
@@ -107,14 +117,12 @@ object NotifActions {
     }
 
     /**
-     * «Это не я»: хозяин аккаунта гасит смену пароля через партнёра — тот же
-     * запрос, что лист «Ваш пароль меняют» в приложении. Дошло — уведомление
-     * тем же видом говорит «Смена пароля отменена», без кнопок.
+     * Итог действия из шторки, которое само не повторяется («Отменить» смену
+     * пароля, «Поблагодарить»): дошло — уведомление тем же видом говорит
+     * [Cover.done] без кнопок; нет — «не отправилось, открой приложение».
      */
-    private fun cancelReset(ctx: Context, cover: Cover, raw: String, tag: String, id: Int) {
-        val r = if (NotifNet.token(ctx) == null) null
-        else NotifNet.call(ctx, "POST", "/api/auth/partner-reset/cancel", JSONObject(), budgetMs = BUDGET_MS)
-        if (r?.ok != true) {
+    private fun finish(ctx: Context, cover: Cover, raw: String, tag: String, id: Int, ok: Boolean) {
+        if (!ok) {
             NotifCover.plain(ctx, cover.title, cover.failed, tag, id, cover.link)
             return
         }

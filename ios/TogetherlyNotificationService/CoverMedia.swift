@@ -58,6 +58,9 @@ enum CoverMedia {
       if !p.frame.isEmpty { urls["frame"] = p.frame }
     }
     guard let thumb = cover.thumbnail, !thumb.url.isEmpty else { done(urls); return }
+    // Наряд Ту: слои того же размера, склеиваются в `apply`.
+    for (i, u) in thumb.under.enumerated() { urls["under\(i)"] = u }
+    for (i, u) in thumb.over.enumerated() { urls["over\(i)"] = u }
     guard thumb.auth else {
       urls["thumb"] = thumb.url
       done(urls)
@@ -103,7 +106,16 @@ enum CoverMedia {
   /// сообщении с аватаром. nil — система отказала в уведомлении о сообщении
   /// (нет права), тогда показывать [content] как есть.
   static func apply(_ cover: Cover, to content: UNMutableNotificationContent, media got: [String: Data]) -> UNNotificationContent {
-    if let data = got["thumb"], let attachment = attachment(from: data, name: cover.kind) {
+    let layered = cover.thumbnail.flatMap { thumb -> Data? in
+      guard let base = got["thumb"], !(thumb.under.isEmpty && thumb.over.isEmpty) else { return nil }
+      let under = thumb.under.indices.compactMap { got["under\($0)"] }
+      let over = thumb.over.indices.compactMap { got["over\($0)"] }
+      return compose(base: base, under: under, over: over)
+    }
+    if let bytes = layered, let attachment = attachment(png: bytes, name: cover.kind) {
+      // Ту в наряде — одной картинкой.
+      content.attachments = [attachment]
+    } else if let data = got["thumb"], let attachment = attachment(from: data, name: cover.kind) {
       content.attachments = [attachment]
     } else if let symbol = cover.thumbnail?.symbol, !symbol.isEmpty,
               let tile = CoverSymbol.tile(symbol, tone: CoverTone.of(cover.tone), side: 300),
@@ -169,6 +181,22 @@ enum CoverMedia {
     return try? UNNotificationAttachment(
       identifier: "cover", url: file,
       options: [UNNotificationAttachmentOptionsTypeHintKey: UTType.png.identifier])
+  }
+
+  /// Слои под и над картинкой, каждый растянут на её размер (наряд Ту, как
+  /// `NotifArt.compose` на Android). PNG до 600 точек; не разобралась — nil.
+  static func compose(base: Data, under: [Data], over: [Data]) -> Data? {
+    guard let img = image(base, side: 600) else { return nil }
+    let w = img.width, h = img.height
+    guard let ctx = CGContext(
+      data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+      space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    ) else { return nil }
+    let full = CGRect(x: 0, y: 0, width: w, height: h)
+    let below = under.compactMap { image($0, side: 600) }
+    let above = over.compactMap { image($0, side: 600) }
+    for layer in below + [img] + above { ctx.draw(layer, in: full) }
+    return ctx.makeImage().flatMap(png)
   }
 
   /// Аватар в рамке, как `FramedAvatar` приложения: рамка в 100/62 раза

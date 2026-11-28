@@ -52,6 +52,13 @@ for c in cases {
   if kind == "chat", let photo = cover.thumbnail, !photo.url.isEmpty, cover.person != nil {
     check("chat/\(lang): фото сообщения закрытое — с пропуском", photo.auth)
   }
+  // Слои наряда Ту — те же, что у сервера.
+  let rawThumb = (raw["art_big"] ?? raw["art"]) as? [String: Any] ?? [:]
+  if kind != "chat" {
+    check("\(kind)/\(lang): слои наряда",
+          (cover.thumbnail?.under ?? []) == (rawThumb["under"] as? [String] ?? [])
+            && (cover.thumbnail?.over ?? []) == (rawThumb["over"] as? [String] ?? []))
+  }
   // Значок даты уходит миниатюрой-плашкой, а не пропадает.
   let symbol = ((raw["art_big"] ?? raw["art"]) as? [String: Any])?["symbol"] as? String ?? ""
   if !symbol.isEmpty {

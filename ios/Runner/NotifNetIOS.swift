@@ -180,6 +180,14 @@ enum NotifNetIOS {
     }
   }
 
+  /// «Поблагодарить» за подарок — тот же отклик, что принятие в приложении.
+  static func thankGift(_ giftId: String, completion: @escaping (Bool) -> Void) {
+    guard !giftId.isEmpty, token != nil else { completion(false); return }
+    call("POST", "/api/gifts/react", json: ["giftId": giftId]) { code, _ in
+      completion((200..<300).contains(code))
+    }
+  }
+
   /// Снежок в ответ. «Слишком часто» (429) — снежок уже летит, это успех.
   static func snowball(group: String, completion: @escaping (Bool) -> Void) {
     call("POST", "/api/group/snowball", json: ["groupId": group], idempotent: false) { code, _ in

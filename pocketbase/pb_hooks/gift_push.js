@@ -99,6 +99,8 @@ function notify(rec) {
       title: message(name, gender, key, lang).body, body: "",
       // Отправитель: hotpath возьмёт его аватар и рамку для iPhone.
       from_uid: rec.getString("sender_uid"),
+      // «Поблагодарить» из шторки отвечает на этот подарок (`/api/gifts/react`).
+      gift_id: rec.id,
     }),
   });
 }

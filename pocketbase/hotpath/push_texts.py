@@ -390,6 +390,19 @@ English»). Теперь приложение кладёт код языка в 
         "fr": "Regarder ensemble", "es": "Ver juntos", "it": "Guarda insieme",
         "pt": "Assistir juntos", "zh": "一起看", "uk": "Дивитися разом",
     },
+    "a_thank": {
+        "ru": "Поблагодарить", "en": "Say thanks", "de": "Danke sagen", "fr": "Dire merci",
+        "es": "Dar las gracias", "it": "Ringrazia", "pt": "Agradecer", "zh": "说声谢谢", "uk": "Подякувати",
+    },
+    "c_thanked": {
+        "ru": "Спасибо отправлено", "en": "Thanks sent", "de": "Danke gesendet", "fr": "Merci envoyé",
+        "es": "Gracias enviadas", "it": "Grazie inviato", "pt": "Agradecimento enviado", "zh": "已道谢",
+        "uk": "Подяку надіслано",
+    },
+    "c_plus": {
+        "ru": "Togetherly+", "en": "Togetherly+", "de": "Togetherly+", "fr": "Togetherly+", "es": "Togetherly+",
+        "it": "Togetherly+", "pt": "Togetherly+", "zh": "Togetherly+", "uk": "Togetherly+",
+    },
     "a_plus_see": {
         "ru": "Что открылось", "en": "See what’s new", "de": "Was jetzt geht", "fr": "Ce qui s’ouvre",
         "es": "Qué se desbloqueó", "it": "Cosa si sblocca", "pt": "O que liberou", "zh": "看看解锁了什么",

@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:love_app/models/coloring_picture.dart';
+import 'package:love_app/models/gift.dart';
 import 'package:love_app/models/push_cover.dart';
 
 /// Каталог примеров как у сервера: ссылка на `still_*` из файлов записи,
@@ -85,6 +87,21 @@ void main() {
     expect(buildPushCover('memory', 'ru', song, look)!['art'], {'url': 'https://x/a.jpg'});
     final place = memoryCoverContext({'locationName': 'Кафе', 'latitude': 47.0}, 'А', id: 'm4');
     expect(buildPushCover('memory', 'ru', place, look)!['art'], {'symbol': 'location_on'});
+  });
+
+  test('раскраски на сайте — все встроенные, и превью на месте', () {
+    expect(kColoringOnSite, {for (final c in ColoringPicture.all) c.id});
+    for (final id in kColoringOnSite) {
+      final site = File('pocketbase/pb_public/coloring/${id}_thumb.jpg');
+      expect(site.existsSync(), isTrue, reason: id);
+      // Та же картинка, что в приложении: поменял превью — выложи и на сайт.
+      expect(site.readAsBytesSync(), File('assets/coloring/${id}_thumb.jpg').readAsBytesSync(), reason: id);
+    }
+  });
+
+  test('«Поблагодарить» не у подарков, которым нужен ответ текстом', () {
+    // Зеркало ПОДАРКИ_С_ОТВЕТОМ сервера — ровно подарки с wantsReply.
+    expect(kGiftsWantReply, {for (final g in GiftCatalog.all) if (g.wantsReply) g.key});
   });
 
   test('язык: незнакомый и пустой — русский, как у сервера', () {

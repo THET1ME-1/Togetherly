@@ -158,6 +158,33 @@ class CoverTest {
     }
 
     @Test
+    fun дни_вместе_в_цветах_темы() {
+        val days = cases().first { it.getString("kind") == "days" && it.getString("lang") == "en" }
+        val cover = CoverParser.parse(days.getJSONObject("cover").toString())!!
+        assertEquals(0xFFFFD9E2.toInt(), cover.colors.tint)
+        assertEquals(0xFFBB005B.toInt(), cover.colors.deep)
+        assertEquals(0xFFFFB1C8.toInt(), cover.colors.labelNight)
+        // Без темы — тон события; неполный набор не годится.
+        val plain = cases().first { it.getString("kind") == "days" && it.getString("lang") == "ru" }
+        assertEquals(Tones.of("app"), CoverParser.parse(plain.getJSONObject("cover").toString())!!.colors)
+        val broken = CoverParser.parse("""{"v":1,"kind":"days","title":"x","accent":{"tint":"#FFFFFF"}}""")!!
+        assertNull(broken.accent)
+    }
+
+    @Test
+    fun ту_скучает_слоями_наряда() {
+        val mascot = cases().first { it.getString("kind") == "mascot_miss" && it.getString("lang") == "ru" }
+        val big = CoverParser.parse(mascot.getJSONObject("cover").toString())!!.artBig!!
+        assertTrue(big.url.endsWith("still_idle_sad.png"))
+        assertEquals(1, big.under.size)
+        assertEquals(1, big.over.size)
+        // Чужие ссылки в слоях не проходят, без картинки слоёв нет.
+        val evil = Art.of(JSONObject("""{"url":"https://t/a.png","over":["http://x/b.png","https://t/c.png"]}"""))
+        assertEquals(listOf("https://t/c.png"), evil.over)
+        assertTrue(Art.of(JSONObject("""{"over":["https://t/c.png"]}""")).over.isEmpty())
+    }
+
+    @Test
     fun волна_голосового_и_отмена_смены_пароля() {
         val voice = cases().first { it.getString("kind") == "chat" && it.getString("lang") == "en" }
         val chat = CoverParser.parse(voice.getJSONObject("cover").toString())!!.chat!!

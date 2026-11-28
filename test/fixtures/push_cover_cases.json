@@ -93,6 +93,25 @@
    ],
    {}
   ],
+  "art_cloud_idle_sad": [
+   [
+    "sm_s.webp",
+    "still_idle_sad.png"
+   ],
+   {}
+  ],
+  "art_tuw_scarf_idle_sad_b": [
+   [
+    "still_scarf_b.png"
+   ],
+   {}
+  ],
+  "art_tuw_acorn_idle_sad_f": [
+   [
+    "still_acorn_f.png"
+   ],
+   {}
+  ],
   "chest_winter": [
    [
     "idle_w.webp",
@@ -909,7 +928,7 @@
      "app": true
     },
     "art_big": {
-     "url": "https://togetherly.day/api/files/catalog_items/art_act_sad/still_sad.png"
+     "url": "https://togetherly.day/api/files/catalog_items/art_cloud_idle_sad/still_idle_sad.png"
     },
     "actions": [
      {
@@ -1310,6 +1329,185 @@
      }
     ],
     "link": "loveapp://open/chest"
+   }
+  },
+  {
+   "kind": "plus",
+   "lang": "ru",
+   "ctx": {
+    "title": "Togetherly+ открыт",
+    "body": "Спасибо! Всё платное уже открыто вам обоим"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "plus",
+    "failed": "Не отправилось, открой приложение",
+    "kicker": "Togetherly+",
+    "title": "Togetherly+ открыт",
+    "body": "Спасибо! Всё платное уже открыто вам обоим",
+    "tone": "plus",
+    "art": {
+     "app": true
+    },
+    "actions": [
+     {
+      "id": "open",
+      "label": "Что открылось",
+      "link": "loveapp://open/plus"
+     }
+    ],
+    "link": "loveapp://open/plus"
+   }
+  },
+  {
+   "kind": "gift",
+   "lang": "en",
+   "ctx": {
+    "from_name": "Alina",
+    "gift_key": "bouquet",
+    "title": "Bouquet",
+    "gift_id": "gft1",
+    "from_uid": "u1"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "gift",
+    "failed": "Didn’t go through, open the app",
+    "kicker": "Gift · Alina",
+    "title": "Bouquet",
+    "body": "",
+    "tone": "gift",
+    "art": {
+     "url": "https://togetherly.day/api/files/catalog_items/gift_bouquet/still_bouquet.png"
+    },
+    "actions": [
+     {
+      "id": "open",
+      "label": "Open gift",
+      "link": "loveapp://open/gifts"
+     },
+     {
+      "id": "thank",
+      "label": "Say thanks"
+     }
+    ],
+    "link": "loveapp://open/gifts",
+    "event_id": "gft1",
+    "done": "Thanks sent",
+    "person": {
+     "uid": "u1",
+     "name": "Alina",
+     "avatar": "",
+     "frame": "",
+     "frame_hole": 31
+    }
+   }
+  },
+  {
+   "kind": "draw",
+   "lang": "en",
+   "ctx": {
+    "from_name": "Alina",
+    "title": "Let's color",
+    "coloring": "snowman"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "draw",
+    "failed": "Didn’t go through, open the app",
+    "kicker": "Drawing · Alina",
+    "title": "Let's color",
+    "body": "",
+    "tone": "draw",
+    "art": {
+     "url": "https://togetherly.day/coloring/snowman_thumb.jpg"
+    },
+    "actions": [
+     {
+      "id": "open",
+      "label": "Open canvas",
+      "link": "loveapp://open/draw"
+     }
+    ],
+    "link": "loveapp://open/draw"
+   }
+  },
+  {
+   "kind": "days",
+   "lang": "en",
+   "ctx": {
+    "title": "128 days together",
+    "body": "Just the beginning",
+    "accent": {
+     "tint": "#ffd9e2",
+     "label": "#8d4a5d",
+     "deep": "#bb005b",
+     "label_night": "#ffb1c8"
+    }
+   },
+   "cover": {
+    "v": 1,
+    "kind": "days",
+    "failed": "Didn’t go through, open the app",
+    "kicker": "Days together",
+    "title": "128 days together",
+    "body": "Just the beginning",
+    "tone": "app",
+    "art": {
+     "app": true
+    },
+    "actions": [],
+    "link": "loveapp://open/home",
+    "accent": {
+     "tint": "#FFD9E2",
+     "label": "#8D4A5D",
+     "deep": "#BB005B",
+     "label_night": "#FFB1C8"
+    }
+   }
+  },
+  {
+   "kind": "mascot_miss",
+   "lang": "ru",
+   "ctx": {
+    "title": "Ту скучает",
+    "body": "Загляни",
+    "wear_under": [
+     "art_tuw_scarf_idle_sad_b"
+    ],
+    "wear_over": [
+     "art_tuw_acorn_idle_sad_f",
+     "art_tuw_missing_f"
+    ]
+   },
+   "cover": {
+    "v": 1,
+    "kind": "mascot_miss",
+    "failed": "Не отправилось, открой приложение",
+    "kicker": "Ту скучает",
+    "title": "Ту скучает",
+    "body": "Загляни",
+    "tone": "miss",
+    "art": {
+     "app": true
+    },
+    "art_big": {
+     "url": "https://togetherly.day/api/files/catalog_items/art_cloud_idle_sad/still_idle_sad.png",
+     "under": [
+      "https://togetherly.day/api/files/catalog_items/art_tuw_scarf_idle_sad_b/still_scarf_b.png"
+     ],
+     "over": [
+      "https://togetherly.day/api/files/catalog_items/art_tuw_acorn_idle_sad_f/still_acorn_f.png"
+     ]
+    },
+    "actions": [
+     {
+      "id": "open",
+      "label": "Открыть",
+      "link": "loveapp://open/home"
+     }
+    ],
+    "link": "loveapp://open/home"
    }
   },
   {

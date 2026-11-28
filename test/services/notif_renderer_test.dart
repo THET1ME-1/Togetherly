@@ -25,7 +25,13 @@ void main() {
     expect(NotifRenderer.artIdsFor('miss', const {}), ['art_act_miss']);
     expect(NotifRenderer.artIdsFor('mood_lock', const {}), ['moti']);
     expect(NotifRenderer.artIdsFor('reels', const {}), ['art_act_phone']);
-    expect(NotifRenderer.artIdsFor('mascot_miss', const {}), ['art_act_sad']);
+    expect(NotifRenderer.artIdsFor('mascot_miss', const {}), ['art_cloud_idle_sad', 'art_act_sad']);
+    // Слои наряда тоже догружаются: без них Ту был бы раздет.
+    expect(
+        NotifRenderer.artIdsFor('mascot_miss', const {
+          'wear_over': ['art_tuw_acorn_idle_sad_f'],
+        }),
+        contains('art_tuw_acorn_idle_sad_f'));
     expect(NotifRenderer.artIdsFor('invite', const {}), ['art_guide_wait']);
     expect(NotifRenderer.artIdsFor('gift', const {'gift_key': 'bouquet'}), ['gift_bouquet']);
     expect(NotifRenderer.artIdsFor('gift', const {'gift_key': 'frame_hearts'}), ['frame_hearts']);

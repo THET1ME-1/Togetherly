@@ -123,6 +123,7 @@ import 'dates/pair_dates_screen.dart';
 import 'miss_you_screen.dart';
 import 'profile_screen.dart';
 import '../theme/profile_theme.dart';
+import '../models/push_cover.dart' show themeAccent;
 import '../services/cycle_service.dart';
 import '../services/daily_task_service.dart';
 import '../models/daily_task.dart';
@@ -555,7 +556,9 @@ class _HomeScreenState extends State<HomeScreen> {
     // Пересчёт расписания уведомлений о праздниках при каждом старте.
     Future.microtask(() async {
       await CelebrationNotificationService.instance.rescheduleOnAppStart();
-      // Постоянный счётчик «дней вместе» (если включён) — пересчитать число.
+      // Постоянный счётчик «дней вместе» (если включён) — пересчитать число,
+      // в цветах темы человека.
+      DaysTogetherNotificationService.instance.accent = _daysAccent();
       await DaysTogetherNotificationService.instance.rescheduleOnAppStart();
 
       // Самоотчёт о контейнере виджетов (только iPhone). Виджеты там стоят
@@ -587,7 +590,8 @@ class _HomeScreenState extends State<HomeScreen> {
         // immediately when the user returns to the home screen.
         _widgetService.syncNow();
         // Обновляем число в постоянном счётчике «дней вместе» (могла смениться
-        // дата за полночь). No-op, если фича выключена.
+        // дата за полночь, а тема — в настройках). No-op, если фича выключена.
+        DaysTogetherNotificationService.instance.accent = _daysAccent();
         unawaited(DaysTogetherNotificationService.instance.refresh());
         // Togetherly+ мог открыться прямо сейчас: человек ушёл платить на
         // lava.top и вернулся в приложение. Перечитываем флаг с сервера, чтобы
@@ -943,6 +947,16 @@ class _HomeScreenState extends State<HomeScreen> {
       default:
         setState(() => _selectedNavIndex = 0);
     }
+  }
+
+  /// Цвета темы человека для плашки «Дни вместе» (макет: «цвет темы
+  /// человека»): плашка и подпись из светлой схемы, подпись на тёмной
+  /// шторке — из тёмной.
+  Map<String, String> _daysAccent() {
+    final light = ProfileTheme.schemeFor(widget.userData.themeIn(Brightness.light));
+    final dark = ProfileTheme.schemeFor(widget.userData.themeIn(Brightness.dark));
+    return themeAccent(
+        tint: light.primaryContainer, label: light.primary, deep: light.primary, labelNight: dark.primary);
   }
 
   /// Подарок из уведомления: список входящих мог ещё не доехать.

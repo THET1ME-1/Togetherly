@@ -109,6 +109,12 @@ final class HarnessApp: UIResponder, UIApplicationDelegate {
     }.map { UIImage(cgImage: $0) }
     check("волна голосового", wave != nil)
 
+    // Ту в наряде — склейка тем же кодом, что у расширения сервиса.
+    let dressed = (try? Data(contentsOf: fixture("cloud_idle_sad.png"))).flatMap { base in
+      CoverMedia.compose(base: base, under: [], over: [(try? Data(contentsOf: fixture("wear_acorn_sad.png"))) ?? Data()])
+    }.flatMap { UIImage(data: $0) }
+    check("Ту в наряде склеен", dressed != nil)
+
     let shots: [(String, [String: Any]?, UIImage?)] = [
       ("miss_ru", cover("miss", "ru"), image("art_act_miss.png")),
       ("mood_ru", cover("mood", "ru"), image("moti_love.webp")),
@@ -128,6 +134,8 @@ final class HarnessApp: UIResponder, UIApplicationDelegate {
       ("capsule_ru", cover("capsule", "ru"), symbol("mail", "evening")),
       ("reels_ru", cover("reels", "ru"), image("art_act_phone.png")),
       ("days_ru", cover("days", "ru"), nil),
+      ("days_theme_en", cover("days", "en", having: "accent"), nil),
+      ("mascot_dressed_ru", cover("mascot_miss", "ru", having: "wear_over"), dressed),
       ("pair_reset_own_en", cover("pair_reset", "en", having: "role"), nil),
       ("date_remind_ru", cover("date_remind", "ru"), symbol("cake", "date")),
     ]
