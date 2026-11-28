@@ -38,6 +38,31 @@ class ОтПартнёра(unittest.TestCase):
         self.assertEqual(c["art"], {"url": f"{F}/catalog_items/art_act_miss/still_miss.png"})
         self.assertEqual(ids(c), ["hug", "write"])
         self.assertEqual(c["actions"][0]["label"], "Обнять в ответ")
+        # Ссылка `loveapp://miss` у виджета сама шлёт «Скучаю»: нажатие на
+        # уведомление обязано только открыть экран.
+        self.assertEqual(c["link"], "loveapp://open/miss")
+
+    def test_кнопки_экрана_со_ссылкой_действия_телефона_без(self):
+        c = собрать("miss", from_name="Алина", body="Хочу обнять", group_id="g1", event_id="e1")
+        self.assertNotIn("link", c["actions"][0])            # обнять — делает телефон
+        self.assertEqual(c["actions"][1]["link"], "loveapp://open/chat")  # написать
+        self.assertEqual(c["group"], "g1")
+        self.assertEqual(c["event_id"], "e1")
+        чат = собрать("chat", from_name="Алина", body="Привет", group_id="g1", ts=1700)
+        self.assertTrue(all("link" not in a for a in чат["actions"]))
+        self.assertEqual(чат["chat"]["ts"], 1700)
+        вечер = собрать("evening", title="Как прошёл день?")
+        self.assertEqual([a["link"] for a in вечер["actions"]],
+                         ["loveapp://open/mood", "loveapp://open/task"])
+
+    def test_у_каждого_вида_ссылка_на_экран(self):
+        for вид in ("miss", "mood", "chat", "memory", "date", "snowball", "gift", "comment",
+                    "draw", "plusgift", "pair_reset", "security", "date_remind", "evening", "chest"):
+            c = собрать(вид, from_name="Алина", title="Т", body="Б")
+            self.assertTrue(c["link"].startswith("loveapp://open/"), вид)
+            for a in c["actions"]:
+                if a["id"] not in ("reply", "hug", "read", "throw"):
+                    self.assertTrue(a["link"].startswith("loveapp://open/"), (вид, a))
 
     def test_настроение_котиком_моти(self):
         c = собрать("mood", from_name="Алина", mood_id="love", label="Влюблённость")

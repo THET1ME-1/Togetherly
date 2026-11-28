@@ -94,8 +94,25 @@ def _картинка(url, **extra):
     return {"url": url, **extra} if url else {"app": True}
 
 
-def _кнопки(lang, *pairs):
-    return [{"id": i, "label": пуш(key, lang)} for i, key in pairs]
+# Куда ведёт нажатие: своё пространство ссылок уведомлений. Ссылки виджетов
+# сами делают дело (`loveapp://miss` шлёт «Скучаю»), а уведомление только
+# открывает экран.
+ОТКРЫТЬ = "loveapp://open/"
+
+# Кнопки, которые телефон выполняет сам, не открывая приложение: ответ
+# текстом, «обнять», «прочитано», снежок в ответ. У остальных — ссылка.
+ДЕЙСТВИЯ_ТЕЛЕФОНА = ("reply", "hug", "read", "throw")
+
+
+def _кнопки(lang, *items):
+    """(id, ключ подписи) — действие телефона; (id, ключ, экран) — открыть экран."""
+    out = []
+    for item in items:
+        кнопка = {"id": item[0], "label": пуш(item[1], lang)}
+        if len(item) > 2:
+            кнопка["link"] = ОТКРЫТЬ + item[2]
+        out.append(кнопка)
+    return out
 
 
 def cover(kind, lang, ctx, look):
@@ -110,6 +127,9 @@ def cover(kind, lang, ctx, look):
     body = (ctx.get("body") or "").strip()
     title = (ctx.get("title") or "").strip()
     base = {"v": 1, "kind": kind}
+    # Пара события: «обнять» и снежок телефон шлёт в неё сам.
+    if ctx.get("group_id"):
+        base["group"] = str(ctx["group_id"])
 
     if kind == "miss":
         return base | {
@@ -118,8 +138,10 @@ def cover(kind, lang, ctx, look):
             "body": body,
             "tone": "miss",
             "art": _картинка(_каталог(look, "art_act_miss")),
-            "actions": _кнопки(lang, ("hug", "a_hug_back"), ("write", "a_write")),
-            "link": "loveapp://miss",
+            "actions": _кнопки(lang, ("hug", "a_hug_back"), ("write", "a_write", "chat")),
+            "link": ОТКРЫТЬ + "miss",
+            # Импульс, на который «обнять в ответ» отвечает (`replyTo`).
+            "event_id": str(ctx.get("event_id") or ""),
         }
 
     if kind == "mood":
@@ -129,8 +151,8 @@ def cover(kind, lang, ctx, look):
             "body": body or пуш("c_mood_today", lang),
             "tone": "mood",
             "art": _картинка(_моти(look, ctx.get("mood_id"))),
-            "actions": _кнопки(lang, ("mood_back", "a_mood_back")),
-            "link": "loveapp://mood",
+            "actions": _кнопки(lang, ("mood_back", "a_mood_back", "mood")),
+            "link": ОТКРЫТЬ + "mood",
         }
 
     if kind == "chat":
@@ -141,12 +163,14 @@ def cover(kind, lang, ctx, look):
             "tone": "chat",
             "art": _картинка(_из_медиа(ctx.get("avatar"), "200x200")),
             "actions": _кнопки(lang, ("reply", "a_reply"), ("hug", "a_hug"), ("read", "a_read")),
-            "link": "loveapp://chat",
+            "link": ОТКРЫТЬ + "chat",
             "chat": {
                 "from_uid": ctx.get("from_uid") or "",
                 "from_name": имя,
                 "group_id": ctx.get("group_id") or "",
                 "message_id": ctx.get("message_id") or "",
+                # Время сообщения: «прочитано» отмечает до него, а не до «сейчас».
+                "ts": int(ctx.get("ts") or 0),
                 "avatar": _из_медиа(ctx.get("avatar"), "200x200"),
                 "frame": (_каталог(look, "frame_" + ctx["frame"]) or "") if ctx.get("frame") else "",
                 "image": _из_медиа(ctx.get("photo"), "400x400"),
@@ -162,8 +186,8 @@ def cover(kind, lang, ctx, look):
             "body": body,
             "tone": "memory",
             "art": {"url": фото, "auth": True} if фото else {"app": True},
-            "actions": _кнопки(lang, ("open", "a_watch")),
-            "link": "loveapp://memory_lane",
+            "actions": _кнопки(lang, ("open", "a_watch", "memories")),
+            "link": ОТКРЫТЬ + "memories",
         }
 
     if kind == "date":
@@ -174,8 +198,8 @@ def cover(kind, lang, ctx, look):
             "body": body,
             "tone": "date",
             "art": {"symbol": символ} if символ else {"app": True},
-            "actions": _кнопки(lang, ("open", "a_open")),
-            "link": "loveapp://dates",
+            "actions": _кнопки(lang, ("open", "a_open", "dates")),
+            "link": ОТКРЫТЬ + "dates",
         }
 
     if kind == "snowball":
@@ -186,7 +210,7 @@ def cover(kind, lang, ctx, look):
             "tone": "snow",
             "art": _картинка(_каталог(look, "art_act_wake")),
             "actions": _кнопки(lang, ("throw", "a_throw")),
-            "link": "loveapp://home",
+            "link": ОТКРЫТЬ + "home",
         }
 
     # ── Из хуков PocketBase (`/internal/push-cover`) ──
@@ -201,8 +225,8 @@ def cover(kind, lang, ctx, look):
             "body": body,
             "tone": "gift",
             "art": _картинка(_каталог(look, запись) if запись else None),
-            "actions": _кнопки(lang, ("open", "a_open_gift")),
-            "link": "loveapp://gifts",
+            "actions": _кнопки(lang, ("open", "a_open_gift", "gifts")),
+            "link": ОТКРЫТЬ + "gifts",
         }
 
     if kind == "comment":
@@ -213,8 +237,8 @@ def cover(kind, lang, ctx, look):
             "body": body,
             "tone": "memory",
             "art": {"url": фото, "auth": True} if фото else {"app": True},
-            "actions": _кнопки(lang, ("open", "a_open")),
-            "link": "loveapp://memory_lane",
+            "actions": _кнопки(lang, ("open", "a_open", "memories")),
+            "link": ОТКРЫТЬ + "memories",
         }
 
     if kind == "draw":
@@ -224,8 +248,8 @@ def cover(kind, lang, ctx, look):
             "body": body,
             "tone": "draw",
             "art": _картинка(_каталог(look, "art_act_draw")),
-            "actions": _кнопки(lang, ("open", "a_canvas")),
-            "link": "loveapp://draw",
+            "actions": _кнопки(lang, ("open", "a_canvas", "draw")),
+            "link": ОТКРЫТЬ + "draw",
         }
 
     if kind == "plusgift":
@@ -235,8 +259,8 @@ def cover(kind, lang, ctx, look):
             "body": body,
             "tone": "plus",
             "art": {"app": True},
-            "actions": _кнопки(lang, ("open", "a_open")),
-            "link": "loveapp://plus",
+            "actions": _кнопки(lang, ("open", "a_open", "plus")),
+            "link": ОТКРЫТЬ + "plus",
         }
 
     if kind in ("pair_reset", "security"):
@@ -246,8 +270,8 @@ def cover(kind, lang, ctx, look):
             "body": body,
             "tone": "app",
             "art": {"app": True},
-            "actions": _кнопки(lang, ("open", "a_open")),
-            "link": "loveapp://home",
+            "actions": _кнопки(lang, ("open", "a_open", "home")),
+            "link": ОТКРЫТЬ + "home",
         }
 
     # ── От самого приложения: обложка — иконка, картинка — в развёрнутом ──
@@ -261,8 +285,8 @@ def cover(kind, lang, ctx, look):
             "tone": "date",
             "art": {"app": True},
             "art_big": {"symbol": символ} if символ else {"app": True},
-            "actions": _кнопки(lang, ("open", "a_open")),
-            "link": "loveapp://dates",
+            "actions": _кнопки(lang, ("open", "a_open", "dates")),
+            "link": ОТКРЫТЬ + "dates",
         }
 
     if kind == "evening":
@@ -274,8 +298,8 @@ def cover(kind, lang, ctx, look):
             "tone": "evening",
             "art": {"app": True},
             "art_big": _картинка(большая),
-            "actions": _кнопки(lang, ("mood", "a_mood"), ("task", "a_task")),
-            "link": "loveapp://mood",
+            "actions": _кнопки(lang, ("mood", "a_mood", "mood"), ("task", "a_task", "task")),
+            "link": ОТКРЫТЬ + "mood",
         }
 
     if kind == "chest":
@@ -288,8 +312,8 @@ def cover(kind, lang, ctx, look):
             "tone": "chest",
             "art": {"app": True},
             "art_big": _картинка(большая),
-            "actions": _кнопки(lang, ("chest", "a_chest")),
-            "link": "loveapp://chest",
+            "actions": _кнопки(lang, ("chest", "a_chest", "chest")),
+            "link": ОТКРЫТЬ + "chest",
         }
 
     return None

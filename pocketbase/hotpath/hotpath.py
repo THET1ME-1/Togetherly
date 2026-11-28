@@ -1089,8 +1089,9 @@ async def _notify_group(group_id: str, author_uid: str, title, body,
             try:
                 # Пустое из вызова не затирает известное об авторе: имя из
                 # записи бывает пустым, а в профиле оно есть.
-                что = {**автор, **{k: v for k, v in (cover(t["lang"]) or {}).items()
-                                    if v not in ("", None)}}
+                что = {"group_id": group_id, **автор,
+                       **{k: v for k, v in (cover(t["lang"]) or {}).items()
+                          if v not in ("", None)}}
                 обложка = await asyncio.to_thread(
                     push_cover.cover, thread, t["lang"], что, _каталог_для_обложки)
             except Exception as e:  # обложка — украшение, пуш важнее
@@ -1705,7 +1706,7 @@ async def _after_create(col: str, rec: dict) -> None:
                 cover=lambda язык: {
                     "from_name": имя, "body": _chat_push_text(rec, язык),
                     "message_id": rec.get("id") or "", "group_id": rec.get("group_id") or "",
-                    "from_uid": rec.get("user_uid") or "",
+                    "from_uid": rec.get("user_uid") or "", "ts": rec.get("ts") or 0,
                     # Кружок видеосообщения — его кадр картинкой в истории.
                     "photo": rec.get("note_thumb") or ""})
     elif kind == "memory":
@@ -2352,9 +2353,10 @@ async def _miss_history(group_id: str, since_ms: int | None) -> list[dict]:
 
 
 async def _miss_event_add(group_id: str, uid: str, vibe: str, text: str,
-                          times: int, reply_to: str | None) -> None:
+                          times: int, reply_to: str | None) -> str:
     """Импульс в историю. Тот же импульс того же человека в пределах минуты
-    (и не ответ) прибавляется к последней строке, а не плодит новую."""
+    (и не ответ) прибавляется к последней строке, а не плодит новую.
+    Возвращает номер строки: на неё отвечает «обнять» из уведомления."""
     if not reply_to:
         upd = await pg.fetchval(
             """
@@ -2368,12 +2370,14 @@ async def _miss_event_add(group_id: str, uid: str, vibe: str, text: str,
             group_id, uid, vibe, text, times,
         )
         if upd:
-            return
+            return str(upd)
+    новый = _new_id()
     await pg.execute(
         "INSERT INTO miss_you_events (id, group_id, user_uid, vibe, text, count, reply_to) "
         "VALUES ($1, $2, $3, $4, $5, $6, $7)",
-        _new_id(), group_id, uid, vibe, text, times, reply_to,
+        новый, group_id, uid, vibe, text, times, reply_to,
     )
+    return новый
 
 
 @app.post("/api/group/miss-you")
@@ -2493,8 +2497,9 @@ async def miss_you(request: Request):
             автор = None
         if not автор or автор == uid:
             reply_to = None
+    событие = ""
     try:
-        await _miss_event_add(group_id, uid, vibe, text, times, reply_to)
+        событие = await _miss_event_add(group_id, uid, vibe, text, times, reply_to)
     except Exception as e:
         # История — приятное дополнение: её сбой не должен ронять сам импульс.
         log.warning("miss_you_events %s: %s", group_id, e)
@@ -2513,7 +2518,8 @@ async def miss_you(request: Request):
             else (lambda язык: _miss_you_push_text(text, язык)),
             "miss",
             cover=lambda язык: {"body": _miss_reply_push_text(vibe, text, язык) if reply_to
-                                else _miss_you_push_text(text, язык)})
+                                else _miss_you_push_text(text, язык),
+                                "event_id": событие})
         if ушло:
             _отметить_miss(group_id, теперь_мс)
     return ORJSONResponse({"ok": True, "count": _num(row["count"])})
