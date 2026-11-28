@@ -6,8 +6,8 @@
 
 Запускается кроном раз в пять минут на основном сервере
 (`/opt/pocketbase/tools/evening_reminder_push.py`). Каждый запуск берёт тех, у
-кого на часах сейчас их время напоминания (окно 15 минут: пропущенный запуск
-не съедает день), и шлёт пуш, только если что-то из выбранного ещё не сделано.
+кого на часах сейчас их время напоминания (окно — час: пропущенный запуск не
+съедает день), и шлёт пуш, только если что-то из выбранного ещё не сделано.
 Сделано всё — молчим.
 
     python3 evening_reminder_push.py --dry-run           # сколько ушло бы сейчас
@@ -19,14 +19,12 @@
     всегда). У выпущенных раньше выключателя нет, а задача требует «может
     выключить», поэтому им не шлём ничего;
   * был в приложении за 14 дней (`user_presence`), есть токен;
-  * у каждого пункта (`users.remind_mood`, `users.remind_task`) три режима:
-    `on` и `off` выбрал человек — так и делаем; пусто (блок настроек ещё не
-    открывал) — по привычке и если не выключил уведомления целиком.
-    Привычка к настроению — отмечал хотя бы в 4 дня из последних 14 (замер
-    27.11.2026: из 36 тысяч, отмечавших хоть раз за две недели, к 21:00 не
-    отметились 27 тысяч, с порогом 4 дня — 9 тысяч), к заданию — пара делала
-    его за последние 3 дня. Первый показ блока сам записывает положение
-    выключателей явным `on`/`off`, поэтому экран не расходится с сервером;
+  * оба пункта (`users.remind_mood`, `users.remind_task`) по умолчанию
+    включены — решение владельца 28.11.2026 («включишь по умолчанию»).
+    `on` и `off` — выбор человека; пусто — не трогал, значит включено, если
+    только он не выключил уведомления целиком (тогда молчим, а включённое
+    им самим всё равно приходит). Замер 27.11.2026: из 88 тысяч активных к
+    21:00 по Москве не отметили настроение 79 тысяч;
   * настроение — если сегодня по его часам не отмечено; задание — если он в
     живой паре и задание за его сегодня не выполнено;
   * сегодня по своим часам это напоминание ещё не получал
@@ -65,11 +63,16 @@ FCM = "http://127.0.0.1:8100/push"
 DEAD = "/opt/pocketbase/pb_data/.dead_tokens.jsonl"
 
 ACTIVE_DAYS = 14
-HABIT_DAYS = 14
-HABIT_MOOD_DAYS = 4
-HABIT_TASK_DAYS = 3
+# Рассылка сундука шла 12 пушей в секунду при 8 потоках (50 тысяч за 68 минут,
+# 28.11.2026); релеи принимают запросы каждый своим потоком, так что скорость
+# растёт с числом потоков. 48 — 50 тысяч москвичей примерно за 17 минут.
+WORKERS = 48
 DEFAULT_AT = "21:00"
-WINDOW_MIN = 15
+# Окно — час от времени человека: долгая рассылка держит `flock`, и крон
+# пропускает свои запуски; с окном в 15 минут время 21:05 выпало бы целиком
+# (у первой версии окно было 15 минут).
+# Повтор в тот же день не даёт отметка в `.evening_reminder.db`.
+WINDOW_MIN = 60
 MOSCOW = "Europe/Moscow"
 NOTIF_FIELDS = ("notif_miss_you", "notif_new_memory", "notif_mood",
                 "notif_chat", "notif_draw", "notif_comments")
@@ -201,17 +204,13 @@ def reminder_slot(utc_now, tz, at, force=False):
     return d.isoformat(), midnight, task_day.isoformat()
 
 
-def _minus_days(day, n):
-    return (datetime.strptime(day, "%Y-%m-%d") - timedelta(days=n)).strftime("%Y-%m-%d")
-
-
 def _mode(user, field):
-    """Режим пункта: `on` и `off` выбрал человек, пусто — по привычке."""
+    """Режим пункта: `on` и `off` выбрал человек, пусто — не трогал."""
     v = str(user.get(field) or "").strip().lower()
     return v if v in ("on", "off") else ""
 
 
-def what_to_remind(user, *, mood_last, mood_days, tasks, paired, day_start, task_day):
+def what_to_remind(user, *, mood_last, tasks, paired, day_start, task_day):
     """О чём напомнить: {'mood', 'task'} или пусто. Без сети и базы — тест."""
     # Метку `remind_v` шлют только сборки, где напоминание можно выключить.
     try:
@@ -222,25 +221,23 @@ def what_to_remind(user, *, mood_last, mood_days, tasks, paired, day_start, task
     if not (user.get("fcm_token") or user.get("apns_token")):
         return set()
     # Метка стоит — значит нули в колонках выбрал человек: выключил всё разом.
-    # По привычке такого не будим, явно включённое напоминание — его слово.
+    # Включённое по умолчанию его не будит, включённое им самим — будит.
     all_off = bool(user.get("notif_synced_at")) and not any(user.get(f) for f in NOTIF_FIELDS)
-    need = set()
 
-    mood = _mode(user, "remind_mood")
+    def wanted(field):
+        mode = _mode(user, field)
+        return mode == "on" or (mode == "" and not all_off)
+
+    need = set()
     marked_today = mood_last is not None and mood_last >= day_start
-    mood_habit = mood_days >= HABIT_MOOD_DAYS and not all_off
-    if not marked_today and (mood == "on" or (mood == "" and mood_habit)):
+    if wanted("remind_mood") and not marked_today:
         need.add("mood")
 
-    task = _mode(user, "remind_task")
-    if paired:
+    if paired and wanted("remind_task"):
         tasks = tasks if isinstance(tasks, dict) else {}
         day = str(tasks.get("date") or "")
         done = tasks.get("done") if isinstance(tasks.get("done"), list) else []
-        done_today = bool(done) and day >= task_day
-        task_habit = (bool(done) and day >= _minus_days(task_day, HABIT_TASK_DAYS)
-                      and not all_off)
-        if not done_today and (task == "on" or (task == "" and task_habit)):
+        if not (done and day >= task_day):
             need.add("task")
     return need
 
@@ -339,17 +336,18 @@ def load_users(con, uids):
 # Индекса по одному `user_uid` у настроений нет (есть только с группой
 # впереди), а GIN `jsonb_path_ops` у `groups.members` не умеет `?|`: замер
 # 28.11.2026 — 3,9 с на каждую пачку из 2000 человек, 164 с на всех активных.
-# Целиком: настроения за 14 дней — 0,2 с, живые пары — меньше секунды.
+# Целиком: настроения за двое суток — 0,2 с, живые пары — меньше секунды.
 
-def mood_stats(wanted, utc_now):
-    """Настроения за 14 дней: uid → (последняя отметка в UTC, сколько разных дней)."""
-    since = (utc_now - timedelta(days=HABIT_DAYS)).strftime("%Y-%m-%d %H:%M:%S")
+def last_moods(wanted, utc_now):
+    """Последняя отметка настроения за двое суток: uid → момент UTC. Двое
+    суток покрывают «сегодня» в любом поясе."""
+    since = (utc_now - timedelta(days=2)).strftime("%Y-%m-%d %H:%M:%S")
     out = {}
     for row in psql(
-            "SELECT user_uid, max(timestamp), count(DISTINCT left(timestamp, 10)) "
-            f"FROM mood_entries WHERE timestamp > '{since}' GROUP BY user_uid"):
-        if len(row) >= 3 and row[0] in wanted:
-            out[row[0]] = (parse_pb_time(row[1]), int(row[2] or 0))
+            "SELECT user_uid, max(timestamp) FROM mood_entries "
+            f"WHERE timestamp > '{since}' GROUP BY user_uid"):
+        if len(row) >= 2 and row[0] in wanted:
+            out[row[0]] = parse_pb_time(row[1])
     return out
 
 
@@ -421,11 +419,10 @@ def send(item):
     return ok
 
 
-def send_all(todo, st, utc_now, *, send=send, workers=12, batch=200):
-    """Рассылка пачками с отметкой после каждой. Запусков в окне три, и
-    рассылка 21:00 по Москве идёт дольше пяти минут (сундук — 12 пушей в
-    секунду): отметь всё в конце — упавший или затянувшийся запуск повторил бы
-    пачку тем же людям."""
+def send_all(todo, st, utc_now, *, send=send, workers=WORKERS, batch=200):
+    """Рассылка пачками с отметкой после каждой. Запусков в окне много, и
+    рассылка 21:00 по Москве идёт дольше пяти минут: отметь всё в конце —
+    упавший или затянувшийся запуск повторил бы пачку тем же людям."""
     stamp = utc_now.isoformat()
     total = 0
     with ThreadPoolExecutor(max_workers=workers) as ex:
@@ -444,7 +441,7 @@ def main():
     ap.add_argument("--any-time", action="store_true", help="не смотреть на время (проверка)")
     ap.add_argument("--uid", default="", help="только этому человеку (проверка)")
     ap.add_argument("--dry-run", action="store_true")
-    ap.add_argument("--workers", type=int, default=12)
+    ap.add_argument("--workers", type=int, default=WORKERS)
     args = ap.parse_args()
 
     con = sqlite3.connect(f"file:{DB}?mode=ro", uri=True, timeout=15)
@@ -465,8 +462,8 @@ def main():
         if slot:
             due[uid] = slot
 
-    # Получившие сегодня отсеиваются до тяжёлых запросов: второй и третий
-    # запуск в окне обычно базу не трогают.
+    # Получившие сегодня отсеиваются до тяжёлых запросов: остальные запуски
+    # в окне трогают базу только ради тех, у кого ещё не всё сделано.
     st = state_db()
     sent = {(u, d) for u, d in st.execute(
         "SELECT uid, day FROM sent WHERE day >= ?", ((utc_now - timedelta(days=2)).strftime("%Y-%m-%d"),))}
@@ -476,7 +473,7 @@ def main():
         return
 
     users = load_users(con, due)
-    moods = mood_stats(set(users), utc_now)
+    moods = last_moods(set(users), utc_now)
     tasks = pair_tasks(set(users))
 
     todo = []
@@ -484,8 +481,7 @@ def main():
         user = users.get(uid)
         if user is None:
             continue
-        last, days = moods.get(uid, (None, 0))
-        need = what_to_remind(user, mood_last=last, mood_days=days, tasks=tasks.get(uid),
+        need = what_to_remind(user, mood_last=moods.get(uid), tasks=tasks.get(uid),
                               paired=uid in tasks, day_start=start, task_day=task_day)
         if need:
             todo.append((user | {"_day": day, "_paired": uid in tasks}, need))

@@ -97,7 +97,8 @@ USERS_CUSTOM = [
     # сборок тут ноль, и ноль значит «присылать».
     boolean("notif_chest_off"),
     # Вечернее напоминание (TOG-113, evening_reminder_push.py): метка сборки,
-    # режимы пунктов (`on`/`off`, пусто — по привычке), время и пояс.
+    # режимы пунктов (`on`/`off`, пусто — не трогал, включено), время, пояс
+    # и когда выбор сделан.
     # `remind_mood_off`, `remind_task_off`, `remind_custom` — от первой версии,
     # их никто не читает, на проде ждут удаления в тихий час.
     number("remind_v"), text("remind_mood"), text("remind_task"),

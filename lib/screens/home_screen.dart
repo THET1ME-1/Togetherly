@@ -2648,7 +2648,6 @@ class _HomeScreenState extends State<HomeScreen> {
       timerService: _timerService,
       widgetService: _widgetService,
       giftsEnabled: _giftsEnabled,
-      moodService: _moodService,
       onSwitchToHome: () => setState(() => _selectedNavIndex = 0),
       onSwitchTab: (i) {
         setState(() => _selectedNavIndex = i);

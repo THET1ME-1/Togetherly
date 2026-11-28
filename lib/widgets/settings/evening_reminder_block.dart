@@ -25,24 +25,18 @@ typedef EveningReminderServer = Future<Map<String, dynamic>?> Function();
 /// напоминать и во сколько. Пуш шлёт сервер (`evening_reminder_push.py`) и
 /// только если что-то из выбранного за день не сделано.
 ///
-/// Тому, кто блок не открывал, сервер напоминает по привычке. Пишет на сервер
-/// только нажатие человека; выбор сверяется с профилем при каждом открытии
-/// (`reconcileEveningReminder`): побеждает сделанный позже, на любом телефоне.
+/// Оба пункта по умолчанию включены (решение владельца 28.11.2026). Пишет на
+/// сервер только нажатие человека; выбор сверяется с профилем при каждом
+/// открытии (`reconcileEveningReminder`): побеждает сделанный позже, на любом
+/// телефоне.
 class EveningReminderBlock extends StatefulWidget {
   const EveningReminderBlock({
     super.key,
-    required this.moodHabit,
-    required this.taskHabit,
     required this.paired,
     this.onSave,
     this.loadServer,
     this.uid,
   });
-
-  /// Привычка к настроению и к заданиям (`moodHabitOf`, `taskHabitOf`):
-  /// положение нерешённого пункта на экране.
-  final bool moodHabit;
-  final bool taskHabit;
 
   /// Без пары задания нет — строки задания тоже.
   final bool paired;
@@ -76,8 +70,9 @@ class _EveningReminderBlockState extends State<EveningReminderBlock> {
   /// сервер в любом порядке, и там остаётся не последнее.
   Future<void> _chain = Future.value();
 
-  bool get _moodOn => (_mood ?? (widget.moodHabit ? 'on' : 'off')) == 'on';
-  bool get _taskOn => (_task ?? (widget.taskHabit ? 'on' : 'off')) == 'on';
+  // Не трогал — включено, как и на сервере.
+  bool get _moodOn => _mood != 'off';
+  bool get _taskOn => _task != 'off';
 
   @override
   void initState() {
@@ -95,10 +90,8 @@ class _EveningReminderBlockState extends State<EveningReminderBlock> {
   Future<void> _load() async {
     await _readPrefs();
     if (!mounted) return;
-    // Первый показ ничего не пишет: привычку телефон считает по неполным
-    // данным (отметки только этой пары, прогресс заданий до загрузки) и мог
-    // записать «выкл» тому, кто отмечает настроение каждый день. Нерешённый
-    // пункт остаётся за сервером, пишет только нажатие человека.
+    // Показ ничего не пишет: не тронутое человеком сервер и так считает
+    // включённым, а лишняя запись затёрла бы выбор с другого телефона.
     setState(() => _loaded = true);
 
     // Свериться с профилем: выбор мог быть сделан на другом телефоне.

@@ -77,8 +77,6 @@ void main() {
                     ),
                   ]),
                   EveningReminderBlock(
-                    moodHabit: true,
-                    taskHabit: false,
                     paired: paired,
                     uid: 'me',
                     loadServer: () async => null,
@@ -104,7 +102,7 @@ void main() {
       });
     }
 
-    // Первый показ: привычка к настроению есть, к заданиям нет.
+    // Не трогал: оба пункта включены.
     await shot('1_first_show', 0, Brightness.light, {});
     await shot('2_dark', 0, Brightness.dark, {
       'flutter.remind_mood_mode': 'on',

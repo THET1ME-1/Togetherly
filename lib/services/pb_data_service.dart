@@ -3503,7 +3503,7 @@ class PbDataService {
     // Утренний сундук: колонка перевёрнута, ноль — присылать (NotifPrefsSync).
     put('notifChestOff', 'notif_chest_off');
     // Вечернее напоминание (TOG-113): метка сборки, пояс телефона, режимы
-    // пунктов (`on`/`off`, пусто — по привычке) и время.
+    // пунктов (`on`/`off`, пусто — не трогал, включено), время и когда выбрано.
     put('remindV', 'remind_v');
     put('remindTz', 'remind_tz');
     put('remindMood', 'remind_mood');

@@ -7,10 +7,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Блок «Вечернее напоминание» в листе уведомлений (TOG-113).
 ///
-/// Экран обязан показывать то, что сервер сделает. У пункта три режима:
-/// `on`, `off` и «по привычке» (пусто, пока блок не открывали). Первый показ
-/// записывает положение выключателей явно: сначала берётся выбор с сервера
-/// (второй телефон, переустановка), потом привычка.
+/// Экран обязан показывать то, что сервер сделает. Оба пункта по умолчанию
+/// включены (решение владельца 28.11.2026); выбор с другого телефона приходит
+/// из профиля, на сервер пишет только нажатие.
 void main() {
   late List<(String?, String?, String?)> saved;
   late int inFlight;
@@ -18,8 +17,6 @@ void main() {
 
   Future<void> pump(
     WidgetTester tester, {
-    bool moodHabit = false,
-    bool taskHabit = false,
     bool paired = true,
     Future<Map<String, dynamic>?> Function()? server,
     double width = 360,
@@ -45,8 +42,6 @@ void main() {
             padding: const EdgeInsets.all(16),
             children: [
               EveningReminderBlock(
-                moodHabit: moodHabit,
-                taskHabit: taskHabit,
                 paired: paired,
                 uid: 'me',
                 loadServer: server ?? () async => const {},
@@ -87,22 +82,18 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
   }
 
-  // Привычку на телефоне считают по неполным данным (отметки только этой
-  // пары, прогресс до загрузки), и первый показ мог записать «выкл» тому,
-  // кто отмечает настроение каждый день. Пока решение не приходит с
-  // сервера, показ ничего не пишет (ревью 28.11.2026).
-  testWidgets('первый показ ничего не пишет', (tester) async {
+  testWidgets('по умолчанию оба включены, 21:00, и ничего не пишется', (tester) async {
     SharedPreferences.setMockInitialValues({});
-    await pump(tester, moodHabit: true, taskHabit: false);
+    await pump(tester);
     expect(switchOf(tester, 'er-mood').value, isTrue);
-    expect(switchOf(tester, 'er-task').value, isFalse);
+    expect(switchOf(tester, 'er-task').value, isTrue);
     expect(find.text('21:00'), findsOneWidget);
     expect(saved, isEmpty);
   });
 
-  testWidgets('выбор с сервера сильнее привычки и не переписывается', (tester) async {
+  testWidgets('выбор с другого телефона показывается и не переписывается', (tester) async {
     SharedPreferences.setMockInitialValues({});
-    await pump(tester, moodHabit: true, taskHabit: true,
+    await pump(tester,
         server: () async =>
             {'remindMood': 'off', 'remindTask': 'on', 'remindAt': '23:00', 'remindSetAt': 200});
     expect(switchOf(tester, 'er-mood').value, isFalse);
@@ -111,9 +102,9 @@ void main() {
     expect(saved, isEmpty);
   });
 
-  testWidgets('сервер не ответил — показываем привычку, но не записываем', (tester) async {
+  testWidgets('сервер не ответил — показываем умолчание, но не записываем', (tester) async {
     SharedPreferences.setMockInitialValues({});
-    await pump(tester, moodHabit: true, server: () async => null);
+    await pump(tester, server: () async => null);
     expect(switchOf(tester, 'er-mood').value, isTrue);
     expect(saved, isEmpty);
     await tap(tester, 'er-mood');
@@ -125,7 +116,7 @@ void main() {
   testWidgets('нажатие до ответа сервера не перетирается поздним ответом', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final late = Completer<Map<String, dynamic>?>();
-    await pump(tester, moodHabit: true, server: () => late.future);
+    await pump(tester, server: () => late.future);
     expect(switchOf(tester, 'er-mood').onChanged, isNotNull);
     await tap(tester, 'er-mood');
     expect(saved.last, ('off', null, null));
@@ -202,7 +193,7 @@ void main() {
 
   testWidgets('без пары строки задания нет', (tester) async {
     SharedPreferences.setMockInitialValues({});
-    await pump(tester, paired: false, moodHabit: false, taskHabit: true);
+    await pump(tester, paired: false);
     expect(find.byKey(const ValueKey('er-task')), findsNothing);
     expect(saved, isEmpty);
   });

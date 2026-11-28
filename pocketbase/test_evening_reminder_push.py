@@ -17,15 +17,15 @@ MSK = ZoneInfo("Europe/Moscow")
 
 def user(**kw):
     """Человек на сборке с напоминанием (`remind_v`), блок ещё не открывал:
-    пункты «по привычке», время по умолчанию."""
+    оба пункта по умолчанию включены, время 21:00."""
     base = {"fcm_token": "t", "apns_token": "", "notif_synced_at": "",
             "remind_v": 1, "remind_mood": "", "remind_task": "", "remind_at": ""}
     base.update(kw)
     return base
 
 
-def what(u, mood_last=None, mood_days=0, tasks=None, paired=True, task_day="2026-11-28"):
-    return m.what_to_remind(u, mood_last=mood_last, mood_days=mood_days, tasks=tasks,
+def what(u, mood_last=None, tasks=None, paired=True, task_day="2026-11-28"):
+    return m.what_to_remind(u, mood_last=mood_last, tasks=tasks,
                             paired=paired, day_start=ПОЛНОЧЬ, task_day=task_day)
 
 
@@ -33,47 +33,31 @@ def what(u, mood_last=None, mood_days=0, tasks=None, paired=True, task_day="2026
 
 
 class Что(unittest.TestCase):
-    def test_привычка_и_ничего_не_сделано_оба(self):
-        self.assertEqual(what(user(), mood_last=ВЧЕРА, mood_days=6,
+    def test_по_умолчанию_включено_ничего_не_сделано_оба(self):
+        # Решение владельца 28.11.2026: «включишь по умолчанию».
+        self.assertEqual(what(user(), mood_last=ВЧЕРА,
                               tasks={"date": "2026-11-27", "done": ["a"]}), {"mood", "task"})
+        self.assertEqual(what(user()), {"mood", "task"})
 
     def test_сегодня_всё_сделано_молчим(self):
         сегодня = ПОЛНОЧЬ + timedelta(hours=10)
-        self.assertEqual(what(user(), mood_last=сегодня, mood_days=6,
+        self.assertEqual(what(user(), mood_last=сегодня,
                               tasks={"date": "2026-11-28", "done": ["a"]}), set())
 
     def test_старая_сборка_не_знает_напоминания_и_выключить_не_может(self):
-        self.assertEqual(what(user(remind_v=0), mood_last=ВЧЕРА, mood_days=9,
-                              tasks={"date": "2026-11-27", "done": ["a"]}), set())
+        self.assertEqual(what(user(remind_v=0), mood_last=ВЧЕРА), set())
         self.assertEqual(what(user(remind_v=None, remind_mood="on")), set())
 
-    def test_редко_отмечает_не_будим(self):
-        # Замер 27.11.2026: из 36 тысяч, отмечавших хоть раз за 14 дней, 27
-        # тысяч к 21:00 не отметились — ежедневный пуш тем, кто заходит раз
-        # в две недели, был бы спамом.
-        self.assertEqual(what(user(), mood_last=ВЧЕРА, mood_days=m.HABIT_MOOD_DAYS - 1), set())
-        self.assertEqual(what(user(), mood_last=ВЧЕРА, mood_days=m.HABIT_MOOD_DAYS), {"mood"})
-
-    def test_задание_по_привычке_последние_три_дня(self):
-        self.assertEqual(what(user(), tasks={"date": "2026-11-25", "done": ["a"]}), {"task"})
-        self.assertEqual(what(user(), tasks={"date": "2026-11-24", "done": ["a"]}), set())
-
-    def test_явное_вкл_без_привычки(self):
-        self.assertEqual(what(user(remind_mood="on", remind_task="on")), {"mood", "task"})
-        # Включил одно — второе остаётся на привычке, его порог не снимается.
-        self.assertEqual(what(user(remind_task="on")), {"task"})
-
-    def test_явное_выкл_сильнее_привычки(self):
-        t = {"date": "2026-11-27", "done": ["a"]}
-        self.assertEqual(what(user(remind_mood="off"), mood_last=ВЧЕРА, mood_days=6, tasks=t), {"task"})
-        self.assertEqual(what(user(remind_task="off"), mood_last=ВЧЕРА, mood_days=6, tasks=t), {"mood"})
+    def test_выключил_одно(self):
+        self.assertEqual(what(user(remind_mood="off"), mood_last=ВЧЕРА), {"task"})
+        self.assertEqual(what(user(remind_task="off"), mood_last=ВЧЕРА), {"mood"})
+        self.assertEqual(what(user(remind_mood="off", remind_task="off")), set())
 
     def test_без_пары_задания_нет(self):
-        self.assertEqual(what(user(remind_task="on"), mood_last=ВЧЕРА, mood_days=6, paired=False),
-                         {"mood"})
+        self.assertEqual(what(user(), mood_last=ВЧЕРА, paired=False), {"mood"})
 
     def test_пустой_список_выполненного_не_считается(self):
-        self.assertEqual(what(user(remind_task="on"), tasks={"date": "2026-11-28", "done": []}),
+        self.assertEqual(what(user(), mood_last=СЕЙЧАС, tasks={"date": "2026-11-28", "done": []}),
                          {"task"})
 
     def test_две_пары_сделал_в_одной_молчим(self):
@@ -81,28 +65,31 @@ class Что(unittest.TestCase):
                                {"date": "2026-11-28", "done": []},
                                {"date": "2026-11-28", "done": ["b"]}])
         self.assertEqual(лучшее, {"date": "2026-11-28", "done": ["b"]})
-        self.assertEqual(what(user(), mood_last=ВЧЕРА, mood_days=6, tasks=лучшее), {"mood"})
+        self.assertEqual(what(user(), mood_last=ВЧЕРА, tasks=лучшее), {"mood"})
         self.assertEqual(m.best_tasks([None, "мусор"]), {})
 
     def test_без_токена_некуда(self):
         self.assertEqual(what(user(fcm_token="", remind_mood="on")), set())
 
-    def test_все_уведомления_выключены_глушат_только_привычку(self):
-        # Выключил всё разом — по привычке не будим. Но вечернее напоминание
-        # он включил сам: его слово сильнее общего правила.
+    def test_все_уведомления_выключены_молчим_если_не_включил_сам(self):
+        # Выключил все уведомления разом — включённое по умолчанию напоминание
+        # его не будит. Включил вечернее напоминание сам — его слово сильнее.
         тихий = {"notif_synced_at": "2026-11-01", **{f: 0 for f in m.NOTIF_FIELDS}}
-        self.assertEqual(what(user(**тихий), mood_last=ВЧЕРА, mood_days=6), set())
-        self.assertEqual(what(user(remind_mood="on", **тихий), mood_last=ВЧЕРА, mood_days=6), {"mood"})
+        self.assertEqual(what(user(**тихий), mood_last=ВЧЕРА), set())
+        self.assertEqual(what(user(remind_mood="on", **тихий), mood_last=ВЧЕРА), {"mood"})
 
 
 class Окно(unittest.TestCase):
     def slot(self, utc, tz, at="21:00"):
         return m.reminder_slot(utc, ZoneInfo(tz) if isinstance(tz, str) else tz, at)
 
-    def test_пятнадцать_минут_от_выбранного_времени(self):
+    def test_час_от_выбранного_времени(self):
+        # Окно — час: рассылка 21:00 по Москве идёт минуты, крон с `flock`
+        # пропускает свои запуски, и время 21:05 иначе выпало бы из окна.
+        self.assertEqual(m.WINDOW_MIN, 60)
         self.assertIsNotNone(self.slot(СЕЙЧАС, MSK))
-        self.assertIsNotNone(self.slot(СЕЙЧАС + timedelta(minutes=14), MSK))
-        self.assertIsNone(self.slot(СЕЙЧАС + timedelta(minutes=15), MSK))
+        self.assertIsNotNone(self.slot(СЕЙЧАС + timedelta(minutes=59), MSK))
+        self.assertIsNone(self.slot(СЕЙЧАС + timedelta(minutes=60), MSK))
         self.assertIsNone(self.slot(СЕЙЧАС - timedelta(minutes=1), MSK))
         self.assertIsNotNone(self.slot(СЕЙЧАС, MSK, "мусор"))  # кривое — как 21:00
 
@@ -139,7 +126,7 @@ class Окно(unittest.TestCase):
         day, start, task_day = self.slot(utc, "Pacific/Auckland")
         self.assertEqual((day, task_day), ("2026-11-28", "2026-11-28"))
         вчера_вечером = {"date": "2026-11-27", "done": ["a"]}
-        need = m.what_to_remind(user(), mood_last=None, mood_days=0, tasks=вчера_вечером,
+        need = m.what_to_remind(user(remind_mood="off"), mood_last=None, tasks=вчера_вечером,
                                 paired=True, day_start=start, task_day=task_day)
         self.assertEqual(need, {"task"})
 
@@ -147,7 +134,7 @@ class Окно(unittest.TestCase):
         utc = datetime(2026, 11, 29, 0, 0, tzinfo=UTC)
         day, start, task_day = self.slot(utc, "America/Sao_Paulo")
         днём = {"date": "2026-11-28", "done": ["a"]}  # 15:00 по местному = 18:00 UTC 28-го
-        need = m.what_to_remind(user(), mood_last=None, mood_days=0, tasks=днём,
+        need = m.what_to_remind(user(remind_mood="off"), mood_last=None, tasks=днём,
                                 paired=True, day_start=start, task_day=task_day)
         self.assertEqual(need, set())
 
