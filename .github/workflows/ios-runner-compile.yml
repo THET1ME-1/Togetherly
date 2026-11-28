@@ -13,6 +13,7 @@ on:
       - 'ios/TogetherlyWidget/**'
       # Уведомления «А»: расширение сервиса уведомлений и его проверка.
       - 'ios/TogetherlyNotificationService/**'
+      - 'ios/TogetherlyNotificationContent/**'
       - 'ios/Runner.xcodeproj/**'
       - 'tool/notif_cover_check/**'
       - 'test/fixtures/push_cover_cases.json'
@@ -104,6 +105,13 @@ jobs:
             echo "$EXT: $POINT, $ID"
             [ "$POINT" = "com.apple.usernotifications.service" ] || { echo "::error::тип расширения $POINT"; exit 1; }
             [ "$ID" = "com.togetherly.love.NotificationService" ] || { echo "::error::идентификатор $ID"; exit 1; }
+            # Карточка по долгому нажатию и её шрифт.
+            CARD="$APP/PlugIns/TogetherlyNotificationContent.appex"
+            [ -d "$CARD" ] || { echo "::error::в $APP нет TogetherlyNotificationContent.appex"; exit 1; }
+            CPOINT=$(/usr/libexec/PlistBuddy -c "Print :NSExtension:NSExtensionPointIdentifier" "$CARD/Info.plist")
+            [ "$CPOINT" = "com.apple.usernotifications.content-extension" ] || { echo "::error::тип карточки $CPOINT"; exit 1; }
+            [ -f "$CARD/Unbounded-SemiBold.ttf" ] || { echo "::error::в карточке нет шрифта"; exit 1; }
+            echo "$CARD: $CPOINT"
           done
 
       # Разбор обложки на Swift — по тем же примерам сервера, что Kotlin и Dart.

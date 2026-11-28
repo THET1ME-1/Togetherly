@@ -51,6 +51,19 @@ for c in cases {
   }
 }
 
+// Каждая категория обложки есть у карточки по долгому нажатию.
+if let plist = NSDictionary(contentsOfFile: "ios/TogetherlyNotificationContent/Info.plist"),
+   let ext = plist["NSExtension"] as? [String: Any],
+   let attrs = ext["NSExtensionAttributes"] as? [String: Any],
+   let categories = attrs["UNNotificationExtensionCategory"] as? [String] {
+  let kinds = Set(cases.compactMap { $0["kind"] as? String }).subtracting(["mood_lock"])
+  for kind in kinds.sorted() {
+    check("карточка знает tg_\(kind)", categories.contains("tg_\(kind)"))
+  }
+} else {
+  check("Info.plist карточки читается", false)
+}
+
 // Чужое и мусор.
 let evil: [String: Any] = [
   "v": 1, "kind": "miss", "title": "x", "link": "https://evil.example/",

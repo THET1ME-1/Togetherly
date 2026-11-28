@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>Togetherly</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<!-- Уведомления «А» (28.11.2026): карточка по долгому нажатию
+	     (NotificationViewController.swift) для всех категорий tg_<вид>.
+	     Тексты рисуем сами, поэтому системные под карточкой скрыты; кнопки
+	     — категории приложения (NotifCoverBridge). -->
+	<key>NSExtension</key>
+	<dict>
+		<key>NSExtensionAttributes</key>
+		<dict>
+			<key>UNNotificationExtensionCategory</key>
+			<array>
+				<string>tg_miss</string>
+				<string>tg_mood</string>
+				<string>tg_chat</string>
+				<string>tg_memory</string>
+				<string>tg_date</string>
+				<string>tg_snowball</string>
+				<string>tg_gift</string>
+				<string>tg_comment</string>
+				<string>tg_draw</string>
+				<string>tg_plusgift</string>
+				<string>tg_pair_reset</string>
+				<string>tg_security</string>
+				<string>tg_date_remind</string>
+				<string>tg_evening</string>
+				<string>tg_chest</string>
+				<string>tg_capsule</string>
+				<string>tg_celebration</string>
+				<string>tg_mascot_miss</string>
+				<string>tg_invite</string>
+				<string>tg_days</string>
+			</array>
+			<key>UNNotificationExtensionDefaultContentHidden</key>
+			<true/>
+			<key>UNNotificationExtensionInitialContentSizeRatio</key>
+			<real>0.8</real>
+			<key>UNNotificationExtensionUserInteractionEnabled</key>
+			<false/>
+		</dict>
+		<key>NSExtensionPointIdentifier</key>
+		<string>com.apple.usernotifications.content-extension</string>
+		<key>NSExtensionPrincipalClass</key>
+		<string>$(PRODUCT_MODULE_NAME).NotificationViewController</string>
+	</dict>
+</dict>
+</plist>

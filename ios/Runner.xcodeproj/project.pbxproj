@@ -48,6 +48,10 @@
 		FD000000000000000000D005 /* NotifNetIOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD000000000000000000A004 /* NotifNetIOS.swift */; };
 		FD000000000000000000D006 /* CoverMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD000000000000000000A005 /* CoverMedia.swift */; };
 		FD000000000000000000D007 /* CoverMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD000000000000000000A005 /* CoverMedia.swift */; };
+		FC000000000000000000D001 /* NotificationViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC000000000000000000A001 /* NotificationViewController.swift */; };
+		FC000000000000000000D002 /* Cover.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD000000000000000000A001 /* Cover.swift */; };
+		FC000000000000000000D003 /* Unbounded-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = FC000000000000000000A002 /* Unbounded-SemiBold.ttf */; };
+		FC000000000000000000E001 /* TogetherlyNotificationContent.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = FC000000000000000000C001 /* TogetherlyNotificationContent.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -72,6 +76,13 @@
 			remoteGlobalIDString = FD000000000000000000A100;
 			remoteInfo = TogetherlyNotificationService;
 		};
+		FC000000000000000000A300 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 97C146E61CF9000F007C117D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = FC000000000000000000A100;
+			remoteInfo = TogetherlyNotificationContent;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -93,6 +104,7 @@
 			files = (
 				FE000000000000000000E001 /* TogetherlyWidgetExtension.appex in Embed App Extensions */,
 				FD000000000000000000E001 /* TogetherlyNotificationService.appex in Embed App Extensions */,
+				FC000000000000000000E001 /* TogetherlyNotificationContent.appex in Embed App Extensions */,
 			);
 			name = "Embed App Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -167,6 +179,10 @@
 		FD000000000000000000A004 /* NotifNetIOS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotifNetIOS.swift; sourceTree = "<group>"; };
 		FD000000000000000000A005 /* CoverMedia.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoverMedia.swift; sourceTree = "<group>"; };
 		FD000000000000000000B002 /* TogetherlyNotificationService.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TogetherlyNotificationService.entitlements; sourceTree = "<group>"; };
+		FC000000000000000000A001 /* NotificationViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationViewController.swift; sourceTree = "<group>"; };
+		FC000000000000000000A002 /* Unbounded-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Unbounded-SemiBold.ttf"; sourceTree = "<group>"; };
+		FC000000000000000000B001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		FC000000000000000000C001 /* TogetherlyNotificationContent.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TogetherlyNotificationContent.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		FD000000000000000000C001 /* TogetherlyNotificationService.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TogetherlyNotificationService.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -195,6 +211,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		FD000000000000000000F003 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FC000000000000000000F003 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -252,6 +275,7 @@
 				97C146F01CF9000F007C117D /* Runner */,
 				FE000000000000000000F001 /* TogetherlyWidget */,
 				FD000000000000000000F001 /* TogetherlyNotificationService */,
+				FC000000000000000000F001 /* TogetherlyNotificationContent */,
 				97C146EF1CF9000F007C117D /* Products */,
 				331C8082294A63A400263BE5 /* RunnerTests */,
 				19F52DAFC050B2FE060BC142 /* Pods */,
@@ -266,6 +290,7 @@
 				331C8081294A63A400263BE5 /* RunnerTests.xctest */,
 				FE000000000000000000C001 /* TogetherlyWidgetExtension.appex */,
 				FD000000000000000000C001 /* TogetherlyNotificationService.appex */,
+				FC000000000000000000C001 /* TogetherlyNotificationContent.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -331,6 +356,16 @@
 			path = TogetherlyNotificationService;
 			sourceTree = "<group>";
 		};
+		FC000000000000000000F001 /* TogetherlyNotificationContent */ = {
+			isa = PBXGroup;
+			children = (
+				FC000000000000000000A001 /* NotificationViewController.swift */,
+				FC000000000000000000A002 /* Unbounded-SemiBold.ttf */,
+				FC000000000000000000B001 /* Info.plist */,
+			);
+			path = TogetherlyNotificationContent;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -372,6 +407,7 @@
 			dependencies = (
 				FE000000000000000000A301 /* PBXTargetDependency */,
 				FD000000000000000000A301 /* PBXTargetDependency */,
+				FC000000000000000000A301 /* PBXTargetDependency */,
 			);
 			name = Runner;
 			productName = Runner;
@@ -411,6 +447,23 @@
 			productReference = FD000000000000000000C001 /* TogetherlyNotificationService.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		FC000000000000000000A100 /* TogetherlyNotificationContent */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FC000000000000000000A200 /* Build configuration list for PBXNativeTarget "TogetherlyNotificationContent" */;
+			buildPhases = (
+				FC000000000000000000F002 /* Sources */,
+				FC000000000000000000F003 /* Frameworks */,
+				FC000000000000000000F004 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TogetherlyNotificationContent;
+			productName = TogetherlyNotificationContent;
+			productReference = FC000000000000000000C001 /* TogetherlyNotificationContent.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -433,6 +486,9 @@
 						CreatedOnToolsVersion = 15.0;
 					};
 					FD000000000000000000A100 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+					FC000000000000000000A100 = {
 						CreatedOnToolsVersion = 15.0;
 					};
 				};
@@ -465,6 +521,7 @@
 				331C8080294A63A400263BE5 /* RunnerTests */,
 				FE000000000000000000A100 /* TogetherlyWidgetExtension */,
 				FD000000000000000000A100 /* TogetherlyNotificationService */,
+				FC000000000000000000A100 /* TogetherlyNotificationContent */,
 			);
 		};
 /* End PBXProject section */
@@ -495,6 +552,14 @@
 			files = (
 				FE000000000000000000D009 /* Assets.xcassets in Resources */,
 				FE0000000000000000007010 /* Localizable.strings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FC000000000000000000F004 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FC000000000000000000D003 /* Unbounded-SemiBold.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -654,6 +719,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		FC000000000000000000F002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FC000000000000000000D001 /* NotificationViewController.swift in Sources */,
+				FC000000000000000000D002 /* Cover.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -671,6 +745,11 @@
 			isa = PBXTargetDependency;
 			target = FD000000000000000000A100 /* TogetherlyNotificationService */;
 			targetProxy = FD000000000000000000A300 /* PBXContainerItemProxy */;
+		};
+		FC000000000000000000A301 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = FC000000000000000000A100 /* TogetherlyNotificationContent */;
+			targetProxy = FC000000000000000000A300 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -1197,6 +1276,93 @@
 			};
 			name = Profile;
 		};
+		FC000000000000000000A201 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 9740EEB31CF90195004384FC /* Generated.xcconfig */;
+			buildSettings = {
+				CLANG_ANALYZER_NONNULL = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = Y2Z9V86248;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = TogetherlyNotificationContent/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				PRODUCT_BUNDLE_IDENTIFIER = com.togetherly.love.NotificationContent;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1";
+			};
+			name = Debug;
+		};
+		FC000000000000000000A202 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 9740EEB31CF90195004384FC /* Generated.xcconfig */;
+			buildSettings = {
+				CLANG_ANALYZER_NONNULL = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = Y2Z9V86248;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = TogetherlyNotificationContent/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
+				MTL_ENABLE_DEBUG_INFO = NO;
+				PRODUCT_BUNDLE_IDENTIFIER = com.togetherly.love.NotificationContent;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		FC000000000000000000A203 /* Profile */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 9740EEB31CF90195004384FC /* Generated.xcconfig */;
+			buildSettings = {
+				CLANG_ANALYZER_NONNULL = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = Y2Z9V86248;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = TogetherlyNotificationContent/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
+				MTL_ENABLE_DEBUG_INFO = NO;
+				PRODUCT_BUNDLE_IDENTIFIER = com.togetherly.love.NotificationContent;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Profile;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -1246,6 +1412,16 @@
 				FD000000000000000000A201 /* Debug */,
 				FD000000000000000000A202 /* Release */,
 				FD000000000000000000A203 /* Profile */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		FC000000000000000000A200 /* Build configuration list for PBXNativeTarget "TogetherlyNotificationContent" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FC000000000000000000A201 /* Debug */,
+				FC000000000000000000A202 /* Release */,
+				FC000000000000000000A203 /* Profile */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -36,7 +36,7 @@ class NotifRenderer {
     'miss', 'mood', 'chat', 'memory', 'date', 'snowball', 'gift', 'comment', 'draw',
     'plusgift', 'pair_reset', 'security', 'date_remind', 'evening', 'chest',
     // Свои уведомления по расписанию.
-    'capsule', 'celebration', 'mascot_miss', 'invite',
+    'capsule', 'celebration', 'mascot_miss', 'invite', 'days',
   ];
 
   /// Категории кнопок для iPhone. Подпись кнопки iPhone берёт из категории,

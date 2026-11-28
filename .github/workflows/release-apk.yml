@@ -638,6 +638,12 @@ jobs:
             --type IOS_APP_STORE \
             --certificate-key @file:/tmp/cert_key.pem \
             --create
+          # Карточка уведомления по долгому нажатию (TogetherlyNotificationContent):
+          # App ID заведён 28.11.2026, прав нет, профиль --create создаст сам.
+          app-store-connect fetch-signing-files "$BUNDLE_ID.NotificationContent" \
+            --type IOS_APP_STORE \
+            --certificate-key @file:/tmp/cert_key.pem \
+            --create
           keychain add-certificates
           xcode-project use-profiles
           rm -f /tmp/cert_key.pem
