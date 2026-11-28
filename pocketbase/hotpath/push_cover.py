@@ -54,7 +54,7 @@ def mood_ctx(rec: dict) -> dict:
     "c_snow", "c_evening", "c_chest", "c_gift", "c_comment", "c_draw", "c_security",
     "a_hug_back", "a_hug", "a_write", "a_reply", "a_read", "a_open", "a_watch", "a_throw",
     "a_mood", "a_task", "a_chest", "a_mood_back", "a_open_gift", "a_canvas",
-    "q_hug", "q_miss", "q_love",
+    "q_hug", "q_miss", "q_love", "c_you", "c_queued", "c_hugged",
 )
 
 
@@ -79,6 +79,15 @@ def _моти(look, mood_id):
         if mood.get("id") == mood_id and mood.get("url"):
             return mood["url"]
     return None
+
+
+def _дырка_рамки(look, ключ):
+    """`data.hole` рамки (18..31), как `AvatarFrame.fromCatalog`; нет — 31."""
+    found = look("frame_" + ключ) if (look and ключ) else None
+    hole = (found[1] or {}).get("hole") if found else None
+    if isinstance(hole, (int, float)) and not isinstance(hole, bool):
+        return max(18, min(31, hole))
+    return 31
 
 
 def _из_медиа(pb, size):
@@ -173,6 +182,14 @@ def cover(kind, lang, ctx, look):
                 "ts": int(ctx.get("ts") or 0),
                 "avatar": _из_медиа(ctx.get("avatar"), "200x200"),
                 "frame": (_каталог(look, "frame_" + ctx["frame"]) or "") if ctx.get("frame") else "",
+                # Радиус фото под рамкой в единицах 0..100 (`AvatarFrame.hole`):
+                # фото ужимается, чтобы рамка не закрывала его край.
+                "frame_hole": _дырка_рамки(look, ctx.get("frame")),
+                # Подписи для шторки без сети: свои ответы, ответ в очереди,
+                # отправленное объятие.
+                "you": пуш("c_you", lang),
+                "queued": пуш("c_queued", lang),
+                "hugged": пуш("c_hugged", lang),
                 "image": _из_медиа(ctx.get("photo"), "400x400"),
                 "quick": [пуш("q_hug", lang), пуш("q_miss", lang), пуш("q_love", lang)],
             },

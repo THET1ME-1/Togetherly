@@ -86,6 +86,15 @@ class ОтПартнёра(unittest.TestCase):
         self.assertEqual(ids(c), ["reply", "hug", "read"])
         self.assertEqual(c["title"], "Алина")
 
+    def test_чат_несёт_подписи_для_шторки_и_рамку(self):
+        КАТАЛОГ["frame_cloud"] = (["still_cloud.png"], {"hole": 27})
+        c = собрать("chat", from_name="Алина", body="Привет", frame="cloud")
+        self.assertEqual(c["chat"]["frame_hole"], 27)
+        self.assertEqual(собрать("chat", body="x", frame="hearts")["chat"]["frame_hole"], 31)
+        self.assertEqual(c["chat"]["you"], "Вы")
+        self.assertTrue(c["chat"]["queued"])
+        self.assertTrue(c["chat"]["hugged"])
+
     def test_чат_без_аватара_и_рамки(self):
         c = собрать("chat", from_name="Алина", body="Привет", avatar="", frame="")
         self.assertEqual(c["chat"]["avatar"], "")

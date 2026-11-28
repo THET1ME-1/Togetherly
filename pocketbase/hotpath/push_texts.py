@@ -334,6 +334,23 @@ English»). Теперь приложение кладёт код языка в 
         "ru": "Люблю тебя", "en": "Love you", "de": "Hab dich lieb", "fr": "Je t’aime",
         "es": "Te quiero", "it": "Ti amo", "pt": "Te amo", "zh": "爱你", "uk": "Кохаю тебе",
     },
+    # Шторка чата без сети: подпись своих ответов, ответ в очереди, объятие.
+    "c_you": {
+        "ru": "Вы", "en": "You", "de": "Du", "fr": "Toi", "es": "Tú", "it": "Tu",
+        "pt": "Você", "zh": "你", "uk": "Ви",
+    },
+    "c_queued": {
+        "ru": "Отправлю, когда появится связь", "en": "Will send when you’re back online",
+        "de": "Wird gesendet, sobald du wieder online bist",
+        "fr": "Envoi dès le retour de la connexion", "es": "Se enviará cuando vuelva la conexión",
+        "it": "Lo invio appena torna la connessione", "pt": "Envio quando a conexão voltar",
+        "zh": "联网后发送", "uk": "Надішлю, щойно з’явиться зв’язок",
+    },
+    "c_hugged": {
+        "ru": "Объятие отправлено", "en": "Hug sent", "de": "Umarmung gesendet",
+        "fr": "Câlin envoyé", "es": "Abrazo enviado", "it": "Abbraccio inviato",
+        "pt": "Abraço enviado", "zh": "已送出拥抱", "uk": "Обійми надіслано",
+    },
 }
 
 
