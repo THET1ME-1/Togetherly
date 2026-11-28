@@ -62,6 +62,7 @@ F = "https://togetherly.day/api/files"
     ("celebration", "ru", {"title": "Завтра день рождения", "body": "Не забудь"}),
     ("mascot_miss", "de", {"title": "Tu vermisst dich", "body": "Schau rein"}),
     ("invite", "pt", {"title": "Convide seu par", "body": "O código espera"}),
+    ("days", "ru", {"title": "128 дней вместе", "body": "И это только начало"}),
 ]
 
 

@@ -93,6 +93,13 @@ class NotifRenderer {
     Map<String, Object?> ctx = const {},
     AndroidScheduleMode mode = AndroidScheduleMode.inexactAllowWhileIdle,
     String? payload,
+    // Ежедневно в то же время (Android); [dailyTitles] — заголовок на каждый
+    // день вперёд: Dart в момент срабатывания не запущен, а число меняется.
+    bool daily = false,
+    List<String> dailyTitles = const [],
+    // Постоянная тихая плашка («Дни вместе»).
+    bool ongoing = false,
+    bool silent = false,
   }) async {
     if (canShow) {
       final cover = buildPushCover(
@@ -100,7 +107,10 @@ class NotifRenderer {
       if (cover != null) {
         try {
           // Прежняя постановка плагином (до этой сборки) сработала бы второй.
-          await plugin.cancel(id: id);
+          // Снимаем, только если она правда ждёт: отмена плагина убирает и
+          // показанное с тем же номером (постоянную плашку «Дней вместе»).
+          final pending = await plugin.pendingNotificationRequests();
+          if (pending.any((p) => p.id == id)) await plugin.cancel(id: id);
           final ok = await _channel.invokeMethod<bool>('schedule', {
             'id': id,
             'when': when.millisecondsSinceEpoch,
@@ -111,7 +121,10 @@ class NotifRenderer {
             'tag': '',
             'channel': channel,
             'exact': mode == AndroidScheduleMode.exactAllowWhileIdle || mode == AndroidScheduleMode.exact,
-            'daily': false,
+            'daily': daily,
+            'titles': dailyTitles,
+            'ongoing': ongoing,
+            'silent': silent,
           });
           if (ok == true) return;
         } on MissingPluginException {
@@ -129,6 +142,7 @@ class NotifRenderer {
       notificationDetails: details,
       androidScheduleMode: mode,
       payload: payload,
+      matchDateTimeComponents: daily ? DateTimeComponents.time : null,
     );
   }
 
@@ -145,6 +159,27 @@ class NotifRenderer {
     }
   }
 
+  /// Показать своё уведомление вида [kind] сразу. false — нет канала или
+  /// обложки у вида, тогда звать прежний показ.
+  static Future<bool> showKind({
+    required String kind,
+    required String title,
+    required String body,
+    required int id,
+    required String channel,
+    Map<String, Object?> ctx = const {},
+    String tag = '',
+    bool ongoing = false,
+    bool silent = false,
+  }) async {
+    if (!canShow) return false;
+    final cover = buildPushCover(
+        kind, LocaleService.instance.language.code, {...ctx, 'title': title, 'body': body}, const CatalogCoverLook());
+    if (cover == null) return false;
+    return show(
+        cover: cover, title: title, body: body, tag: tag, id: id, channel: channel, ongoing: ongoing, silent: silent);
+  }
+
   /// Показать [cover]. false — не вышло (нет канала, ошибка), тогда звать
   /// прежний показ.
   static Future<bool> show({
@@ -154,6 +189,8 @@ class NotifRenderer {
     required String tag,
     required int id,
     String channel = 'partner_notifications',
+    bool ongoing = false,
+    bool silent = false,
   }) async {
     if (!canShow) return false;
     try {
@@ -164,6 +201,8 @@ class NotifRenderer {
         'tag': tag,
         'id': id,
         'channel': channel,
+        'ongoing': ongoing,
+        'silent': silent,
       });
       return shown ?? false;
     } on MissingPluginException {

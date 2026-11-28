@@ -38,18 +38,53 @@ object NotifAlarm {
         val channel: String,
         val exact: Boolean,
         val daily: Boolean,
+        /** Постоянная плашка («Дни вместе»): смахнуть нельзя. */
+        val ongoing: Boolean = false,
+        val silent: Boolean = false,
+        /**
+         * Заголовок на каждый день от первого срабатывания ([titlesFrom]):
+         * число «N дней вместе» меняется, а Dart в момент срабатывания не
+         * запущен. Кончились — остаётся последний, до открытия приложения.
+         */
+        val titles: List<String> = emptyList(),
+        val titlesFrom: Long = whenMs,
     ) {
         fun toJson(): JSONObject = JSONObject()
             .put("id", id).put("when", whenMs).put("cover", cover).put("title", title).put("body", body)
             .put("tag", tag).put("channel", channel).put("exact", exact).put("daily", daily)
+            .put("ongoing", ongoing).put("silent", silent)
+            .put("titles", org.json.JSONArray(titles)).put("titles_from", titlesFrom)
+
+        /** Заголовок дня срабатывания [atMs]; списка нет — общий [title]. */
+        fun titleAt(atMs: Long): String {
+            if (titles.isEmpty()) return title
+            return titles[dayIndex(titlesFrom, atMs).coerceIn(0, titles.size - 1)]
+        }
 
         companion object {
-            fun of(o: JSONObject) = Entry(
-                id = o.optInt("id"), whenMs = o.optLong("when"), cover = o.optString("cover"),
-                title = o.optString("title"), body = o.optString("body"), tag = o.optString("tag"),
-                channel = o.optString("channel"), exact = o.optBoolean("exact"), daily = o.optBoolean("daily"),
-            )
+            fun of(o: JSONObject): Entry {
+                val arr = o.optJSONArray("titles")
+                val titles = if (arr == null) emptyList() else (0 until arr.length()).map { arr.optString(it) }
+                val whenMs = o.optLong("when")
+                return Entry(
+                    id = o.optInt("id"), whenMs = whenMs, cover = o.optString("cover"),
+                    title = o.optString("title"), body = o.optString("body"), tag = o.optString("tag"),
+                    channel = o.optString("channel"), exact = o.optBoolean("exact"), daily = o.optBoolean("daily"),
+                    ongoing = o.optBoolean("ongoing"), silent = o.optBoolean("silent"),
+                    titles = titles, titlesFrom = o.optLong("titles_from", whenMs),
+                )
+            }
         }
+    }
+
+    /** Сколько календарных дней от [fromMs] до [atMs] по часам телефона. */
+    fun dayIndex(fromMs: Long, atMs: Long): Int {
+        fun dayStart(ms: Long) = Calendar.getInstance().apply {
+            timeInMillis = ms
+            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        // Сутки перевода часов длятся 23 или 25 часов — округление, а не деление нацело.
+        return Math.round((dayStart(atMs) - dayStart(fromMs)) / 86_400_000.0).toInt()
     }
 
     private fun prefs(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -120,7 +155,15 @@ object NotifAlarm {
     /** Сработал будильник [id]: показать и, если ежедневный, переставить. */
     fun fire(ctx: Context, id: Int) {
         val entry = load(ctx, id) ?: return
-        NotifChannel.showOrPlain(ctx, entry.cover, entry.title, entry.body, entry.tag, entry.id, entry.channel)
+        val title = entry.titleAt(entry.whenMs)
+        val cover = if (entry.titles.isEmpty()) entry.cover else try {
+            JSONObject(entry.cover).put("title", title).toString()
+        } catch (_: Exception) {
+            entry.cover
+        }
+        NotifChannel.showOrPlain(
+            ctx, cover, title, entry.body, entry.tag, entry.id, entry.channel, entry.ongoing, entry.silent,
+        )
         if (entry.daily) {
             schedule(ctx, entry.copy(whenMs = nextDay(entry.whenMs, System.currentTimeMillis())))
         } else {

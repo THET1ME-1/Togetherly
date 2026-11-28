@@ -10,6 +10,7 @@ import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 import 'locale_service.dart';
+import 'notif_renderer.dart';
 import '../utils/couple_days.dart';
 
 /// Счётчик «дней вместе» в уведомлениях. По умолчанию выключен.
@@ -46,6 +47,11 @@ class DaysTogetherNotificationService {
   /// Час ежедневного показа на iPhone. Ночные 00:10 Android-плашки здесь не
   /// годятся: на iOS это не тихая строчка в шторке, а баннер на экране.
   static const int _iosHour = 9;
+
+  /// На сколько дней вперёд Android-плашка знает своё число: расписание
+  /// (`NotifAlarm`) берёт заголовок своего дня. Дольше не открывали
+  /// приложение — остаётся последнее число, до следующего открытия.
+  static const int _androidDaysAhead = 120;
   static const String _channelId = 'days_together_v1';
   static String get _channelName => ruEn('Дни вместе', 'Days together');
   static String get _channelDesc => ruEn(
@@ -196,11 +202,13 @@ class DaysTogetherNotificationService {
       return;
     }
 
-    // 1) Показать прямо сейчас с актуальным числом.
-    await _show(_daysAt(start, DateTime.now()));
-
-    // 2) Запланировать ежесуточное обновление в 00:10.
+    // 1) Запланировать ежесуточное обновление в 00:10. Сначала расписание:
+    // снятие прежней постановки плагина по тому же номеру убрало бы и
+    // плашку, показанную раньше него.
     await _scheduleDailyRefresh(start);
+
+    // 2) Показать прямо сейчас с актуальным числом.
+    await _show(_daysAt(start, DateTime.now()));
   }
 
   /// Пачка ежедневных уведомлений на iPhone: на каждый день своё число.
@@ -220,13 +228,17 @@ class DaysTogetherNotificationService {
     for (var i = 0; i < ticks.length; i++) {
       final tick = ticks[i];
       try {
-        await _plugin.zonedSchedule(
+        // Видом «А»: иконка приложения, подпись «Дни вместе», без звука.
+        await NotifRenderer.schedule(
+          plugin: _plugin,
           id: _notificationId + i,
+          kind: 'days',
+          channel: _channelId,
           title: s.daysTogetherNotifBody(tick.days),
           body: s.daysTogetherNotifTagline,
-          scheduledDate: tz.TZDateTime.from(tick.at, tz.local),
-          notificationDetails: _details(),
-          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          when: tz.TZDateTime.from(tick.at, tz.local),
+          details: _details(),
+          silent: true,
         );
       } catch (e) {
         debugPrint('DaysTogetherNotificationService._scheduleIosBatch($i): $e');
@@ -237,7 +249,7 @@ class DaysTogetherNotificationService {
   Future<void> _cancelIosBatch() async {
     for (var i = 0; i < _iosDaysAhead; i++) {
       try {
-        await _plugin.cancel(id: _notificationId + i);
+        await NotifRenderer.cancelScheduled(_plugin, _notificationId + i);
       } catch (e) {
         debugPrint('DaysTogetherNotificationService._cancelIosBatch($i): $e');
       }
@@ -247,6 +259,18 @@ class DaysTogetherNotificationService {
   Future<void> _show(int days) async {
     final s = LocaleService.current;
     try {
+      // Видом «А»: постоянная тихая плашка с иконкой приложения.
+      if (await NotifRenderer.showKind(
+        kind: 'days',
+        title: s.daysTogetherNotifBody(days),
+        body: s.daysTogetherNotifTagline,
+        id: _notificationId,
+        channel: _channelId,
+        ongoing: true,
+        silent: true,
+      )) {
+        return;
+      }
       await _plugin.show(
         id: _notificationId,
         title: s.daysTogetherNotifBody(days),
@@ -264,18 +288,29 @@ class DaysTogetherNotificationService {
       final now = tz.TZDateTime.now(tz.local);
       var next = tz.TZDateTime(tz.local, now.year, now.month, now.day, 0, 10);
       if (!next.isAfter(now)) next = next.add(const Duration(days: 1));
-      // Число на момент следующего срабатывания (по календарным суткам).
-      final daysAtNext =
-          _daysAt(start, DateTime(next.year, next.month, next.day));
+      // Число на каждый день вперёд (по календарным суткам): своё расписание
+      // берёт заголовок своего дня, и плашка не застывает на одном числе,
+      // пока приложение не открыли (прежний повтор плагина повторял один текст).
+      final titles = [
+        for (var i = 0; i < _androidDaysAhead; i++)
+          s.daysTogetherNotifBody(
+              _daysAt(start, DateTime(next.year, next.month, next.day + i))),
+      ];
 
-      await _plugin.zonedSchedule(
+      await NotifRenderer.schedule(
+        plugin: _plugin,
         id: _notificationId,
-        title: s.daysTogetherNotifBody(daysAtNext),
+        kind: 'days',
+        channel: _channelId,
+        title: titles.first,
         body: s.daysTogetherNotifTagline,
-        scheduledDate: next,
-        notificationDetails: _details(),
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        matchDateTimeComponents: DateTimeComponents.time, // повтор каждый день
+        when: next,
+        details: _details(),
+        mode: AndroidScheduleMode.inexactAllowWhileIdle,
+        daily: true, // повтор каждый день
+        dailyTitles: titles,
+        ongoing: true,
+        silent: true,
       );
     } catch (e) {
       debugPrint(
@@ -316,7 +351,7 @@ class DaysTogetherNotificationService {
       return;
     }
     try {
-      await _plugin.cancel(id: _notificationId);
+      await NotifRenderer.cancelScheduled(_plugin, _notificationId);
     } catch (e) {
       debugPrint('DaysTogetherNotificationService._cancel failed: $e');
     }

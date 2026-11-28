@@ -55,7 +55,7 @@ def mood_ctx(rec: dict) -> dict:
     "a_hug_back", "a_hug", "a_write", "a_reply", "a_read", "a_open", "a_watch", "a_throw",
     "a_mood", "a_task", "a_chest", "a_mood_back", "a_open_gift", "a_canvas",
     "q_hug", "q_miss", "q_love", "c_you", "c_queued", "c_hugged", "c_failed",
-    "c_capsule", "c_celebration", "c_mascot", "c_invite", "a_open_letter",
+    "c_capsule", "c_celebration", "c_mascot", "c_invite", "a_open_letter", "c_days",
 )
 
 
@@ -421,6 +421,18 @@ def _cover(kind, lang, ctx, look):
             "art": {"app": True},
             "art_big": _картинка(_каталог(look, "art_act_sad")),
             "actions": _кнопки(lang, ("open", "a_open", "home")),
+            "link": ОТКРЫТЬ + "home",
+        }
+
+    if kind == "days":
+        # Постоянная тихая плашка «N дней вместе»: иконка приложения, без кнопок.
+        return base | {
+            "kicker": пуш("c_days", lang),
+            "title": title,
+            "body": body,
+            "tone": "app",
+            "art": {"app": True},
+            "actions": [],
             "link": ОТКРЫТЬ + "home",
         }
 

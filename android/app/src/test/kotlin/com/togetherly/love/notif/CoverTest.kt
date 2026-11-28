@@ -140,6 +140,23 @@ class CoverTest {
     }
 
     @Test
+    fun дни_вместе_берут_заголовок_своего_дня() {
+        val day = 24 * 3600 * 1000L
+        val first = 1_795_000_000_000L
+        val e = NotifAlarm.Entry(
+            id = 9101, whenMs = first, cover = "{}", title = "10", body = "", tag = "", channel = "c",
+            exact = false, daily = true, titles = listOf("10 дней", "11 дней", "12 дней"),
+        )
+        assertEquals("10 дней", e.titleAt(first))
+        assertEquals("12 дней", e.titleAt(first + 2 * day))
+        // Список кончился — остаётся последний, до открытия приложения.
+        assertEquals("12 дней", e.titleAt(first + 9 * day))
+        // Перенос на завтра хранит начало списка.
+        val again = NotifAlarm.Entry.of(e.copy(whenMs = first + day).toJson())
+        assertEquals("11 дней", again.titleAt(again.whenMs))
+    }
+
+    @Test
     fun буква_без_аватара() {
         assertEquals("А", Tones.monogram(" алина"))
         assertEquals("?", Tones.monogram("  "))

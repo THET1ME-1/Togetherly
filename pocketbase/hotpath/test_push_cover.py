@@ -222,6 +222,14 @@ class СвоиПоРасписанию(unittest.TestCase):
         self.assertEqual(c["art_big"]["url"], f"{F}/catalog_items/art_ach_together_365/still_y.png")
         self.assertEqual(собрать("celebration", title="ДР")["art_big"], {"symbol": "cake"})
 
+    def test_дни_вместе_без_кнопок(self):
+        c = собрать("days", title="128 дней вместе", body="И это только начало")
+        self.assertEqual(c["kicker"], "Дни вместе")
+        self.assertEqual(c["art"], {"app": True})
+        self.assertNotIn("art_big", c)
+        self.assertEqual(c["actions"], [])
+        self.assertEqual(c["link"], "loveapp://open/home")
+
     def test_ту_скучает_и_приглашение(self):
         КАТАЛОГ["art_act_sad"] = (["still_sad.png"], {})
         КАТАЛОГ["art_guide_wait"] = (["still_wait.png"], {})

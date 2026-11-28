@@ -921,6 +921,28 @@
     ],
     "link": "loveapp://open/home"
    }
+  },
+  {
+   "kind": "days",
+   "lang": "ru",
+   "ctx": {
+    "title": "128 дней вместе",
+    "body": "И это только начало"
+   },
+   "cover": {
+    "v": 1,
+    "kind": "days",
+    "failed": "Не отправилось, открой приложение",
+    "kicker": "Дни вместе",
+    "title": "128 дней вместе",
+    "body": "И это только начало",
+    "tone": "app",
+    "art": {
+     "app": true
+    },
+    "actions": [],
+    "link": "loveapp://open/home"
+   }
   }
  ]
 }

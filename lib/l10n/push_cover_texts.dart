@@ -446,6 +446,17 @@ const Map<String, Map<String, String>> kPushCoverTexts = {
     'zh': '阅读',
     'uk': 'Прочитати',
   },
+  'c_days': {
+    'ru': 'Дни вместе',
+    'en': 'Days together',
+    'de': 'Tage zusammen',
+    'fr': 'Jours ensemble',
+    'es': 'Días juntos',
+    'it': 'Giorni insieme',
+    'pt': 'Dias juntos',
+    'zh': '在一起的日子',
+    'uk': 'Дні разом',
+  },
   'partner': {
     'ru': 'Партнёр',
     'en': 'Partner',

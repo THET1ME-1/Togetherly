@@ -365,6 +365,11 @@ English»). Теперь приложение кладёт код языка в 
         "ru": "Приглашение", "en": "Invitation", "de": "Einladung", "fr": "Invitation",
         "es": "Invitación", "it": "Invito", "pt": "Convite", "zh": "邀请", "uk": "Запрошення",
     },
+    "c_days": {
+        "ru": "Дни вместе", "en": "Days together", "de": "Tage zusammen", "fr": "Jours ensemble",
+        "es": "Días juntos", "it": "Giorni insieme", "pt": "Dias juntos", "zh": "在一起的日子",
+        "uk": "Дні разом",
+    },
     "a_open_letter": {
         "ru": "Прочитать", "en": "Read", "de": "Lesen", "fr": "Lire", "es": "Leer", "it": "Leggi",
         "pt": "Ler", "zh": "阅读", "uk": "Прочитати",

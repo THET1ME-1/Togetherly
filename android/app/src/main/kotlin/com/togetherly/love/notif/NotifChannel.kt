@@ -38,8 +38,10 @@ object NotifChannel {
                     val tag = call.argument<String>("tag").orEmpty()
                     val id = call.argument<Int>("id") ?: 0
                     val channel = call.argument<String>("channel").orEmpty().ifEmpty { NotifCover.CHANNEL_PARTNER }
+                    val ongoing = call.argument<Boolean>("ongoing") ?: false
+                    val silent = call.argument<Boolean>("silent") ?: false
                     worker.execute {
-                        val shown = showOrPlain(ctx, raw, title, body, tag, id, channel)
+                        val shown = showOrPlain(ctx, raw, title, body, tag, id, channel, ongoing, silent)
                         main.post { result.success(shown) }
                     }
                 }
@@ -61,6 +63,9 @@ object NotifChannel {
                                 channel = call.argument<String>("channel").orEmpty().ifEmpty { NotifCover.CHANNEL_PARTNER },
                                 exact = call.argument<Boolean>("exact") ?: false,
                                 daily = call.argument<Boolean>("daily") ?: false,
+                                ongoing = call.argument<Boolean>("ongoing") ?: false,
+                                silent = call.argument<Boolean>("silent") ?: false,
+                                titles = call.argument<List<String>>("titles").orEmpty(),
                             ),
                         )
                         result.success(true)
@@ -81,10 +86,13 @@ object NotifChannel {
      * Обложка — видом «А»; не разобралась или рисование упало — обычным
      * уведомлением: пуш данными система сама не покажет.
      */
-    fun showOrPlain(ctx: Context, raw: String, title: String, body: String, tag: String, id: Int, channel: String): Boolean {
+    fun showOrPlain(
+        ctx: Context, raw: String, title: String, body: String, tag: String, id: Int, channel: String,
+        ongoing: Boolean = false, silent: Boolean = false,
+    ): Boolean {
         val cover = CoverParser.parse(raw)
         return try {
-            if (cover != null) NotifCover.show(ctx, cover, raw, tag, id, channel)
+            if (cover != null) NotifCover.show(ctx, cover, raw, tag, id, channel, ongoing, silent)
             else NotifCover.plain(ctx, title, body, tag, id)
             true
         } catch (e: Exception) {

@@ -13,6 +13,7 @@ void main() {
     'lib/services/celebration_notification_service.dart': 'celebration',
     'lib/services/mascot_inactivity_notification_service.dart': 'mascot_miss',
     'lib/services/invite_reminder_service.dart': 'invite',
+    'lib/services/days_together_notification_service.dart': 'days',
   };
 
   for (final entry in services.entries) {
@@ -24,6 +25,15 @@ void main() {
       expect(src, contains("kind: '${entry.value}'"));
     });
   }
+
+  test('«Дни вместе»: плашка знает число на каждый день вперёд', () {
+    // Прежний ежедневный повтор плагина показывал одно и то же число, пока
+    // приложение не открыли.
+    final src = File('lib/services/days_together_notification_service.dart').readAsStringSync();
+    expect(src, contains('daily: true'));
+    expect(src, contains('dailyTitles: titles'));
+    expect(src, isNot(contains('matchDateTimeComponents')));
+  });
 
   test('виды своих уведомлений знает сборщик обложки', () {
     final cover = File('lib/models/push_cover.dart').readAsStringSync();

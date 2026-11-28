@@ -44,7 +44,14 @@ object NotifCover {
      * Показать [cover] под меткой [tag] и номером [id] (у пуша — вид события и
      * 0, как у прежнего пуша FCM: своё уведомление Dart встаёт туда же).
      */
-    fun show(ctx: Context, cover: Cover, raw: String, tag: String, id: Int, channel: String = CHANNEL_PARTNER) {
+    /**
+     * [ongoing] — постоянная плашка, смахнуть нельзя («Дни вместе»),
+     * [silent] — без звука и всплытия.
+     */
+    fun show(
+        ctx: Context, cover: Cover, raw: String, tag: String, id: Int, channel: String = CHANNEL_PARTNER,
+        ongoing: Boolean = false, silent: Boolean = false,
+    ) {
         ensureChannel(ctx, channel)
         if (cover.chat != null) {
             NotifChat.show(ctx, cover, raw, tag, id, channel)
@@ -83,9 +90,18 @@ object NotifCover {
             .setCustomContentView(collapsed)
             .setCustomBigContentView(expanded)
             .setContentIntent(open(ctx, cover.link))
-            .setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(if (cover.fromApp) NotificationCompat.CATEGORY_REMINDER else NotificationCompat.CATEGORY_SOCIAL)
+            .setAutoCancel(!ongoing)
+            .setOngoing(ongoing)
+            .setSilent(silent)
+            .setOnlyAlertOnce(silent)
+            .setPriority(if (silent) NotificationCompat.PRIORITY_LOW else NotificationCompat.PRIORITY_HIGH)
+            .setCategory(
+                when {
+                    ongoing -> NotificationCompat.CATEGORY_STATUS
+                    cover.fromApp -> NotificationCompat.CATEGORY_REMINDER
+                    else -> NotificationCompat.CATEGORY_SOCIAL
+                },
+            )
         post(ctx, tag, id, builder)
     }
 

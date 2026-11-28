@@ -393,6 +393,18 @@ Map<String, Object?>? _buildCover(
         ]),
         'link': '${kCoverOpen}home',
       };
+    case 'days':
+      // Постоянная тихая плашка «N дней вместе»: иконка приложения, без кнопок.
+      return {
+        ...base,
+        'kicker': _t('c_days', lang),
+        'title': title,
+        'body': body,
+        'tone': 'app',
+        'art': {'app': true},
+        'actions': const <Map<String, Object?>>[],
+        'link': '${kCoverOpen}home',
+      };
     case 'invite':
       return {
         ...base,

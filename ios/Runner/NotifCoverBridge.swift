@@ -47,7 +47,8 @@ enum NotifCoverBridge {
           return
         }
         schedule(cover, raw: raw, id: id, whenMs: when,
-                 title: args["title"] as? String ?? "", body: args["body"] as? String ?? "") { ok in
+                 title: args["title"] as? String ?? "", body: args["body"] as? String ?? "",
+                 silent: args["silent"] as? Bool ?? false) { ok in
           DispatchQueue.main.async { result(ok) }
         }
       case "cancelScheduled":
@@ -128,8 +129,10 @@ enum NotifCoverBridge {
   /// срабатывания. Номер — как у плагина уведомлений (`"\(id)"`): его
   /// отмена по номеру снимает и наше.
   private static func schedule(_ cover: Cover, raw: String, id: Int, whenMs: Int64, title: String, body: String,
-                               done: @escaping (Bool) -> Void) {
+                               silent: Bool, done: @escaping (Bool) -> Void) {
     let content = local(cover, raw: raw, title: title, body: body, thread: cover.kind)
+    // «Дни вместе» — без звука, как прежде.
+    if silent { content.sound = nil }
     let seconds = max(1, Double(whenMs - NotifNetIOS.nowMs()) / 1000)
     CoverMedia.urls(for: cover) { urls in
       CoverMedia.fetch(urls) { got in
